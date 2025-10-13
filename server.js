@@ -96,6 +96,8 @@ async function initializeData() {
             photosData = [];
         }
         
+        schedulesData = await scheduleParser.initializeSchedules(dataPath);
+        
     } catch (error) {
         console.error('Error initializing data:', error);
     }
@@ -137,53 +139,7 @@ app.get('/api/schedules/search', async (req, res) => {
     try {
         const { course, query } = req.query;
         
-        if (schedulesData.length === 0) {
-            schedulesData = [
-                {
-                    id: '1',
-                    name: 'ННІМВ КНУ ім. Т.Г. Шевченка з ОП (СЗ) Міжнародні комунікації',
-                    code: 'C1',
-                    course: '1',
-                    schedule: {
-                        monday: [
-                            { time: '08:30-10:05', subject: 'Українська мова', teacher: 'Проф. Іваненко О.П.', room: 'ауд. 201' },
-                            { time: '10:25-12:00', subject: 'Англійська мова', teacher: 'Доц. Петренко М.В.', room: 'ауд. 305' },
-                            { time: '12:20-13:55', subject: 'Історія України', teacher: 'Доц. Сидоренко А.І.', room: 'ауд. 115' }
-                        ],
-                        tuesday: [
-                            { time: '08:30-10:05', subject: 'Математика', teacher: 'Проф. Коваленко С.М.', room: 'ауд. 410' },
-                            { time: '10:25-12:00', subject: 'Інформатика', teacher: 'Ст. викл. Бондар Т.В.', room: 'лаб. 2' }
-                        ],
-                        wednesday: [
-                            { time: '10:25-12:00', subject: 'Філософія', teacher: 'Доц. Мельник В.О.', room: 'ауд. 220' },
-                            { time: '12:20-13:55', subject: 'Фізична культура', teacher: 'Тренер Шевченко Д.П.', room: 'спорт. зал' }
-                        ],
-                        thursday: [
-                            { time: '08:30-10:05', subject: 'Економіка', teacher: 'Проф. Литвин Н.А.', room: 'ауд. 301' },
-                            { time: '10:25-12:00', subject: 'Соціологія', teacher: 'Доц. Кравченко Ю.С.', room: 'ауд. 215' }
-                        ],
-                        friday: [
-                            { time: '08:30-10:05', subject: 'Культурологія', teacher: 'Проф. Гончар І.М.', room: 'ауд. 120' }
-                        ]
-                    }
-                }
-            ];
-        }
-        
-        let results = schedulesData;
-        
-        if (course) {
-            results = results.filter(s => s.course === course);
-        }
-        
-        if (query) {
-            const q = query.toLowerCase();
-            results = results.filter(s => 
-                s.name.toLowerCase().includes(q) || 
-                s.code.toLowerCase().includes(q)
-            );
-        }
-        
+        const results = await scheduleParser.searchSchedules(query, course);
         res.json(results);
     } catch (error) {
         console.error('Error searching schedules:', error);
