@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>U-hub</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --app-bg: #EFEFF4;
+            --card-bg: #FFFFFF;
+            --text-primary: #000000;
+            --text-secondary: #8E8E93;
+            --text-accent: #007AFF;
+            --button-bg: #007AFF;
+            --button-text: #FFFFFF;
+            --tag-bg: #C8FB51;
+            --tag-text: #000000;
+            --border-color: #C8C7CC;
+        }
+        html {
+             -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--app-bg);
+            color: var(--text-primary);
+            margin: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .page {
+            display: none;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: var(--app-bg);
+        }
+        .page.active {
+            display: flex;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1rem 0.75rem 1rem;
+            background-color: var(--app-bg);
+        }
+        .app-header .logo {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #4E4E4E;
+        }
+        .app-header .time-date {
+            text-align: center;
+        }
+        .app-header .time {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .app-header .date {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+        .app-header .uni-logo {
+            width: 40px;
+            height: 40px;
+        }
+        .bottom-nav-link {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            text-decoration: underline;
+            padding: 1rem 0;
+            margin-top: auto;
+            align-self: center;
+            cursor: pointer;
+        }
+        .bordered-button {
+            border: 1.5px solid var(--text-secondary);
+            color: var(--text-secondary);
+            font-weight: 500;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            text-align: center;
+        }
+        .event-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .chat-message {
+            background: #E5E5EA;
+            padding: 0.5rem 1rem;
+            border-radius: 18px;
+            margin-bottom: 0.5rem;
+            max-width: 70%;
+        }
+        .chat-message.own {
+            background: #007AFF;
+            color: white;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+    <!-- PAGE 1: Главная -->
+    <div id="page-main" class="page active">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date">
+                <div class="time" id="current-time">12:07:05</div>
+                <div class="date" id="current-date">12 серпня 2025 р</div>
+            </div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="p-4 space-y-4">
+            <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="goToPage('page-news-feed')">
+                <div class="relative">
+                    <img src="https://placehold.co/600x300/a3e635/444?text=News" class="w-full h-36 object-cover rounded-t-xl" id="main-news-img">
+                    <span class="absolute top-3 left-3 text-white text-xs font-medium" id="main-news-date">28.05.2025</span>
+                    <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Новини</span>
+                </div>
+                <div class="p-4">
+                    <p class="font-bold" id="main-news-title">Завантаження новин...</p>
+                    <p class="text-sm text-gray-500 mt-1" id="main-news-source">U-hub</p>
+                </div>
+            </div>
+            <div id="main-schedule-card" class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="handleScheduleClick()">
+                <div class="relative">
+                    <img src="https://placehold.co/600x300/60a5fa/FFF?text=Schedule" class="w-full h-36 object-cover rounded-t-xl">
+                    <span class="absolute top-3 left-3 text-white text-xs font-medium">28.05.2025</span>
+                    <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Розклади</span>
+                </div>
+                <div class="p-4">
+                    <p class="font-bold">Твій розклад</p>
+                    <p id="main-schedule-subtitle" class="text-sm text-gray-500 mt-1" style="display:none;">• Додайте розклад</p>
+                </div>
+            </div>
+             <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="goToPage('page-video')">
+                 <div class="relative">
+                    <img src="https://placehold.co/600x300/f87171/FFF?text=Video" class="w-full h-36 object-cover rounded-t-xl">
+                    <span class="absolute top-3 left-3 text-white text-xs font-medium">28.05.2025</span>
+                    <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Video&</span>
+                </div>
+                <div class="p-2 grid grid-cols-3 gap-2" id="main-video-grid">
+                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="goToPage('page-events-list')">
+                <div class="relative">
+                    <img src="https://placehold.co/600x300/c084fc/FFF?text=Events" class="w-full h-36 object-cover rounded-t-xl" id="main-event-img">
+                    <span class="absolute top-3 left-3 text-white text-xs font-medium">28.05.2025</span>
+                    <i data-lucide="camera" class="absolute top-3 right-3 text-white cursor-pointer" onclick="goToPage(event, 'page-event-photos')"></i>
+                    <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Івенти</span>
+                </div>
+                <div class="p-4">
+                    <p class="font-bold" id="main-event-title">Завантаження подій...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- PAGE 2: Новости Feed -->
+    <div id="page-news-feed" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time" id="news-time">12:07:05</div><div class="date" id="news-date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+            <div class="bg-white divide-y divide-gray-200 rounded-xl shadow-sm" id="news-list">
+                <div class="p-4 text-center text-gray-500">Завантаження новин...</div>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
+    </div>
+
+    <!-- PAGE 3: Новость Detail -->
+    <div id="page-news-detail" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4">
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center space-x-2">
+                        <img src="https://placehold.co/32x32/DDD/333?text=N" class="rounded-full" id="news-detail-avatar">
+                        <span class="text-sm font-medium" id="news-detail-source">Джерело</span>
+                        <span class="text-sm text-gray-500" id="news-detail-time">нещодавно</span>
+                    </div>
+                    <i data-lucide="share-2" class="text-blue-500 cursor-pointer" onclick="shareNews()"></i>
+                </div>
+                <h1 class="text-xl font-bold mb-4" id="news-detail-title">Заголовок новини</h1>
+                <img id="news-detail-image" class="w-full rounded-lg mb-4" style="display:none;">
+                <p class="text-gray-700 leading-relaxed" id="news-detail-content">Текст новини...</p>
+                <a id="news-detail-link" href="#" target="_blank" class="text-blue-500 underline mt-4 block">Читати повністю</a>
+            </div>
+        </main>
+        <div class="p-4 text-center">
+             <div class="bordered-button inline-block cursor-pointer" onclick="goToPage('page-news-feed')">Всі новини</div>
+        </div>
+    </div>
+    
+    <!-- PAGE 4: Поиск Расписания -->
+    <div id="page-schedule-search" class="page">
+        <header class="app-header">
+             <div class="logo">U-hub</div>
+             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+             <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 pt-8">
+            <h1 class="text-center text-xl font-bold mb-8">Розклади занять</h1>
+            <div class="space-y-4 max-w-sm mx-auto">
+                 <div>
+                    <label class="text-sm text-gray-600">Курс:</label>
+                    <div class="relative mt-1">
+                        <select id="schedule-course" class="w-full bg-white border border-gray-300 rounded-lg p-3 appearance-none">
+                            <option value="">Оберіть курс</option>
+                            <option value="1">1 курс</option>
+                            <option value="2">2 курс</option>
+                            <option value="3">3 курс</option>
+                            <option value="4">4 курс</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="absolute right-3 top-3.5 text-gray-400"></i>
+                    </div>
+                </div>
+                 <div>
+                    <label class="text-sm text-gray-600">Пошук по коду або по назві спеціальності:</label>
+                    <div class="relative mt-1">
+                        <input type="text" id="schedule-search-input" placeholder="Введіть код або назву" class="w-full bg-white border border-gray-300 rounded-lg p-3 pl-10">
+                        <i data-lucide="search" class="absolute left-3 top-3.5 text-gray-400"></i>
+                    </div>
+                </div>
+                <div id="schedule-results" class="space-y-2" style="display:none;">
+                </div>
+                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg shadow-sm mt-4" onclick="searchSchedule()">Пошук</button>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
+    </div>
+    
+    <!-- PAGE 5: Список Расписаний -->
+    <div id="page-schedule-list" class="page">
+        <header class="app-header">
+             <div class="logo">U-hub</div>
+             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+             <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+             <div class="bg-white rounded-xl shadow-sm p-4 text-center">
+                 <h1 class="text-lg font-bold">Розклад занять</h1>
+                 <p class="font-semibold mt-2" id="schedule-list-title">ННІМВ КНУ ім. Т.Г. Шевченка</p>
+                 <p class="text-sm text-gray-500 mt-1">На І семестр 2025 / 2026 навчального року</p>
+             </div>
+             <div class="grid grid-cols-2 gap-4">
+                 <div class="cursor-pointer" onclick="viewScheduleDay('monday')">
+                     <p class="text-center font-semibold text-blue-500 mb-1">Понеділок</p>
+                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 </div>
+                 <div class="cursor-pointer" onclick="viewScheduleDay('tuesday')">
+                     <p class="text-center font-semibold text-blue-500 mb-1">Вівторок</p>
+                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 </div>
+                 <div class="cursor-pointer" onclick="viewScheduleDay('wednesday')">
+                     <p class="text-center font-semibold text-blue-500 mb-1">Середа</p>
+                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 </div>
+                 <div class="cursor-pointer" onclick="viewScheduleDay('thursday')">
+                     <p class="text-center font-semibold text-blue-500 mb-1">Четвер</p>
+                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 </div>
+             </div>
+             <div class="cursor-pointer" onclick="viewScheduleDay('friday')">
+                <p class="text-center font-semibold text-blue-500 mb-1">П'ятниця</p>
+                <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full mx-auto max-w-xs">
+             </div>
+        </main>
+        <div class="flex items-center justify-center space-x-8 p-4 bg-gray-50 border-t">
+            <div class="bottom-nav-link !mt-0" onclick="goToPage('page-main')">На головну</div>
+            <button class="bg-blue-500 text-white font-semibold px-6 py-3 rounded-lg shadow" onclick="addSchedule()">Додати в "Мій розклад"</button>
+        </div>
+    </div>
+    
+    <!-- PAGE 6: Расписание День Detail -->
+     <div id="page-schedule-detail" class="page">
+        <header class="app-header">
+             <div class="logo">U-hub</div>
+             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+             <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+            <div class="bg-white rounded-xl shadow-sm p-4 text-center">
+                 <h1 class="text-lg font-bold">Розклад занять</h1>
+                 <p class="font-semibold mt-2" id="schedule-detail-title">ННІМВ КНУ ім. Т.Г. Шевченка</p>
+                 <p class="text-sm text-gray-500 mt-1">На І семестр 2025 / 2026 навчального року</p>
+            </div>
+            <p class="text-center font-semibold text-xl" id="schedule-detail-day">Понеділок</p>
+            <div class="bg-white rounded-xl shadow-sm p-4" id="schedule-detail-content">
+                <div class="space-y-4" id="schedule-classes">
+                    <div class="text-gray-500 text-center">Завантаження розкладу...</div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <h3 class="font-bold mb-3">Схеми переміщення по університету</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <img src="https://placehold.co/200x200/DDD/555?text=Map+1" class="rounded-lg">
+                    <img src="https://placehold.co/200x200/DDD/555?text=Map+2" class="rounded-lg">
+                </div>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-schedule-list')">Назад до розкладу</div>
+    </div>
+
+    <!-- PAGE 7: Video Upload/View -->
+    <div id="page-video" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+            <h1 class="text-center text-xl font-bold">Відео</h1>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <label class="block w-full bg-blue-500 text-white text-center font-semibold py-3 rounded-lg cursor-pointer">
+                    <input type="file" id="video-upload" accept="video/*" class="hidden" onchange="uploadVideo()">
+                    Завантажити відео
+                </label>
+                <p class="text-sm text-gray-500 text-center mt-2">Відео буде опубліковано після модерації</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <h2 class="font-bold mb-3">Переглянути у TikTok</h2>
+                <a href="https://www.tiktok.com/" target="_blank" class="block bg-gray-100 text-center py-3 rounded-lg font-medium">
+                    Відкрити канал TikTok
+                </a>
+            </div>
+            <div id="video-status" class="hidden bg-white rounded-xl shadow-sm p-4"></div>
+            <div id="admin-video-panel" class="hidden">
+                <h2 class="font-bold text-lg mb-3">Панель адміністратора</h2>
+                <div id="pending-videos" class="space-y-3"></div>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
+    </div>
+
+    <!-- PAGE 8: Events List -->
+    <div id="page-events-list" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+            <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="goToPage('page-event-create')">Запропонувати івент</button>
+            <div id="events-container" class="space-y-4">
+                <div class="text-center text-gray-500">Завантаження подій...</div>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
+    </div>
+
+    <!-- PAGE 9: Event Detail -->
+    <div id="page-event-detail" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4">
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <h1 class="text-xl font-bold mb-2" id="event-detail-title">Назва події</h1>
+                <div class="flex items-center text-sm text-gray-600 mb-4">
+                    <i data-lucide="calendar" class="w-4 h-4 mr-1"></i>
+                    <span id="event-detail-date">Дата</span>
+                    <i data-lucide="clock" class="w-4 h-4 ml-3 mr-1"></i>
+                    <span id="event-detail-time">Час</span>
+                </div>
+                <div class="flex items-center text-sm text-gray-600 mb-4">
+                    <i data-lucide="map-pin" class="w-4 h-4 mr-1"></i>
+                    <span id="event-detail-location">Місце</span>
+                </div>
+                <p class="text-gray-700 mb-4" id="event-detail-description">Опис події...</p>
+                <div class="flex items-center text-sm text-gray-600 mb-4">
+                    <i data-lucide="users" class="w-4 h-4 mr-1"></i>
+                    <span id="event-detail-participants">0 учасників</span>
+                </div>
+                <button id="event-join-btn" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="joinEvent()">Приєднатися</button>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-events-list')">Назад до подій</div>
+    </div>
+
+    <!-- PAGE 10: Event Chat -->
+    <div id="page-event-chat" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 flex flex-col">
+            <h2 class="text-lg font-bold mb-3" id="event-chat-title">Чат події</h2>
+            <div class="flex-grow bg-white rounded-xl shadow-sm p-4 mb-4 overflow-y-auto" id="chat-messages" style="max-height: 60vh;">
+                <div class="chat-message">Привіт! Вітаємо в чаті події</div>
+            </div>
+            <div class="flex space-x-2">
+                <input type="text" id="chat-input" placeholder="Напишіть повідомлення..." class="flex-grow bg-white border border-gray-300 rounded-lg p-3">
+                <button class="bg-blue-500 text-white px-4 rounded-lg" onclick="sendMessage()">
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-event-detail')">Назад до події</div>
+    </div>
+
+    <!-- PAGE 11: Event Create -->
+    <div id="page-event-create" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 pt-8">
+            <h1 class="text-center text-xl font-bold mb-8">Створити івент</h1>
+            <div class="space-y-4 max-w-sm mx-auto">
+                <div>
+                    <label class="text-sm text-gray-600">Назва події:</label>
+                    <input type="text" id="event-name" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600">Дата:</label>
+                    <input type="date" id="event-date" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600">Час:</label>
+                    <input type="time" id="event-time" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600">Місце:</label>
+                    <input type="text" id="event-location" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600">Опис:</label>
+                    <textarea id="event-description" rows="4" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1"></textarea>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600">Термін дії події (годин):</label>
+                    <input type="number" id="event-duration" value="24" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
+                </div>
+                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="createEvent()">Створити</button>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-events-list')">Назад</div>
+    </div>
+
+    <!-- PAGE 12: Event Photos -->
+    <div id="page-event-photos" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+            <h1 class="text-center text-xl font-bold">Фото подій</h1>
+            <div class="bg-white rounded-xl shadow-sm p-4">
+                <label class="block w-full bg-blue-500 text-white text-center font-semibold py-3 rounded-lg cursor-pointer">
+                    <input type="file" id="photo-upload" accept="image/*" multiple class="hidden" onchange="uploadPhotos()">
+                    Завантажити фото
+                </label>
+            </div>
+            <div id="photos-grid" class="grid grid-cols-3 gap-2">
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
+    </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
