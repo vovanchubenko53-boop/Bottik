@@ -751,16 +751,45 @@ if (window.Telegram && window.Telegram.WebApp) {
 
 lucide.createIcons();
 
+function preloadImage(img, src, position) {
+    const image = new Image();
+    image.onload = () => {
+        img.src = src;
+        if (position) {
+            img.style.objectPosition = `${position.x}% ${position.y}%`;
+        }
+        img.classList.add('loaded');
+        if (img.parentElement && img.parentElement.classList.contains('image-container')) {
+            img.parentElement.classList.add('loaded');
+        }
+    };
+    image.src = src;
+}
+
 async function loadHeroImages() {
     try {
         const response = await fetch(`${API_URL}/api/settings/images`);
-        const images = await response.json();
+        const data = await response.json();
+        const images = data.images || data;
+        const positions = data.positions || {};
         
         if (images.news) {
-            document.getElementById('main-news-img').src = images.news;
+            const newsImg = document.getElementById('main-news-img');
+            preloadImage(newsImg, images.news, positions.news);
+        }
+        if (images.schedule) {
+            const scheduleImgs = document.querySelectorAll('#main-schedule-card img');
+            scheduleImgs.forEach(img => {
+                preloadImage(img, images.schedule, positions.schedule);
+            });
+        }
+        if (images.video) {
+            const videoImg = document.getElementById('main-video-img');
+            preloadImage(videoImg, images.video, positions.video);
         }
         if (images.events) {
-            document.getElementById('main-event-img').src = images.events;
+            const eventImg = document.getElementById('main-event-img');
+            preloadImage(eventImg, images.events, positions.events);
         }
     } catch (error) {
         console.error('Error loading hero images:', error);

@@ -306,6 +306,16 @@
                 document.getElementById('img-video').value = settings.heroImages.video;
                 document.getElementById('img-events').value = settings.heroImages.events;
                 
+                const positions = settings.imagePositions || {};
+                const blocks = ['news', 'schedule', 'video', 'events'];
+                blocks.forEach(block => {
+                    const pos = positions[block] || { x: 50, y: 50 };
+                    document.getElementById(`pos-x-${block}`).value = pos.x;
+                    document.getElementById(`pos-y-${block}`).value = pos.y;
+                    document.getElementById(`pos-x-${block}-val`).textContent = pos.x + '%';
+                    document.getElementById(`pos-y-${block}-val`).textContent = pos.y + '%';
+                });
+                
                 updatePreviews();
                 
                 const usersRes = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`);
@@ -341,11 +351,14 @@
             images.forEach(img => {
                 const input = document.getElementById(`img-${img}`);
                 const preview = document.getElementById(`preview-${img}`);
+                const posX = document.getElementById(`pos-x-${img}`).value || 50;
+                const posY = document.getElementById(`pos-y-${img}`).value || 50;
                 
                 input.addEventListener('input', () => {
                     if (input.value) {
                         preview.src = input.value;
                         preview.classList.remove('hidden');
+                        preview.style.objectPosition = `${posX}% ${posY}%`;
                         document.getElementById(`file-${img}`).value = '';
                     } else {
                         preview.classList.add('hidden');
@@ -355,6 +368,7 @@
                 if (input.value) {
                     preview.src = input.value;
                     preview.classList.remove('hidden');
+                    preview.style.objectPosition = `${posX}% ${posY}%`;
                 }
             });
         }

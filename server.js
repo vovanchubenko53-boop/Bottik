@@ -66,6 +66,12 @@ let adminSettings = {
         schedule: 'https://placehold.co/600x300/60a5fa/FFF?text=Schedule',
         video: 'https://placehold.co/600x300/f87171/FFF?text=Video',
         events: 'https://placehold.co/600x300/c084fc/FFF?text=Events'
+    },
+    imagePositions: {
+        news: { x: 50, y: 50 },
+        schedule: { x: 50, y: 50 },
+        video: { x: 50, y: 50 },
+        events: { x: 50, y: 50 }
     }
 };
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '1234';
@@ -190,6 +196,7 @@ async function initializeData() {
         await loadBotUsers();
         await loadAdminSettings();
         await loadUserRestrictions();
+        await loadEventParticipants();
         
     } catch (error) {
         console.error('Error initializing data:', error);
@@ -202,6 +209,7 @@ async function saveData() {
         await fs.writeFile(path.join(dataPath, 'events.json'), JSON.stringify(eventsData, null, 2));
         await fs.writeFile(path.join(dataPath, 'videos.json'), JSON.stringify(videosData, null, 2));
         await fs.writeFile(path.join(dataPath, 'photos.json'), JSON.stringify(photosData, null, 2));
+        await saveEventParticipants();
     } catch (error) {
         console.error('Error saving data:', error);
     }
@@ -269,8 +277,34 @@ async function loadAdminSettings() {
                 schedule: 'https://placehold.co/600x300/60a5fa/FFF?text=Schedule',
                 video: 'https://placehold.co/600x300/f87171/FFF?text=Video',
                 events: 'https://placehold.co/600x300/c084fc/FFF?text=Events'
+            },
+            imagePositions: {
+                news: { x: 50, y: 50 },
+                schedule: { x: 50, y: 50 },
+                video: { x: 50, y: 50 },
+                events: { x: 50, y: 50 }
             }
         };
+    }
+}
+
+async function saveEventParticipants() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        await fs.mkdir(dataPath, { recursive: true });
+        await fs.writeFile(path.join(dataPath, 'eventParticipants.json'), JSON.stringify(eventParticipants, null, 2));
+    } catch (error) {
+        console.error('Error saving event participants:', error);
+    }
+}
+
+async function loadEventParticipants() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        const participantsFile = await fs.readFile(path.join(dataPath, 'eventParticipants.json'), 'utf-8');
+        eventParticipants = JSON.parse(participantsFile);
+    } catch (e) {
+        eventParticipants = {};
     }
 }
 
@@ -813,6 +847,10 @@ app.post('/api/admin/upload-hero-images', uploadHeroImage.fields([
     try {
         const blocks = ['news', 'schedule', 'video', 'events'];
         
+        if (!adminSettings.imagePositions) {
+            adminSettings.imagePositions = {};
+        }
+        
         for (const block of blocks) {
             if (req.files && req.files[block]) {
                 const file = req.files[block][0];
@@ -820,10 +858,19 @@ app.post('/api/admin/upload-hero-images', uploadHeroImage.fields([
             } else if (req.body[`${block}_url`]) {
                 adminSettings.heroImages[block] = req.body[`${block}_url`];
             }
+            
+            if (req.body[`${block}_position_x`] !== undefined && req.body[`${block}_position_y`] !== undefined) {
+                const posX = parseInt(req.body[`${block}_position_x`]);
+                const posY = parseInt(req.body[`${block}_position_y`]);
+                adminSettings.imagePositions[block] = {
+                    x: Number.isNaN(posX) ? 50 : posX,
+                    y: Number.isNaN(posY) ? 50 : posY
+                };
+            }
         }
         
         await saveAdminSettings();
-        res.json({ success: true, images: adminSettings.heroImages });
+        res.json({ success: true, images: adminSettings.heroImages, positions: adminSettings.imagePositions });
     } catch (error) {
         console.error('Error uploading hero images:', error);
         res.status(500).json({ error: 'Failed to upload images' });
@@ -831,7 +878,10 @@ app.post('/api/admin/upload-hero-images', uploadHeroImage.fields([
 });
 
 app.get('/api/settings/images', (req, res) => {
-    res.json(adminSettings.heroImages);
+    res.json({
+        images: adminSettings.heroImages,
+        positions: adminSettings.imagePositions || {}
+    });
 });
 
 async function parseExcelSchedule(filePath) {
