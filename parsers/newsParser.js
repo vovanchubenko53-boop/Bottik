@@ -174,7 +174,10 @@ async function parseTelegramChannel(channelName) {
         const $ = cheerio.load(response.data);
         const articles = [];
         
-        $('.tgme_widget_message').slice(0, 5).each((i, elem) => {
+        const messages = $('.tgme_widget_message').toArray();
+        const latestMessages = messages.slice(-10);
+        
+        latestMessages.forEach((elem) => {
             const messageText = $(elem).find('.tgme_widget_message_text').text().trim();
             const link = $(elem).find('.tgme_widget_message_date').attr('href');
             const dateText = $(elem).find('.tgme_widget_message_date time').attr('datetime');

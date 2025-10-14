@@ -59,6 +59,7 @@ let photosData = [];
 let eventMessages = {};
 let eventParticipants = {};
 let botUsers = [];
+let userRestrictions = {};
 let adminSettings = {
     heroImages: {
         news: 'https://placehold.co/600x300/a3e635/444?text=News',
@@ -67,7 +68,7 @@ let adminSettings = {
         events: 'https://placehold.co/600x300/c084fc/FFF?text=Events'
     }
 };
-const ADMIN_PASSWORD = '1234';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '1234';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 let bot = null;
@@ -111,6 +112,27 @@ if (BOT_TOKEN) {
                         video.status = 'rejected';
                         video.rejectedAt = new Date().toISOString();
                         bot.editMessageText(`❌ Відео відхилено`, {
+                            chat_id: query.message.chat.id,
+                            message_id: query.message.message_id
+                        });
+                    }
+                    await saveData();
+                }
+                bot.answerCallbackQuery(query.id);
+            } else if (data.type === 'event_mod') {
+                const event = eventsData.find(e => e.id === data.eventId);
+                if (event) {
+                    if (data.action === 'approve') {
+                        event.status = 'approved';
+                        event.approvedAt = new Date().toISOString();
+                        bot.editMessageText(`✅ Івент схвалено`, {
+                            chat_id: query.message.chat.id,
+                            message_id: query.message.message_id
+                        });
+                    } else if (data.action === 'reject') {
+                        event.status = 'rejected';
+                        event.rejectedAt = new Date().toISOString();
+                        bot.editMessageText(`❌ Івент відхилено`, {
                             chat_id: query.message.chat.id,
                             message_id: query.message.message_id
                         });
@@ -167,6 +189,7 @@ async function initializeData() {
         
         await loadBotUsers();
         await loadAdminSettings();
+        await loadUserRestrictions();
         
     } catch (error) {
         console.error('Error initializing data:', error);
@@ -201,6 +224,26 @@ async function loadBotUsers() {
         botUsers = JSON.parse(botUsersFile);
     } catch (e) {
         botUsers = [];
+    }
+}
+
+async function saveUserRestrictions() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        await fs.mkdir(dataPath, { recursive: true });
+        await fs.writeFile(path.join(dataPath, 'userRestrictions.json'), JSON.stringify(userRestrictions, null, 2));
+    } catch (error) {
+        console.error('Error saving user restrictions:', error);
+    }
+}
+
+async function loadUserRestrictions() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        const restrictionsFile = await fs.readFile(path.join(dataPath, 'userRestrictions.json'), 'utf-8');
+        userRestrictions = JSON.parse(restrictionsFile);
+    } catch (e) {
+        userRestrictions = {};
     }
 }
 
@@ -265,7 +308,8 @@ app.get('/api/schedules/search', async (req, res) => {
 });
 
 app.get('/api/events', (req, res) => {
-    res.json(eventsData);
+    const approvedEvents = eventsData.filter(e => e.status === 'approved' || !e.status);
+    res.json(approvedEvents);
 });
 
 app.get('/api/events/:id', (req, res) => {
@@ -291,14 +335,33 @@ app.post('/api/events', async (req, res) => {
             participants: 0,
             createdAt: new Date().toISOString(),
             expiresAt: new Date(Date.now() + (duration || 24) * 60 * 60 * 1000).toISOString(),
-            joined: false
+            joined: false,
+            status: 'pending'
         };
         
         eventsData.push(newEvent);
         eventMessages[newEvent.id] = [];
         await saveData();
         
-        res.json(newEvent);
+        if (bot && botUsers.length > 0) {
+            const adminUsers = botUsers.slice(0, 1);
+            for (const admin of adminUsers) {
+                try {
+                    await bot.sendMessage(admin.chatId, `🎉 Новий івент на модерацію:\n\n📝 Назва: ${newEvent.title}\n📅 Дата: ${newEvent.date}\n⏰ Час: ${newEvent.time}\n📍 Місце: ${newEvent.location}\n\nОпис: ${newEvent.description}`, {
+                        reply_markup: {
+                            inline_keyboard: [[
+                                { text: '✅ Підтвердити', callback_data: JSON.stringify({ type: 'event_mod', eventId: newEvent.id, action: 'approve' }) },
+                                { text: '❌ Відхилити', callback_data: JSON.stringify({ type: 'event_mod', eventId: newEvent.id, action: 'reject' }) }
+                            ]]
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error sending event notification to bot:', error.message);
+                }
+            }
+        }
+        
+        res.json({ success: true, message: 'Ваш івент відправлено на модерацію. Очікуйте на розгляд.', event: newEvent });
     } catch (error) {
         console.error('Error creating event:', error);
         res.status(500).json({ error: 'Failed to create event' });
@@ -368,6 +431,17 @@ app.get('/api/events/:id/joined', (req, res) => {
 app.post('/api/events/:id/messages', (req, res) => {
     const { message, userId, firstName, photoUrl } = req.body;
     const eventId = req.params.id;
+    
+    const restrictionKey = `${eventId}_${userId}`;
+    if (userRestrictions[restrictionKey]) {
+        const restriction = userRestrictions[restrictionKey];
+        if (restriction.blocked) {
+            return res.status(403).json({ error: 'Ви заблоковані в цьому івенті' });
+        }
+        if (restriction.muted && (!restriction.muteUntil || new Date(restriction.muteUntil) > new Date())) {
+            return res.status(403).json({ error: 'Ви в муті. Не можете писати повідомлення' });
+        }
+    }
     
     if (!eventMessages[eventId]) {
         eventMessages[eventId] = [];
@@ -603,6 +677,126 @@ app.get('/api/admin/videos/pending', (req, res) => {
     
     const pendingVideos = videosData.filter(v => v.status === 'pending');
     res.json(pendingVideos);
+});
+
+app.get('/api/admin/events/pending', (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    const pendingEvents = eventsData.filter(e => e.status === 'pending');
+    res.json(pendingEvents);
+});
+
+app.post('/api/admin/events/:id/moderate', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        const { action } = req.body;
+        const event = eventsData.find(e => e.id === req.params.id);
+        
+        if (!event) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+        
+        if (action === 'approve') {
+            event.status = 'approved';
+            event.approvedAt = new Date().toISOString();
+            res.json({ success: true, message: 'Івент схвалено' });
+        } else if (action === 'reject') {
+            event.status = 'rejected';
+            event.rejectedAt = new Date().toISOString();
+            res.json({ success: true, message: 'Івент відхилено' });
+        }
+        
+        await saveData();
+    } catch (error) {
+        console.error('Error moderating event:', error);
+        res.status(500).json({ error: 'Failed to moderate event' });
+    }
+});
+
+app.get('/api/admin/events/all', (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    res.json(eventsData);
+});
+
+app.get('/api/admin/events/:id/participants', (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    const eventId = req.params.id;
+    const participants = eventParticipants[eventId] || [];
+    
+    const participantsWithRestrictions = participants.map(p => {
+        const restrictionKey = `${eventId}_${p.userId}`;
+        return {
+            ...p,
+            restrictions: userRestrictions[restrictionKey] || null
+        };
+    });
+    
+    res.json(participantsWithRestrictions);
+});
+
+app.post('/api/admin/events/:id/restrict-user', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        const eventId = req.params.id;
+        const { userId, action, duration } = req.body;
+        const restrictionKey = `${eventId}_${userId}`;
+        
+        if (action === 'block') {
+            userRestrictions[restrictionKey] = {
+                blocked: true,
+                blockedAt: new Date().toISOString()
+            };
+        } else if (action === 'mute') {
+            const muteUntil = duration ? new Date(Date.now() + duration * 60 * 1000).toISOString() : null;
+            userRestrictions[restrictionKey] = {
+                muted: true,
+                mutedAt: new Date().toISOString(),
+                muteUntil
+            };
+        } else if (action === 'unblock') {
+            if (userRestrictions[restrictionKey]) {
+                delete userRestrictions[restrictionKey].blocked;
+                delete userRestrictions[restrictionKey].blockedAt;
+                if (Object.keys(userRestrictions[restrictionKey]).length === 0) {
+                    delete userRestrictions[restrictionKey];
+                }
+            }
+        } else if (action === 'unmute') {
+            if (userRestrictions[restrictionKey]) {
+                delete userRestrictions[restrictionKey].muted;
+                delete userRestrictions[restrictionKey].mutedAt;
+                delete userRestrictions[restrictionKey].muteUntil;
+                if (Object.keys(userRestrictions[restrictionKey]).length === 0) {
+                    delete userRestrictions[restrictionKey];
+                }
+            }
+        }
+        
+        await saveUserRestrictions();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error restricting user:', error);
+        res.status(500).json({ error: 'Failed to restrict user' });
+    }
 });
 
 app.post('/api/admin/upload-hero-images', uploadHeroImage.fields([

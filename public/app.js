@@ -33,8 +33,15 @@ function goToPage(pageId, event) {
     if (event && event.stopPropagation) {
         event.stopPropagation();
     }
+    
+    const targetPage = document.getElementById(pageId);
+    if (!targetPage) {
+        console.error('Page not found:', pageId);
+        return;
+    }
+    
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById(pageId).classList.add('active');
+    targetPage.classList.add('active');
     lucide.createIcons();
     
     if (pageId === 'page-news-feed') {
@@ -353,10 +360,7 @@ async function joinEvent() {
         if (response.ok) {
             document.getElementById('event-detail-participants').textContent = data.participants + ' учасників';
             updateEventButtons(true);
-            
             document.getElementById('event-chat-title').textContent = `Чат: ${currentEvent.title}`;
-            await loadChatMessages();
-            goToPage('page-event-chat');
         }
     } catch (error) {
         console.error('Error joining event:', error);
@@ -412,8 +416,10 @@ async function createEvent() {
             body: JSON.stringify(eventData)
         });
         
+        const data = await response.json();
+        
         if (response.ok) {
-            alert('Івент створено успішно!');
+            alert(data.message || 'Івент відправлено на модерацію!');
             document.getElementById('event-name').value = '';
             document.getElementById('event-date').value = '';
             document.getElementById('event-time').value = '';
@@ -482,6 +488,9 @@ async function sendMessage() {
         if (response.ok) {
             await loadChatMessages();
             input.value = '';
+        } else if (response.status === 403) {
+            const error = await response.json();
+            alert(error.error || 'У вас немає дозволу писати повідомлення');
         }
     } catch (error) {
         console.error('Error sending message:', error);
@@ -534,9 +543,14 @@ async function generateVideoThumbnail(videoFile) {
         });
         
         video.addEventListener('seeked', () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const size = Math.min(video.videoWidth, video.videoHeight);
+            const x = (video.videoWidth - size) / 2;
+            const y = (video.videoHeight - size) / 2;
+            
+            canvas.width = size;
+            canvas.height = size;
+            
+            ctx.drawImage(video, x, y, size, size, 0, 0, size, size);
             
             canvas.toBlob((blob) => {
                 resolve(blob);
@@ -545,6 +559,18 @@ async function generateVideoThumbnail(videoFile) {
         
         video.src = URL.createObjectURL(videoFile);
     });
+}
+
+function openTikTok(event) {
+    if (event && event.stopPropagation) {
+        event.stopPropagation();
+    }
+    const tiktokUrl = 'https://www.tiktok.com/';
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.openLink(tiktokUrl);
+    } else {
+        window.open(tiktokUrl, '_blank');
+    }
 }
 
 async function uploadPhotos() {
@@ -642,9 +668,15 @@ async function loadApprovedVideos() {
         
         if (videos.length === 0) {
             grid.innerHTML = `
-                <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
-                <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
-                <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover">
+                </div>
+                <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover">
+                </div>
+                <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover">
+                </div>
             `;
             return;
         }
@@ -652,9 +684,17 @@ async function loadApprovedVideos() {
         const thumbnails = [];
         for (let i = 0; i < 3; i++) {
             if (videos[i] && videos[i].thumbnailPath) {
-                thumbnails.push(`<img src="${API_URL}${videos[i].thumbnailPath}" class="w-full h-auto object-cover rounded-md">`);
+                thumbnails.push(`
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                        <img src="${API_URL}${videos[i].thumbnailPath}" class="w-full h-full object-cover">
+                    </div>
+                `);
             } else {
-                thumbnails.push(`<img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">`);
+                thumbnails.push(`
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                        <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover">
+                    </div>
+                `);
             }
         }
         

@@ -43,11 +43,48 @@
         }
         .page.active {
             display: flex;
-            animation: fadeIn 0.2s ease-in-out;
+            animation: slideIn 0.3s ease-out;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        @keyframes slideIn {
+            from { 
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        button, .bordered-button, .cursor-pointer {
+            transition: all 0.2s ease;
+        }
+        
+        button:active, .bordered-button:active {
+            transform: scale(0.95);
+        }
+        
+        .bg-white, .event-card {
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        
+        .bg-white:hover, .event-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .chat-message {
+            animation: messageSlide 0.2s ease-out;
+        }
+        
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         .app-header {
             display: flex;
@@ -157,16 +194,22 @@
                     <p id="main-schedule-subtitle" class="text-sm text-gray-500 mt-1" style="display:none;">• Додайте розклад</p>
                 </div>
             </div>
-             <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="goToPage('page-video')">
-                 <div class="relative">
-                    <img src="https://placehold.co/600x300/f87171/FFF?text=Video" class="w-full h-36 object-cover rounded-t-xl">
+             <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="window.open('https://www.tiktok.com/@uhub_knu', '_blank')">
+                 <div class="relative w-full" style="padding-top: 100%; overflow: hidden;">
+                    <img src="https://placehold.co/600x600/f87171/FFF?text=Video" class="absolute top-0 left-0 w-full h-full object-cover rounded-t-xl" style="object-position: center;">
                     <span class="absolute top-3 left-3 text-white text-xs font-medium">28.05.2025</span>
                     <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Video&</span>
                 </div>
                 <div class="p-2 grid grid-cols-3 gap-2" id="main-video-grid">
-                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
-                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
-                    <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                        <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover" style="object-position: center;">
+                    </div>
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                        <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover" style="object-position: center;">
+                    </div>
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                        <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover" style="object-position: center;">
+                    </div>
                 </div>
             </div>
             <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="goToPage('page-events-list')">

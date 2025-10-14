@@ -17,6 +17,52 @@
         .tab-content.active {
             display: block;
         }
+        
+        @media (max-width: 768px) {
+            .max-w-7xl {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+            
+            .tab-btn {
+                font-size: 0.875rem;
+                padding: 0.75rem 0.75rem;
+            }
+            
+            h1, h2 {
+                font-size: 1.25rem;
+            }
+            
+            h3 {
+                font-size: 1.125rem;
+            }
+            
+            input, textarea, button {
+                font-size: 14px;
+            }
+            
+            .flex.gap-2 {
+                gap: 0.5rem;
+            }
+            
+            .p-6 {
+                padding: 1rem;
+            }
+            
+            .space-y-6 > * + * {
+                margin-top: 1rem;
+            }
+        }
+        
+        .tab-btn {
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        
+        video {
+            max-width: 100%;
+            height: auto;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -41,11 +87,12 @@
 
         <div class="max-w-7xl mx-auto px-4 py-6">
             <div class="bg-white rounded-lg shadow-sm mb-6">
-                <div class="flex border-b">
-                    <button onclick="switchTab('images')" class="tab-btn flex-1 py-3 px-4 font-semibold text-blue-500 border-b-2 border-blue-500">Зображення блоків</button>
-                    <button onclick="switchTab('schedules')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Розклади</button>
-                    <button onclick="switchTab('broadcast')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
-                    <button onclick="switchTab('videos')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Модерація відео</button>
+                <div class="flex border-b overflow-x-auto">
+                    <button onclick="switchTab('images')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-blue-500 border-b-2 border-blue-500">Зображення</button>
+                    <button onclick="switchTab('schedules')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Розклади</button>
+                    <button onclick="switchTab('events')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Події</button>
+                    <button onclick="switchTab('broadcast')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
+                    <button onclick="switchTab('videos')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Відео</button>
                 </div>
                 
                 <div id="tab-images" class="tab-content active p-6">
@@ -135,6 +182,32 @@
                     <textarea id="broadcast-message" placeholder="Введіть повідомлення для розсилки..." class="w-full border border-gray-300 rounded-lg p-3 mb-4 h-32"></textarea>
                     <button onclick="sendBroadcast()" class="w-full bg-green-500 text-white font-semibold py-3 rounded-lg hover:bg-green-600">Відправити розсилку</button>
                     <div id="broadcast-status" class="hidden mt-4 p-3 rounded-lg"></div>
+                </div>
+
+                <div id="tab-events" class="tab-content p-6">
+                    <h2 class="text-xl font-bold mb-4">Управління подіями</h2>
+                    
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">Події на модерації</h3>
+                        <div id="pending-events-list" class="space-y-4">
+                            <p class="text-gray-500 text-center">Завантаження...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">Всі події</h3>
+                        <div id="all-events-list" class="space-y-4">
+                            <p class="text-gray-500 text-center">Завантаження...</p>
+                        </div>
+                    </div>
+                    
+                    <div id="event-participants-section" class="hidden">
+                        <h3 class="text-lg font-semibold mb-3">Учасники події: <span id="current-event-name"></span></h3>
+                        <button onclick="closeParticipants()" class="mb-3 bg-gray-500 text-white px-4 py-2 rounded">Назад</button>
+                        <div id="event-participants-list" class="space-y-3">
+                            <p class="text-gray-500 text-center">Завантаження...</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="tab-videos" class="tab-content p-6">
@@ -382,6 +455,204 @@
                 loadPendingVideos();
             } else if (tab === 'schedules') {
                 loadSchedulesList();
+            } else if (tab === 'events') {
+                loadPendingEvents();
+                loadAllEvents();
+            }
+        }
+
+        async function loadPendingEvents() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/pending?token=${adminToken}`);
+                const events = await response.json();
+                
+                const eventsList = document.getElementById('pending-events-list');
+                
+                if (events.length === 0) {
+                    eventsList.innerHTML = '<p class="text-gray-500 text-center">Немає подій на модерації</p>';
+                    return;
+                }
+                
+                eventsList.innerHTML = events.map(event => `
+                    <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                        <div class="mb-2">
+                            <h4 class="font-bold text-lg">${event.title}</h4>
+                            <p class="text-sm text-gray-600">📅 ${event.date} ⏰ ${event.time}</p>
+                            <p class="text-sm text-gray-600">📍 ${event.location}</p>
+                            <p class="text-sm text-gray-700 mt-2">${event.description}</p>
+                            <p class="text-xs text-gray-500 mt-1">Створено: ${new Date(event.createdAt).toLocaleString('uk-UA')}</p>
+                        </div>
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="moderateEvent('${event.id}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">✅ Схвалити</button>
+                            <button onclick="moderateEvent('${event.id}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">❌ Відхилити</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading pending events:', error);
+            }
+        }
+
+        let currentEventForParticipants = null;
+
+        async function loadAllEvents() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/all?token=${adminToken}`);
+                const events = await response.json();
+                
+                const eventsList = document.getElementById('all-events-list');
+                
+                if (events.length === 0) {
+                    eventsList.innerHTML = '<p class="text-gray-500 text-center">Немає подій</p>';
+                    return;
+                }
+                
+                eventsList.innerHTML = events.map(event => {
+                    const statusColor = event.status === 'approved' ? 'green' : event.status === 'rejected' ? 'red' : 'yellow';
+                    const statusText = event.status === 'approved' ? 'Схвалено' : event.status === 'rejected' ? 'Відхилено' : 'На модерації';
+                    
+                    return `
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex-1">
+                                    <h4 class="font-bold">${event.title}</h4>
+                                    <p class="text-sm text-gray-600">📅 ${event.date} ⏰ ${event.time}</p>
+                                    <p class="text-sm text-gray-600">👥 ${event.participants || 0} учасників</p>
+                                </div>
+                                <span class="bg-${statusColor}-100 text-${statusColor}-700 text-xs px-2 py-1 rounded">${statusText}</span>
+                            </div>
+                            <div class="flex gap-2 mt-2">
+                                ${event.status !== 'approved' && event.status !== 'rejected' ? `
+                                    <button onclick="moderateEvent('${event.id}', 'approve')" class="flex-1 bg-green-500 text-white text-sm py-1 rounded hover:bg-green-600">Схвалити</button>
+                                    <button onclick="moderateEvent('${event.id}', 'reject')" class="flex-1 bg-red-500 text-white text-sm py-1 rounded hover:bg-red-600">Відхилити</button>
+                                ` : ''}
+                                ${event.participants > 0 ? `
+                                    <button onclick="viewParticipants('${event.id}', '${event.title}')" class="flex-1 bg-blue-500 text-white text-sm py-1 rounded hover:bg-blue-600">Учасники</button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading all events:', error);
+            }
+        }
+
+        async function viewParticipants(eventId, eventTitle) {
+            currentEventForParticipants = eventId;
+            document.getElementById('current-event-name').textContent = eventTitle;
+            document.getElementById('all-events-list').parentElement.classList.add('hidden');
+            document.getElementById('pending-events-list').parentElement.classList.add('hidden');
+            document.getElementById('event-participants-section').classList.remove('hidden');
+            
+            await loadParticipants(eventId);
+        }
+
+        function closeParticipants() {
+            document.getElementById('event-participants-section').classList.add('hidden');
+            document.getElementById('all-events-list').parentElement.classList.remove('hidden');
+            document.getElementById('pending-events-list').parentElement.classList.remove('hidden');
+            currentEventForParticipants = null;
+        }
+
+        async function loadParticipants(eventId) {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/participants?token=${adminToken}`);
+                const participants = await response.json();
+                
+                const list = document.getElementById('event-participants-list');
+                
+                if (participants.length === 0) {
+                    list.innerHTML = '<p class="text-gray-500 text-center">Немає учасників</p>';
+                    return;
+                }
+                
+                list.innerHTML = participants.map(p => {
+                    const isBlocked = p.restrictions?.blocked;
+                    const isMuted = p.restrictions?.muted;
+                    
+                    return `
+                        <div class="bg-white p-3 rounded-lg border ${isBlocked ? 'border-red-300' : isMuted ? 'border-yellow-300' : 'border-gray-200'}">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <img src="${p.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.firstName)}`}" class="w-10 h-10 rounded-full">
+                                    <div>
+                                        <p class="font-semibold">${p.firstName}</p>
+                                        <p class="text-xs text-gray-500">ID: ${p.userId}</p>
+                                        ${isBlocked ? '<span class="text-xs text-red-600">🚫 Заблокований</span>' : ''}
+                                        ${isMuted ? '<span class="text-xs text-yellow-600">🔇 В муті</span>' : ''}
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    ${!isBlocked ? `
+                                        <button onclick="restrictUser('${eventId}', '${p.userId}', 'block')" class="bg-red-500 text-white text-xs px-3 py-1 rounded hover:bg-red-600">Блок</button>
+                                    ` : `
+                                        <button onclick="restrictUser('${eventId}', '${p.userId}', 'unblock')" class="bg-green-500 text-white text-xs px-3 py-1 rounded hover:bg-green-600">Розблокувати</button>
+                                    `}
+                                    ${!isMuted ? `
+                                        <button onclick="muteUser('${eventId}', '${p.userId}')" class="bg-yellow-500 text-white text-xs px-3 py-1 rounded hover:bg-yellow-600">Мут</button>
+                                    ` : `
+                                        <button onclick="restrictUser('${eventId}', '${p.userId}', 'unmute')" class="bg-green-500 text-white text-xs px-3 py-1 rounded hover:bg-green-600">Зняти мут</button>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading participants:', error);
+            }
+        }
+
+        async function restrictUser(eventId, userId, action) {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/restrict-user?token=${adminToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, action })
+                });
+                
+                if (response.ok) {
+                    loadParticipants(eventId);
+                }
+            } catch (error) {
+                console.error('Error restricting user:', error);
+            }
+        }
+
+        async function muteUser(eventId, userId) {
+            const duration = prompt('Тривалість муту в хвилинах (залиште порожнім для постійного):');
+            const durationNum = duration ? parseInt(duration) : null;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/restrict-user?token=${adminToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, action: 'mute', duration: durationNum })
+                });
+                
+                if (response.ok) {
+                    loadParticipants(eventId);
+                }
+            } catch (error) {
+                console.error('Error muting user:', error);
+            }
+        }
+
+        async function moderateEvent(eventId, action) {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/moderate?token=${adminToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+                
+                if (response.ok) {
+                    loadPendingEvents();
+                    loadAllEvents();
+                }
+            } catch (error) {
+                console.error('Error moderating event:', error);
             }
         }
 
