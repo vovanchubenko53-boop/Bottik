@@ -7,17 +7,21 @@ let telegramUser = null;
 
 if (window.Telegram && window.Telegram.WebApp) {
     const tg = window.Telegram.WebApp;
-    telegramUser = tg.initDataUnsafe?.user || {
-        id: Date.now(),
-        first_name: 'Гість',
-        photo_url: null
-    };
-} else {
-    telegramUser = {
-        id: Date.now(),
-        first_name: 'Гість',
-        photo_url: null
-    };
+    telegramUser = tg.initDataUnsafe?.user || null;
+}
+
+if (!telegramUser) {
+    const savedUser = localStorage.getItem('guestUser');
+    if (savedUser) {
+        telegramUser = JSON.parse(savedUser);
+    } else {
+        telegramUser = {
+            id: Date.now(),
+            first_name: 'Гість',
+            photo_url: null
+        };
+        localStorage.setItem('guestUser', JSON.stringify(telegramUser));
+    }
 }
 
 function updateTime() {
@@ -263,12 +267,15 @@ async function loadEvents() {
             return;
         }
         
-        eventsContainer.innerHTML = events.map(event => {
+        const eventsHTML = [];
+        for (const event of events) {
             const isExpired = new Date(event.expiresAt) < new Date();
-            const status = isExpired ? 'Подія завершена' : event.participants + ' учасників';
+            const joinedResponse = await fetch(`${API_URL}/api/events/${event.id}/joined?userId=${telegramUser.id}`);
+            const joinedData = await joinedResponse.json();
+            const isJoined = joinedData.joined;
             
-            return `
-                <div class="event-card">
+            eventsHTML.push(`
+                <div class="event-card" id="event-card-${event.id}">
                     <h3 class="font-bold text-lg mb-2">${event.title}</h3>
                     <div class="flex items-center text-sm text-gray-600 mb-2">
                         <i data-lucide="calendar" class="w-4 h-4 mr-1"></i>
@@ -281,12 +288,27 @@ async function loadEvents() {
                         <span>${event.location}</span>
                     </div>
                     <p class="text-gray-700 mb-3">${event.description}</p>
-                    <div class="text-sm text-gray-500 mb-2">${status}</div>
-                    ${!isExpired ? `<button class="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg" onclick="viewEventDetail('${event.id}')">Приєднатися</button>` : '<div class="text-center text-gray-400 py-2">Подія завершена</div>'}
+                    <div class="flex items-center text-sm text-gray-500 mb-2">
+                        <i data-lucide="users" class="w-4 h-4 mr-1"></i>
+                        <span id="event-participants-${event.id}">${joinedData.participants} учасників</span>
+                    </div>
+                    <div id="event-buttons-${event.id}">
+                        ${!isExpired ? (isJoined ? `
+                            <div class="flex gap-2">
+                                <button class="flex-1 bg-blue-500 text-white font-semibold py-2 rounded-lg" onclick="openEventChat('${event.id}')">Чат</button>
+                                <button class="bg-red-500 text-white px-4 py-2 rounded-lg" onclick="leaveEventFromList('${event.id}')">
+                                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        ` : `
+                            <button class="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg" onclick="joinEventFromList('${event.id}')">Приєднатися</button>
+                        `) : '<div class="text-center text-gray-400 py-2">Подія завершена</div>'}
+                    </div>
                 </div>
-            `;
-        }).join('');
+            `);
+        }
         
+        eventsContainer.innerHTML = eventsHTML.join('');
         lucide.createIcons();
         
         if (events[0]) {
@@ -365,6 +387,93 @@ async function joinEvent() {
     } catch (error) {
         console.error('Error joining event:', error);
         alert('Помилка приєднання до події');
+    }
+}
+
+async function joinEventFromList(eventId) {
+    try {
+        const response = await fetch(`${API_URL}/api/events/${eventId}/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: telegramUser.id,
+                firstName: telegramUser.first_name,
+                photoUrl: telegramUser.photo_url
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            const participantsEl = document.getElementById(`event-participants-${eventId}`);
+            const buttonsEl = document.getElementById(`event-buttons-${eventId}`);
+            
+            if (participantsEl) {
+                participantsEl.textContent = data.participants + ' учасників';
+            }
+            
+            if (buttonsEl) {
+                buttonsEl.innerHTML = `
+                    <div class="flex gap-2">
+                        <button class="flex-1 bg-blue-500 text-white font-semibold py-2 rounded-lg" onclick="openEventChat('${eventId}')">Чат</button>
+                        <button class="bg-red-500 text-white px-4 py-2 rounded-lg" onclick="leaveEventFromList('${eventId}')">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+    } catch (error) {
+        console.error('Error joining event:', error);
+        alert('Помилка приєднання до події');
+    }
+}
+
+async function leaveEventFromList(eventId) {
+    if (!confirm('Ви впевнені, що хочете вийти з цього івенту?')) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/events/${eventId}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: telegramUser.id
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            const participantsEl = document.getElementById(`event-participants-${eventId}`);
+            const buttonsEl = document.getElementById(`event-buttons-${eventId}`);
+            
+            if (participantsEl) {
+                participantsEl.textContent = data.participants + ' учасників';
+            }
+            
+            if (buttonsEl) {
+                buttonsEl.innerHTML = `
+                    <button class="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg" onclick="joinEventFromList('${eventId}')">Приєднатися</button>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('Error leaving event:', error);
+        alert('Помилка виходу з події');
+    }
+}
+
+async function openEventChat(eventId) {
+    try {
+        const response = await fetch(`${API_URL}/api/events/${eventId}`);
+        currentEvent = await response.json();
+        document.getElementById('event-chat-title').textContent = `Чат: ${currentEvent.title}`;
+        goToPage('page-event-chat');
+        loadChatMessages();
+    } catch (error) {
+        console.error('Error opening chat:', error);
+        alert('Помилка відкриття чату');
     }
 }
 

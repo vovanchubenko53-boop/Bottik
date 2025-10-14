@@ -108,6 +108,16 @@
                                 </label>
                             </div>
                             <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden">
+                            <div class="mt-2 space-y-2">
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-news-val">50%</span></label>
+                                    <input type="range" id="pos-x-news" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('news')">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по вертикалі: <span id="pos-y-news-val">50%</span></label>
+                                    <input type="range" id="pos-y-news" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('news')">
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Розклади"</label>
@@ -119,6 +129,16 @@
                                 </label>
                             </div>
                             <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden">
+                            <div class="mt-2 space-y-2">
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-schedule-val">50%</span></label>
+                                    <input type="range" id="pos-x-schedule" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('schedule')">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по вертикалі: <span id="pos-y-schedule-val">50%</span></label>
+                                    <input type="range" id="pos-y-schedule" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('schedule')">
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Відео"</label>
@@ -130,6 +150,16 @@
                                 </label>
                             </div>
                             <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden">
+                            <div class="mt-2 space-y-2">
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-video-val">50%</span></label>
+                                    <input type="range" id="pos-x-video" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('video')">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по вертикалі: <span id="pos-y-video-val">50%</span></label>
+                                    <input type="range" id="pos-y-video" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('video')">
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Івенти"</label>
@@ -141,6 +171,16 @@
                                 </label>
                             </div>
                             <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden">
+                            <div class="mt-2 space-y-2">
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-events-val">50%</span></label>
+                                    <input type="range" id="pos-x-events" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('events')">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Позиція по вертикалі: <span id="pos-y-events-val">50%</span></label>
+                                    <input type="range" id="pos-y-events" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('events')">
+                                </div>
+                            </div>
                         </div>
                         <button onclick="saveImages()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Зберегти зміни</button>
                         <div id="images-status" class="hidden mt-2 p-3 rounded-lg"></div>
@@ -319,6 +359,17 @@
             });
         }
 
+        function updateImagePosition(blockName) {
+            const posX = document.getElementById(`pos-x-${blockName}`).value;
+            const posY = document.getElementById(`pos-y-${blockName}`).value;
+            const preview = document.getElementById(`preview-${blockName}`);
+            
+            document.getElementById(`pos-x-${blockName}-val`).textContent = posX + '%';
+            document.getElementById(`pos-y-${blockName}-val`).textContent = posY + '%';
+            
+            preview.style.objectPosition = `${posX}% ${posY}%`;
+        }
+
         async function saveImages() {
             const blocks = ['news', 'schedule', 'video', 'events'];
             const formData = new FormData();
@@ -326,12 +377,17 @@
             for (const block of blocks) {
                 const fileInput = document.getElementById(`file-${block}`);
                 const urlInput = document.getElementById(`img-${block}`);
+                const posX = document.getElementById(`pos-x-${block}`).value;
+                const posY = document.getElementById(`pos-y-${block}`).value;
                 
                 if (fileInput.files && fileInput.files[0]) {
                     formData.append(block, fileInput.files[0]);
                 } else if (urlInput.value) {
                     formData.append(`${block}_url`, urlInput.value);
                 }
+                
+                formData.append(`${block}_position_x`, posX);
+                formData.append(`${block}_position_y`, posY);
             }
             
             try {

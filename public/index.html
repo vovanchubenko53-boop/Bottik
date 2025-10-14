@@ -57,34 +57,58 @@
         }
         
         button, .bordered-button, .cursor-pointer {
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         button:active, .bordered-button:active {
-            transform: scale(0.95);
+            transform: scale(0.96);
+        }
+        
+        button:hover, .bordered-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         
         .bg-white, .event-card {
-            transition: box-shadow 0.2s ease, transform 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0);
         }
         
         .bg-white:hover, .event-card:hover {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .bg-white:active, .event-card:active {
+            transform: translateY(0) scale(0.99);
         }
         
         .chat-message {
-            animation: messageSlide 0.2s ease-out;
+            animation: messageSlide 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         
         @keyframes messageSlide {
             from {
                 opacity: 0;
-                transform: translateY(10px);
+                transform: translateY(16px) scale(0.95);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: translateY(0) scale(1);
             }
+        }
+        
+        input, textarea {
+            transition: all 0.2s ease;
+        }
+        
+        input:focus, textarea:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .cursor-pointer:active {
+            transform: scale(0.98);
         }
         .app-header {
             display: flex;
@@ -92,32 +116,38 @@
             align-items: center;
             padding: 1rem 1rem 0.75rem 1rem;
             background-color: var(--app-bg);
+            position: relative;
         }
         .app-header .logo {
-            font-size: 1.8rem;
+            font-size: 1.5rem;
             font-weight: 900;
             color: #4E4E4E;
             flex-shrink: 0;
+            width: 80px;
         }
         .app-header .time-date {
             text-align: center;
-            flex: 1;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-52%);
         }
         .app-header .time {
-            font-size: 1rem;
-            font-weight: 600;
-            font-family: 'Roboto', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            letter-spacing: -0.3px;
         }
         .app-header .date {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: var(--text-secondary);
-            font-family: 'Roboto', sans-serif;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             font-weight: 400;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
+            margin-top: 1px;
         }
         .app-header .uni-logo {
-            width: 50px;
-            height: 50px;
+            width: 55px;
+            height: 55px;
             flex-shrink: 0;
             border-radius: 50%;
             object-fit: cover;
@@ -194,20 +224,20 @@
                     <p id="main-schedule-subtitle" class="text-sm text-gray-500 mt-1" style="display:none;">• Додайте розклад</p>
                 </div>
             </div>
-             <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="window.open('https://www.tiktok.com/@uhub_knu', '_blank')">
-                 <div class="relative w-full" style="padding-top: 100%; overflow: hidden;">
-                    <img src="https://placehold.co/600x600/f87171/FFF?text=Video" class="absolute top-0 left-0 w-full h-full object-cover rounded-t-xl" style="object-position: center;">
+             <div class="bg-white rounded-xl shadow-sm">
+                 <div class="relative cursor-pointer" onclick="goToPage('page-video')">
+                    <img src="https://placehold.co/600x300/f87171/FFF?text=Video" class="w-full h-36 object-cover rounded-t-xl" id="main-video-img" style="object-position: center;">
                     <span class="absolute top-3 left-3 text-white text-xs font-medium">28.05.2025</span>
-                    <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Video&</span>
+                    <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Video</span>
                 </div>
                 <div class="p-2 grid grid-cols-3 gap-2" id="main-video-grid">
-                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer transition-transform hover:scale-105" onclick="openTikTok(event)">
                         <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover" style="object-position: center;">
                     </div>
-                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer transition-transform hover:scale-105" onclick="openTikTok(event)">
                         <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover" style="object-position: center;">
                     </div>
-                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer transition-transform hover:scale-105" onclick="openTikTok(event)">
                         <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover" style="object-position: center;">
                     </div>
                 </div>
@@ -456,7 +486,7 @@
                 </button>
             </div>
         </main>
-        <div class="bottom-nav-link" onclick="goToPage('page-event-detail')">Назад до події</div>
+        <div class="bottom-nav-link" onclick="goToPage('page-events-list')">Назад до подій</div>
     </div>
 
     <!-- PAGE 11: Event Create -->
