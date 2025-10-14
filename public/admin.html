@@ -43,6 +43,7 @@
             <div class="bg-white rounded-lg shadow-sm mb-6">
                 <div class="flex border-b">
                     <button onclick="switchTab('images')" class="tab-btn flex-1 py-3 px-4 font-semibold text-blue-500 border-b-2 border-blue-500">Зображення блоків</button>
+                    <button onclick="switchTab('schedules')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Розклади</button>
                     <button onclick="switchTab('broadcast')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
                     <button onclick="switchTab('videos')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Модерація відео</button>
                 </div>
@@ -52,26 +53,79 @@
                     <div class="space-y-6">
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Новини"</label>
-                            <input type="url" id="img-news" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <div class="flex gap-2 mb-2">
+                                <input type="url" id="img-news" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
+                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
+                                    <input type="file" id="file-news" accept="image/*" class="hidden" onchange="handleFileSelect('news')">
+                                    <span class="text-sm">📁 Файл</span>
+                                </label>
+                            </div>
                             <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden">
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Розклади"</label>
-                            <input type="url" id="img-schedule" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <div class="flex gap-2 mb-2">
+                                <input type="url" id="img-schedule" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
+                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
+                                    <input type="file" id="file-schedule" accept="image/*" class="hidden" onchange="handleFileSelect('schedule')">
+                                    <span class="text-sm">📁 Файл</span>
+                                </label>
+                            </div>
                             <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden">
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Відео"</label>
-                            <input type="url" id="img-video" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <div class="flex gap-2 mb-2">
+                                <input type="url" id="img-video" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
+                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
+                                    <input type="file" id="file-video" accept="image/*" class="hidden" onchange="handleFileSelect('video')">
+                                    <span class="text-sm">📁 Файл</span>
+                                </label>
+                            </div>
                             <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden">
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Івенти"</label>
-                            <input type="url" id="img-events" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <div class="flex gap-2 mb-2">
+                                <input type="url" id="img-events" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
+                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
+                                    <input type="file" id="file-events" accept="image/*" class="hidden" onchange="handleFileSelect('events')">
+                                    <span class="text-sm">📁 Файл</span>
+                                </label>
+                            </div>
                             <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden">
                         </div>
                         <button onclick="saveImages()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Зберегти зміни</button>
                         <div id="images-status" class="hidden mt-2 p-3 rounded-lg"></div>
+                    </div>
+                </div>
+
+                <div id="tab-schedules" class="tab-content p-6">
+                    <h2 class="text-xl font-bold mb-4">Управління розкладами</h2>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <p class="text-sm text-blue-800">📋 Завантажте Excel файл з розкладом. Формат файлу:</p>
+                        <ul class="text-sm text-blue-700 ml-4 mt-2">
+                            <li>• Стовпці: Час, Понеділок, Вівторок, Середа, Четвер, П'ятниця</li>
+                            <li>• Кожна клітинка: Предмет / Викладач / Аудиторія</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Назва розкладу (група/курс):</label>
+                            <input type="text" id="schedule-name" placeholder="наприклад: 1 курс ІПЗ" class="w-full border border-gray-300 rounded-lg p-3">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Завантажити Excel файл:</label>
+                            <input type="file" id="schedule-file" accept=".xlsx,.xls" class="w-full border border-gray-300 rounded-lg p-3">
+                        </div>
+                        <button onclick="uploadSchedule()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Завантажити розклад</button>
+                        <div id="schedule-status" class="hidden mt-2 p-3 rounded-lg"></div>
+                    </div>
+                    <div class="mt-8">
+                        <h3 class="text-lg font-bold mb-3">Завантажені розклади:</h3>
+                        <div id="schedules-list" class="space-y-2">
+                            <p class="text-gray-500 text-center">Завантаження...</p>
+                        </div>
                     </div>
                 </div>
 
@@ -150,6 +204,25 @@
             }
         }
 
+        function handleFileSelect(blockName) {
+            const fileInput = document.getElementById(`file-${blockName}`);
+            const urlInput = document.getElementById(`img-${blockName}`);
+            const preview = document.getElementById(`preview-${blockName}`);
+            
+            if (fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                    urlInput.value = ''; 
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        }
+
         function updatePreviews() {
             const images = ['news', 'schedule', 'video', 'events'];
             images.forEach(img => {
@@ -160,6 +233,7 @@
                     if (input.value) {
                         preview.src = input.value;
                         preview.classList.remove('hidden');
+                        document.getElementById(`file-${img}`).value = '';
                     } else {
                         preview.classList.add('hidden');
                     }
@@ -173,20 +247,24 @@
         }
 
         async function saveImages() {
-            const heroImages = {
-                heroImages: {
-                    news: document.getElementById('img-news').value,
-                    schedule: document.getElementById('img-schedule').value,
-                    video: document.getElementById('img-video').value,
-                    events: document.getElementById('img-events').value
+            const blocks = ['news', 'schedule', 'video', 'events'];
+            const formData = new FormData();
+            
+            for (const block of blocks) {
+                const fileInput = document.getElementById(`file-${block}`);
+                const urlInput = document.getElementById(`img-${block}`);
+                
+                if (fileInput.files && fileInput.files[0]) {
+                    formData.append(block, fileInput.files[0]);
+                } else if (urlInput.value) {
+                    formData.append(`${block}_url`, urlInput.value);
                 }
-            };
+            }
             
             try {
-                const response = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`, {
+                const response = await fetch(`${API_URL}/api/admin/upload-hero-images?token=${adminToken}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(heroImages)
+                    body: formData
                 });
                 
                 if (response.ok) {
@@ -195,6 +273,14 @@
                     status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
                     status.classList.remove('hidden');
                     setTimeout(() => status.classList.add('hidden'), 3000);
+                    
+                    blocks.forEach(block => {
+                        document.getElementById(`file-${block}`).value = '';
+                    });
+                    
+                    await loadAdminData();
+                } else {
+                    throw new Error('Upload failed');
                 }
             } catch (error) {
                 console.error('Error saving images:', error);
@@ -294,6 +380,98 @@
             
             if (tab === 'videos') {
                 loadPendingVideos();
+            } else if (tab === 'schedules') {
+                loadSchedulesList();
+            }
+        }
+
+        async function uploadSchedule() {
+            const nameInput = document.getElementById('schedule-name');
+            const fileInput = document.getElementById('schedule-file');
+            
+            if (!nameInput.value.trim()) {
+                alert('Введіть назву розкладу');
+                return;
+            }
+            
+            if (!fileInput.files || !fileInput.files[0]) {
+                alert('Оберіть файл Excel');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('name', nameInput.value.trim());
+            formData.append('schedule', fileInput.files[0]);
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/upload-schedule?token=${adminToken}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const status = document.getElementById('schedule-status');
+                    status.textContent = '✅ Розклад успішно завантажено!';
+                    status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
+                    status.classList.remove('hidden');
+                    setTimeout(() => status.classList.add('hidden'), 3000);
+                    
+                    nameInput.value = '';
+                    fileInput.value = '';
+                    loadSchedulesList();
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Upload failed');
+                }
+            } catch (error) {
+                console.error('Error uploading schedule:', error);
+                const status = document.getElementById('schedule-status');
+                status.textContent = '❌ Помилка завантаження: ' + error.message;
+                status.className = 'mt-2 p-3 rounded-lg bg-red-100 text-red-700';
+                status.classList.remove('hidden');
+            }
+        }
+
+        async function loadSchedulesList() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/schedules?token=${adminToken}`);
+                const schedules = await response.json();
+                
+                const listEl = document.getElementById('schedules-list');
+                
+                if (schedules.length === 0) {
+                    listEl.innerHTML = '<p class="text-gray-500 text-center">Немає завантажених розкладів</p>';
+                    return;
+                }
+                
+                listEl.innerHTML = schedules.map(schedule => `
+                    <div class="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
+                        <div>
+                            <p class="font-semibold">${schedule.name}</p>
+                            <p class="text-sm text-gray-500">Завантажено: ${new Date(schedule.uploadedAt).toLocaleString('uk-UA')}</p>
+                        </div>
+                        <button onclick="deleteSchedule('${schedule.id}')" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">Видалити</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading schedules:', error);
+            }
+        }
+
+        async function deleteSchedule(scheduleId) {
+            if (!confirm('Видалити цей розклад?')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/schedules/${scheduleId}?token=${adminToken}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadSchedulesList();
+                }
+            } catch (error) {
+                console.error('Error deleting schedule:', error);
+                alert('Помилка видалення');
             }
         }
 

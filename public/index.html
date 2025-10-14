@@ -57,24 +57,33 @@
             background-color: var(--app-bg);
         }
         .app-header .logo {
-            font-size: 2.5rem;
+            font-size: 1.8rem;
             font-weight: 900;
             color: #4E4E4E;
+            flex-shrink: 0;
         }
         .app-header .time-date {
             text-align: center;
+            flex: 1;
         }
         .app-header .time {
-            font-size: 0.9rem;
-            font-weight: 500;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Roboto', sans-serif;
         }
         .app-header .date {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: var(--text-secondary);
+            font-family: 'Roboto', sans-serif;
+            font-weight: 400;
+            letter-spacing: 0.3px;
         }
         .app-header .uni-logo {
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            object-fit: cover;
         }
         .bottom-nav-link {
             font-size: 1rem;
@@ -123,7 +132,7 @@
                 <div class="time" id="current-time">12:07:05</div>
                 <div class="date" id="current-date">12 серпня 2025 р</div>
             </div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="p-4 space-y-4">
             <div class="bg-white rounded-xl shadow-sm cursor-pointer" onclick="goToPage('page-news-feed')">
@@ -179,7 +188,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time" id="news-time">12:07:05</div><div class="date" id="news-date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
             <div class="bg-white divide-y divide-gray-200 rounded-xl shadow-sm" id="news-list">
@@ -194,7 +203,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4">
             <div class="bg-white rounded-xl shadow-sm p-4">
@@ -222,34 +231,12 @@
         <header class="app-header">
              <div class="logo">U-hub</div>
              <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-             <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+             <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 pt-8">
-            <h1 class="text-center text-xl font-bold mb-8">Розклади занять</h1>
-            <div class="space-y-4 max-w-sm mx-auto">
-                 <div>
-                    <label class="text-sm text-gray-600">Курс:</label>
-                    <div class="relative mt-1">
-                        <select id="schedule-course" class="w-full bg-white border border-gray-300 rounded-lg p-3 appearance-none">
-                            <option value="">Оберіть курс</option>
-                            <option value="1">1 курс</option>
-                            <option value="2">2 курс</option>
-                            <option value="3">3 курс</option>
-                            <option value="4">4 курс</option>
-                        </select>
-                        <i data-lucide="chevron-down" class="absolute right-3 top-3.5 text-gray-400"></i>
-                    </div>
-                </div>
-                 <div>
-                    <label class="text-sm text-gray-600">Пошук по коду або по назві спеціальності:</label>
-                    <div class="relative mt-1">
-                        <input type="text" id="schedule-search-input" placeholder="Введіть код або назву" class="w-full bg-white border border-gray-300 rounded-lg p-3 pl-10">
-                        <i data-lucide="search" class="absolute left-3 top-3.5 text-gray-400"></i>
-                    </div>
-                </div>
-                <div id="schedule-results" class="space-y-2" style="display:none;">
-                </div>
-                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg shadow-sm mt-4" onclick="searchSchedule()">Пошук</button>
+            <h1 class="text-center text-xl font-bold mb-8">Оберіть свій розклад</h1>
+            <div class="space-y-3 max-w-md mx-auto" id="available-schedules">
+                <p class="text-center text-gray-500">Завантаження розкладів...</p>
             </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
@@ -260,7 +247,7 @@
         <header class="app-header">
              <div class="logo">U-hub</div>
              <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-             <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+             <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
              <div class="bg-white rounded-xl shadow-sm p-4 text-center">
@@ -293,7 +280,7 @@
         </main>
         <div class="flex items-center justify-center space-x-8 p-4 bg-gray-50 border-t">
             <div class="bottom-nav-link !mt-0" onclick="goToPage('page-main')">На головну</div>
-            <button class="bg-blue-500 text-white font-semibold px-6 py-3 rounded-lg shadow" onclick="addSchedule()">Додати в "Мій розклад"</button>
+            <button id="schedule-remove-btn" class="bg-red-500 text-white font-semibold px-6 py-3 rounded-lg shadow hidden" onclick="removeUserSchedule()">Видалити розклад</button>
         </div>
     </div>
     
@@ -302,7 +289,7 @@
         <header class="app-header">
              <div class="logo">U-hub</div>
              <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-             <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+             <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
             <div class="bg-white rounded-xl shadow-sm p-4 text-center">
@@ -332,7 +319,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
             <h1 class="text-center text-xl font-bold">Відео</h1>
@@ -363,7 +350,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
             <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="goToPage('page-event-create')">Запропонувати івент</button>
@@ -379,7 +366,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4">
             <div class="bg-white rounded-xl shadow-sm p-4">
@@ -412,7 +399,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 flex flex-col">
             <h2 class="text-lg font-bold mb-3" id="event-chat-title">Чат події</h2>
@@ -434,7 +421,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 pt-8">
             <h1 class="text-center text-xl font-bold mb-8">Створити івент</h1>
@@ -474,7 +461,7 @@
         <header class="app-header">
             <div class="logo">U-hub</div>
             <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="https://i.imgur.com/GqPzP4j.png" alt="KNU Logo" class="uni-logo">
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
             <h1 class="text-center text-xl font-bold">Фото подій</h1>

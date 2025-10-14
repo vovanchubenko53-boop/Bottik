@@ -129,29 +129,32 @@ async function parseKNUNews() {
         const $ = cheerio.load(response.data);
         const articles = [];
         
-        $('.news-item, article, .post-item').each((i, elem) => {
-            if (i >= 5) return false;
+        $('.views-row, .news-item, article, .post-item, .item-list li').each((i, elem) => {
+            if (i >= 10) return false;
             
-            const title = $(elem).find('h2, h3, .news-title, .post-title').text().trim() ||
-                         $(elem).find('a').first().text().trim();
-            const link = $(elem).find('a').attr('href');
-            const description = $(elem).find('.news-description, .excerpt, p').first().text().trim();
-            const dateText = $(elem).find('.date, time, .post-date').text().trim();
+            const titleElem = $(elem).find('h2, h3, h4, .news-title, .post-title, .views-field-title a, a[href*="/news/"], a[href*="/ua/news/"]');
+            const title = titleElem.text().trim() || $(elem).find('a').first().text().trim();
+            const link = titleElem.attr('href') || $(elem).find('a').attr('href');
+            const description = $(elem).find('.news-description, .excerpt, .views-field-body, p').first().text().trim();
+            const dateElem = $(elem).find('.date, time, .post-date, .views-field-created, .views-field-post-date');
+            const dateText = dateElem.attr('datetime') || dateElem.text().trim();
             
             if (title && title.length > 10) {
+                const newsDate = dateText ? new Date(dateText) : new Date();
                 articles.push({
                     title,
                     link: link ? (link.startsWith('http') ? link : 'https://knu.ua' + link) : 'https://knu.ua/ua/',
                     source: 'KNU Новини',
                     description: description || '',
-                    date: formatDate(dateText || new Date()),
-                    timeAgo: getTimeAgo(dateText),
-                    content: description
+                    date: formatDate(newsDate),
+                    timeAgo: getTimeAgo(newsDate),
+                    content: description,
+                    parsedDate: newsDate
                 });
             }
         });
         
-        return articles;
+        return articles.sort((a, b) => b.parsedDate - a.parsedDate).slice(0, 5);
     } catch (error) {
         console.error('Error parsing KNU News:', error.message);
         return [];
@@ -171,28 +174,28 @@ async function parseTelegramChannel(channelName) {
         const $ = cheerio.load(response.data);
         const articles = [];
         
-        $('.tgme_widget_message').each((i, elem) => {
-            if (i >= 3) return false;
-            
+        $('.tgme_widget_message').slice(0, 5).each((i, elem) => {
             const messageText = $(elem).find('.tgme_widget_message_text').text().trim();
             const link = $(elem).find('.tgme_widget_message_date').attr('href');
             const dateText = $(elem).find('.tgme_widget_message_date time').attr('datetime');
             
             if (messageText && messageText.length > 20) {
                 const title = messageText.substring(0, 100) + (messageText.length > 100 ? '...' : '');
+                const newsDate = dateText ? new Date(dateText) : new Date();
                 articles.push({
                     title,
                     link: link || url,
                     source: channelName,
                     description: messageText,
-                    date: formatDate(dateText),
-                    timeAgo: getTimeAgo(dateText),
-                    content: messageText
+                    date: formatDate(newsDate),
+                    timeAgo: getTimeAgo(newsDate),
+                    content: messageText,
+                    parsedDate: newsDate
                 });
             }
         });
         
-        return articles;
+        return articles.sort((a, b) => b.parsedDate - a.parsedDate).slice(0, 3);
     } catch (error) {
         console.error(`Error parsing Telegram channel ${channelName}:`, error.message);
         return [];
@@ -286,8 +289,8 @@ async function getAllNews() {
     }
     
     allNews.sort((a, b) => {
-        const dateA = new Date(a.date.split('.').reverse().join('-'));
-        const dateB = new Date(b.date.split('.').reverse().join('-'));
+        const dateA = a.parsedDate || new Date(a.date.split('.').reverse().join('-'));
+        const dateB = b.parsedDate || new Date(b.date.split('.').reverse().join('-'));
         return dateB - dateA;
     });
     
@@ -300,7 +303,8 @@ async function getAllNews() {
                 date: formatDate(new Date()),
                 timeAgo: 'щойно',
                 link: 'https://knu.ua',
-                content: 'Система завантажується. Спробуйте оновити через декілька хвилин.'
+                content: 'Система завантажується. Спробуйте оновити через декілька хвилин.',
+                parsedDate: new Date()
             }
         ];
     }

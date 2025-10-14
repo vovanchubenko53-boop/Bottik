@@ -23,7 +23,7 @@ if (window.Telegram && window.Telegram.WebApp) {
 function updateTime() {
     const now = new Date();
     const time = now.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const date = now.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' }) + ' р';
+    const date = now.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
     
     document.querySelectorAll('.time').forEach(el => el.textContent = time);
     document.querySelectorAll('.date').forEach(el => el.textContent = date);
@@ -45,6 +45,10 @@ function goToPage(pageId, event) {
         loadPhotos();
     } else if (pageId === 'page-event-chat') {
         loadChatMessages();
+    } else if (pageId === 'page-schedule-search') {
+        loadAvailableSchedules();
+    } else if (pageId === 'page-schedule-list') {
+        loadUserSchedule();
     }
 }
 
@@ -113,29 +117,93 @@ function shareNews() {
     }
 }
 
-async function searchSchedule() {
-    const course = document.getElementById('schedule-course').value;
-    const search = document.getElementById('schedule-search-input').value;
-    
-    if (!course && !search) {
-        alert('Будь ласка, оберіть курс або введіть назву спеціальності');
-        return;
-    }
-    
+async function loadAvailableSchedules() {
     try {
-        const response = await fetch(`${API_URL}/api/schedules/search?course=${course}&query=${search}`);
+        const response = await fetch(`${API_URL}/api/admin/schedules?token=public`);
         const schedules = await response.json();
         
-        if (schedules.length > 0) {
-            currentSchedule = schedules[0];
-            document.getElementById('schedule-list-title').textContent = schedules[0].name;
+        const container = document.getElementById('available-schedules');
+        
+        if (schedules.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-500">Розклади ще не додано</p>';
+            return;
+        }
+        
+        container.innerHTML = schedules.map(schedule => `
+            <div class="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition" onclick="selectUserSchedule('${schedule.id}', '${schedule.name}')">
+                <p class="font-bold text-lg">${schedule.name}</p>
+                <p class="text-sm text-gray-500 mt-1">Натисніть, щоб обрати</p>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading schedules:', error);
+        document.getElementById('available-schedules').innerHTML = '<p class="text-center text-red-500">Помилка завантаження</p>';
+    }
+}
+
+async function selectUserSchedule(scheduleId, scheduleName) {
+    try {
+        const response = await fetch(`${API_URL}/api/schedules/user/${telegramUser.id}/set`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scheduleId })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            userSchedule = data.schedule;
+            currentSchedule = data.schedule;
+            localStorage.setItem('userSchedule', JSON.stringify(data.schedule));
+            
+            document.getElementById('main-schedule-subtitle').textContent = `• ${scheduleName}`;
+            document.getElementById('main-schedule-subtitle').style.display = 'block';
+            document.getElementById('schedule-list-title').textContent = scheduleName;
+            
             goToPage('page-schedule-list');
-        } else {
-            alert('Розклад не знайдено');
         }
     } catch (error) {
-        console.error('Error searching schedule:', error);
-        alert('Помилка пошуку розкладу');
+        console.error('Error selecting schedule:', error);
+        alert('Помилка вибору розкладу');
+    }
+}
+
+async function loadUserSchedule() {
+    try {
+        const response = await fetch(`${API_URL}/api/schedules/user/${telegramUser.id}`);
+        const data = await response.json();
+        
+        if (data) {
+            userSchedule = data;
+            currentSchedule = data;
+            document.getElementById('schedule-remove-btn').classList.remove('hidden');
+        } else {
+            document.getElementById('schedule-remove-btn').classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading user schedule:', error);
+    }
+}
+
+async function removeUserSchedule() {
+    if (!confirm('Ви впевнені, що хочете видалити свій розклад?')) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/schedules/user/${telegramUser.id}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            userSchedule = null;
+            currentSchedule = null;
+            localStorage.removeItem('userSchedule');
+            document.getElementById('main-schedule-subtitle').style.display = 'none';
+            document.getElementById('schedule-remove-btn').classList.add('hidden');
+            
+            goToPage('page-schedule-search');
+        }
+    } catch (error) {
+        console.error('Error removing schedule:', error);
+        alert('Помилка видалення розкладу');
     }
 }
 
@@ -166,15 +234,6 @@ function viewScheduleDay(day) {
     goToPage('page-schedule-detail');
 }
 
-function addSchedule() {
-    if (currentSchedule) {
-        userSchedule = currentSchedule;
-        localStorage.setItem('userSchedule', JSON.stringify(currentSchedule));
-        document.getElementById('main-schedule-subtitle').textContent = `• ${currentSchedule.name}`;
-        document.getElementById('main-schedule-subtitle').style.display = 'block';
-        alert('Розклад додано до "Мій розклад"');
-    }
-}
 
 function handleScheduleClick() {
     if (userSchedule) {
@@ -435,8 +494,11 @@ async function uploadVideo() {
     
     if (!file) return;
     
+    const thumbnail = await generateVideoThumbnail(file);
+    
     const formData = new FormData();
     formData.append('video', file);
+    formData.append('thumbnail', thumbnail);
     
     try {
         const response = await fetch(`${API_URL}/api/videos/upload`, {
@@ -459,6 +521,30 @@ async function uploadVideo() {
         console.error('Error uploading video:', error);
         alert('Помилка завантаження відео');
     }
+}
+
+async function generateVideoThumbnail(videoFile) {
+    return new Promise((resolve) => {
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        video.addEventListener('loadeddata', () => {
+            video.currentTime = 0.5;
+        });
+        
+        video.addEventListener('seeked', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+                resolve(blob);
+            }, 'image/jpeg', 0.8);
+        });
+        
+        video.src = URL.createObjectURL(videoFile);
+    });
 }
 
 async function uploadPhotos() {
@@ -521,6 +607,7 @@ if (savedSchedule) {
 loadNews();
 loadEvents();
 loadHeroImages();
+loadApprovedVideos();
 
 if (window.Telegram && window.Telegram.WebApp) {
     window.Telegram.WebApp.ready();
@@ -542,5 +629,37 @@ async function loadHeroImages() {
         }
     } catch (error) {
         console.error('Error loading hero images:', error);
+    }
+}
+
+async function loadApprovedVideos() {
+    try {
+        const response = await fetch(`${API_URL}/api/videos/approved`);
+        const videos = await response.json();
+        
+        const grid = document.getElementById('main-video-grid');
+        if (!grid) return;
+        
+        if (videos.length === 0) {
+            grid.innerHTML = `
+                <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+                <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">
+            `;
+            return;
+        }
+        
+        const thumbnails = [];
+        for (let i = 0; i < 3; i++) {
+            if (videos[i] && videos[i].thumbnailPath) {
+                thumbnails.push(`<img src="${API_URL}${videos[i].thumbnailPath}" class="w-full h-auto object-cover rounded-md">`);
+            } else {
+                thumbnails.push(`<img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-auto object-cover rounded-md">`);
+            }
+        }
+        
+        grid.innerHTML = thumbnails.join('');
+    } catch (error) {
+        console.error('Error loading approved videos:', error);
     }
 }

@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const ExcelJS = require('exceljs');
 const newsParser = require('./parsers/newsParser');
 const scheduleParser = require('./parsers/scheduleParser');
 const TelegramBot = require('node-telegram-bot-api');
@@ -31,8 +32,24 @@ const photoStorage = multer.diskStorage({
     }
 });
 
+const heroImageStorage = multer.diskStorage({
+    destination: './uploads/hero-images',
+    filename: (req, file, cb) => {
+        cb(null, 'hero-' + Date.now() + '-' + file.originalname);
+    }
+});
+
+const scheduleStorage = multer.diskStorage({
+    destination: './uploads/schedules',
+    filename: (req, file, cb) => {
+        cb(null, 'schedule-' + Date.now() + '-' + file.originalname);
+    }
+});
+
 const uploadVideo = multer({ storage: videoStorage, limits: { fileSize: 100 * 1024 * 1024 } });
 const uploadPhoto = multer({ storage: photoStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadHeroImage = multer({ storage: heroImageStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadSchedule = multer({ storage: scheduleStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 let newsCache = [];
 let eventsData = [];
@@ -375,20 +392,47 @@ app.get('/api/events/:id/messages', (req, res) => {
     res.json(eventMessages[eventId] || []);
 });
 
-app.post('/api/videos/upload', uploadVideo.single('video'), async (req, res) => {
+const thumbnailStorage = multer.diskStorage({
+    destination: './uploads/thumbnails',
+    filename: (req, file, cb) => {
+        cb(null, 'thumb-' + Date.now() + '.jpg');
+    }
+});
+const uploadVideoWithThumbnail = multer({
+    storage: videoStorage,
+    limits: { fileSize: 100 * 1024 * 1024 }
+}).fields([
+    { name: 'video', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 }
+]);
+
+app.post('/api/videos/upload', uploadVideoWithThumbnail, async (req, res) => {
     try {
-        if (!req.file) {
+        if (!req.files || !req.files.video) {
             return res.status(400).json({ error: 'No video file uploaded' });
+        }
+        
+        const videoFile = req.files.video[0];
+        const thumbnailFile = req.files.thumbnail ? req.files.thumbnail[0] : null;
+        
+        let thumbnailPath = null;
+        if (thumbnailFile) {
+            const thumbnailFilename = 'thumb-' + Date.now() + '.jpg';
+            const thumbnailDestPath = path.join(__dirname, 'uploads/thumbnails', thumbnailFilename);
+            await fs.mkdir(path.join(__dirname, 'uploads/thumbnails'), { recursive: true });
+            await fs.rename(thumbnailFile.path, thumbnailDestPath);
+            thumbnailPath = `/uploads/thumbnails/${thumbnailFilename}`;
         }
         
         const videoData = {
             id: Date.now().toString(),
-            filename: req.file.filename,
-            originalName: req.file.originalname,
-            path: `/uploads/videos/${req.file.filename}`,
+            filename: videoFile.filename,
+            originalName: videoFile.originalname,
+            path: `/uploads/videos/${videoFile.filename}`,
+            thumbnailPath: thumbnailPath,
             uploadedAt: new Date().toISOString(),
             status: 'pending',
-            size: req.file.size
+            size: videoFile.size
         };
         
         videosData.push(videoData);
@@ -426,6 +470,14 @@ app.post('/api/videos/upload', uploadVideo.single('video'), async (req, res) => 
 app.get('/api/videos/pending', (req, res) => {
     const pendingVideos = videosData.filter(v => v.status === 'pending');
     res.json(pendingVideos);
+});
+
+app.get('/api/videos/approved', (req, res) => {
+    const approvedVideos = videosData
+        .filter(v => v.status === 'approved')
+        .sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt))
+        .slice(0, 3);
+    res.json(approvedVideos);
 });
 
 app.post('/api/videos/:id/moderate', async (req, res) => {
@@ -553,8 +605,218 @@ app.get('/api/admin/videos/pending', (req, res) => {
     res.json(pendingVideos);
 });
 
+app.post('/api/admin/upload-hero-images', uploadHeroImage.fields([
+    { name: 'news', maxCount: 1 },
+    { name: 'schedule', maxCount: 1 },
+    { name: 'video', maxCount: 1 },
+    { name: 'events', maxCount: 1 }
+]), async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        const blocks = ['news', 'schedule', 'video', 'events'];
+        
+        for (const block of blocks) {
+            if (req.files && req.files[block]) {
+                const file = req.files[block][0];
+                adminSettings.heroImages[block] = `/uploads/hero-images/${file.filename}`;
+            } else if (req.body[`${block}_url`]) {
+                adminSettings.heroImages[block] = req.body[`${block}_url`];
+            }
+        }
+        
+        await saveAdminSettings();
+        res.json({ success: true, images: adminSettings.heroImages });
+    } catch (error) {
+        console.error('Error uploading hero images:', error);
+        res.status(500).json({ error: 'Failed to upload images' });
+    }
+});
+
 app.get('/api/settings/images', (req, res) => {
     res.json(adminSettings.heroImages);
+});
+
+async function parseExcelSchedule(filePath) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    
+    const worksheet = workbook.worksheets[0];
+    const schedule = {
+        monday: [],
+        tuesday: [],
+        wednesday: [],
+        thursday: [],
+        friday: []
+    };
+    
+    const dayMap = {
+        1: 'monday',
+        2: 'tuesday',
+        3: 'wednesday',
+        4: 'thursday',
+        5: 'friday'
+    };
+    
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        
+        const timeCell = row.getCell(1).value;
+        if (!timeCell) return;
+        
+        const time = String(timeCell).trim();
+        
+        for (let col = 2; col <= 6; col++) {
+            const cell = row.getCell(col);
+            const cellValue = cell.value;
+            
+            if (cellValue && String(cellValue).trim()) {
+                const parts = String(cellValue).split('/').map(p => p.trim());
+                const subject = parts[0] || '';
+                const teacher = parts[1] || '';
+                const room = parts[2] || '';
+                
+                const dayKey = dayMap[col - 1];
+                if (dayKey && subject) {
+                    schedule[dayKey].push({
+                        time,
+                        subject,
+                        teacher,
+                        room
+                    });
+                }
+            }
+        }
+    });
+    
+    return schedule;
+}
+
+app.post('/api/admin/upload-schedule', uploadSchedule.single('schedule'), async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Файл не завантажено' });
+        }
+        
+        const { name } = req.body;
+        if (!name) {
+            return res.status(400).json({ error: 'Назва розкладу обов\'язкова' });
+        }
+        
+        const schedule = await parseExcelSchedule(req.file.path);
+        
+        const newSchedule = {
+            id: Date.now().toString(),
+            name: name,
+            schedule: schedule,
+            uploadedAt: new Date().toISOString(),
+            filePath: req.file.path
+        };
+        
+        schedulesData.push(newSchedule);
+        await saveData();
+        
+        res.json({ success: true, schedule: newSchedule });
+    } catch (error) {
+        console.error('Error uploading schedule:', error);
+        res.status(500).json({ error: 'Помилка обробки файлу: ' + error.message });
+    }
+});
+
+app.get('/api/admin/schedules', (req, res) => {
+    const { token } = req.query;
+    
+    if (token === 'admin-authenticated') {
+        res.json(schedulesData);
+    } else if (token === 'public' || !token) {
+        const schedulesToReturn = schedulesData.filter(s => !s.userId);
+        res.json(schedulesToReturn);
+    } else {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+});
+
+app.delete('/api/admin/schedules/:id', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        const scheduleIndex = schedulesData.findIndex(s => s.id === req.params.id);
+        if (scheduleIndex === -1) {
+            return res.status(404).json({ error: 'Розклад не знайдено' });
+        }
+        
+        schedulesData.splice(scheduleIndex, 1);
+        await saveData();
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        res.status(500).json({ error: 'Помилка видалення' });
+    }
+});
+
+app.get('/api/schedules/user/:userId', (req, res) => {
+    const userId = req.params.userId;
+    const userSchedule = schedulesData.find(s => s.userId === userId);
+    
+    if (userSchedule) {
+        res.json(userSchedule);
+    } else {
+        res.json(null);
+    }
+});
+
+app.post('/api/schedules/user/:userId/set', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const { scheduleId } = req.body;
+        
+        const schedule = schedulesData.find(s => s.id === scheduleId);
+        if (!schedule) {
+            return res.status(404).json({ error: 'Розклад не знайдено' });
+        }
+        
+        const userScheduleIndex = schedulesData.findIndex(s => s.userId === userId);
+        if (userScheduleIndex !== -1) {
+            schedulesData[userScheduleIndex] = { ...schedule, userId };
+        } else {
+            schedulesData.push({ ...schedule, userId, id: Date.now().toString() });
+        }
+        
+        await saveData();
+        res.json({ success: true, schedule: schedulesData.find(s => s.userId === userId) });
+    } catch (error) {
+        console.error('Error setting user schedule:', error);
+        res.status(500).json({ error: 'Помилка встановлення розкладу' });
+    }
+});
+
+app.delete('/api/schedules/user/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const userScheduleIndex = schedulesData.findIndex(s => s.userId === userId);
+        
+        if (userScheduleIndex !== -1) {
+            schedulesData.splice(userScheduleIndex, 1);
+            await saveData();
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error removing user schedule:', error);
+        res.status(500).json({ error: 'Помилка видалення розкладу' });
+    }
 });
 
 app.get('/', (req, res) => {
