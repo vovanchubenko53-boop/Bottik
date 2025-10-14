@@ -3,6 +3,22 @@ let currentEvent = null;
 let currentSchedule = null;
 let currentNews = null;
 let userSchedule = null;
+let telegramUser = null;
+
+if (window.Telegram && window.Telegram.WebApp) {
+    const tg = window.Telegram.WebApp;
+    telegramUser = tg.initDataUnsafe?.user || {
+        id: Date.now(),
+        first_name: 'Гість',
+        photo_url: null
+    };
+} else {
+    telegramUser = {
+        id: Date.now(),
+        first_name: 'Гість',
+        photo_url: null
+    };
+}
 
 function updateTime() {
     const now = new Date();
@@ -27,6 +43,8 @@ function goToPage(pageId, event) {
         loadEvents();
     } else if (pageId === 'page-event-photos') {
         loadPhotos();
+    } else if (pageId === 'page-event-chat') {
+        loadChatMessages();
     }
 }
 
@@ -219,17 +237,17 @@ async function viewEventDetail(eventId) {
         const response = await fetch(`${API_URL}/api/events/${eventId}`);
         currentEvent = await response.json();
         
+        const joinedResponse = await fetch(`${API_URL}/api/events/${eventId}/joined?userId=${telegramUser.id}`);
+        const joinedData = await joinedResponse.json();
+        
         document.getElementById('event-detail-title').textContent = currentEvent.title;
         document.getElementById('event-detail-date').textContent = currentEvent.date;
         document.getElementById('event-detail-time').textContent = currentEvent.time;
         document.getElementById('event-detail-location').textContent = currentEvent.location;
         document.getElementById('event-detail-description').textContent = currentEvent.description;
-        document.getElementById('event-detail-participants').textContent = currentEvent.participants + ' учасників';
+        document.getElementById('event-detail-participants').textContent = joinedData.participants + ' учасників';
         
-        const isJoined = currentEvent.joined;
-        const joinBtn = document.getElementById('event-join-btn');
-        joinBtn.textContent = isJoined ? 'Відкрити чат' : 'Приєднатися';
-        joinBtn.onclick = isJoined ? () => goToPage('page-event-chat') : joinEvent;
+        updateEventButtons(joinedData.joined);
         
         goToPage('page-event-detail');
         lucide.createIcons();
@@ -238,29 +256,78 @@ async function viewEventDetail(eventId) {
     }
 }
 
+function updateEventButtons(isJoined) {
+    const btnContainer = document.getElementById('event-detail-buttons');
+    if (isJoined) {
+        btnContainer.innerHTML = `
+            <div class="flex gap-2">
+                <button class="flex-1 bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="goToPage('page-event-chat')">Чат</button>
+                <button class="bg-red-500 text-white px-4 py-3 rounded-lg" onclick="leaveEvent()">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        btnContainer.innerHTML = `
+            <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="joinEvent()">Приєднатися</button>
+        `;
+    }
+    lucide.createIcons();
+}
+
 async function joinEvent() {
     if (!currentEvent) return;
     
     try {
         const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/join`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: telegramUser.id,
+                firstName: telegramUser.first_name,
+                photoUrl: telegramUser.photo_url
+            })
         });
         
+        const data = await response.json();
+        
         if (response.ok) {
-            currentEvent.joined = true;
-            currentEvent.participants++;
-            document.getElementById('event-detail-participants').textContent = currentEvent.participants + ' учасників';
-            
-            const joinBtn = document.getElementById('event-join-btn');
-            joinBtn.textContent = 'Відкрити чат';
-            joinBtn.onclick = () => goToPage('page-event-chat');
+            document.getElementById('event-detail-participants').textContent = data.participants + ' учасників';
+            updateEventButtons(true);
             
             document.getElementById('event-chat-title').textContent = `Чат: ${currentEvent.title}`;
+            await loadChatMessages();
             goToPage('page-event-chat');
         }
     } catch (error) {
         console.error('Error joining event:', error);
         alert('Помилка приєднання до події');
+    }
+}
+
+async function leaveEvent() {
+    if (!currentEvent) return;
+    
+    if (!confirm('Ви впевнені, що хочете вийти з цього івенту?')) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: telegramUser.id
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            document.getElementById('event-detail-participants').textContent = data.participants + ' учасників';
+            updateEventButtons(false);
+        }
+    } catch (error) {
+        console.error('Error leaving event:', error);
+        alert('Помилка виходу з події');
     }
 }
 
@@ -301,6 +368,40 @@ async function createEvent() {
     }
 }
 
+async function loadChatMessages() {
+    if (!currentEvent) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages`);
+        const messages = await response.json();
+        
+        const chatMessages = document.getElementById('chat-messages');
+        chatMessages.innerHTML = messages.map(msg => {
+            const isOwn = msg.userId === telegramUser.id;
+            const avatar = msg.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || 'U')}&background=random`;
+            
+            return `
+                <div class="flex ${isOwn ? 'justify-end' : 'justify-start'} mb-3">
+                    ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2" alt="${msg.firstName}">` : ''}
+                    <div class="${isOwn ? 'chat-message own' : 'chat-message'}">
+                        ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ''}
+                        <div>${msg.text}</div>
+                    </div>
+                    ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2" alt="${msg.firstName}">` : ''}
+                </div>
+            `;
+        }).join('');
+        
+        if (messages.length === 0) {
+            chatMessages.innerHTML = '<div class="text-center text-gray-500">Чат порожній. Будьте першим, хто напише повідомлення!</div>';
+        }
+        
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    } catch (error) {
+        console.error('Error loading messages:', error);
+    }
+}
+
 async function sendMessage() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
@@ -311,17 +412,17 @@ async function sendMessage() {
         const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message })
+            body: JSON.stringify({
+                message,
+                userId: telegramUser.id,
+                firstName: telegramUser.first_name,
+                photoUrl: telegramUser.photo_url
+            })
         });
         
         if (response.ok) {
-            const chatMessages = document.getElementById('chat-messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'chat-message own';
-            messageDiv.textContent = message;
-            chatMessages.appendChild(messageDiv);
+            await loadChatMessages();
             input.value = '';
-            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     } catch (error) {
         console.error('Error sending message:', error);
@@ -419,6 +520,7 @@ if (savedSchedule) {
 
 loadNews();
 loadEvents();
+loadHeroImages();
 
 if (window.Telegram && window.Telegram.WebApp) {
     window.Telegram.WebApp.ready();
@@ -426,3 +528,19 @@ if (window.Telegram && window.Telegram.WebApp) {
 }
 
 lucide.createIcons();
+
+async function loadHeroImages() {
+    try {
+        const response = await fetch(`${API_URL}/api/settings/images`);
+        const images = await response.json();
+        
+        if (images.news) {
+            document.getElementById('main-news-img').src = images.news;
+        }
+        if (images.events) {
+            document.getElementById('main-event-img').src = images.events;
+        }
+    } catch (error) {
+        console.error('Error loading hero images:', error);
+    }
+}

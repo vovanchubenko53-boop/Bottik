@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>U-hub Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="login-screen" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-md w-96">
+            <h1 class="text-2xl font-bold mb-6 text-center">Адмін-панель U-hub</h1>
+            <input type="password" id="password-input" placeholder="Введіть пароль" class="w-full border border-gray-300 rounded-lg p-3 mb-4">
+            <button onclick="login()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Увійти</button>
+            <p id="login-error" class="text-red-500 text-sm mt-2 hidden">Невірний пароль</p>
+        </div>
+    </div>
+
+    <div id="admin-panel" class="hidden">
+        <nav class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">U-hub Admin</h1>
+                    <button onclick="logout()" class="text-red-500 hover:text-red-700">Вийти</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="bg-white rounded-lg shadow-sm mb-6">
+                <div class="flex border-b">
+                    <button onclick="switchTab('images')" class="tab-btn flex-1 py-3 px-4 font-semibold text-blue-500 border-b-2 border-blue-500">Зображення блоків</button>
+                    <button onclick="switchTab('broadcast')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
+                    <button onclick="switchTab('videos')" class="tab-btn flex-1 py-3 px-4 font-semibold text-gray-500">Модерація відео</button>
+                </div>
+                
+                <div id="tab-images" class="tab-content active p-6">
+                    <h2 class="text-xl font-bold mb-4">Зміна зображень блоків</h2>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Блок "Новини"</label>
+                            <input type="url" id="img-news" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Блок "Розклади"</label>
+                            <input type="url" id="img-schedule" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Блок "Відео"</label>
+                            <input type="url" id="img-video" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Блок "Івенти"</label>
+                            <input type="url" id="img-events" placeholder="https://example.com/image.jpg" class="w-full border border-gray-300 rounded-lg p-3 mb-2">
+                            <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden">
+                        </div>
+                        <button onclick="saveImages()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Зберегти зміни</button>
+                        <div id="images-status" class="hidden mt-2 p-3 rounded-lg"></div>
+                    </div>
+                </div>
+
+                <div id="tab-broadcast" class="tab-content p-6">
+                    <h2 class="text-xl font-bold mb-4">Розсилка повідомлень</h2>
+                    <p class="text-sm text-gray-600 mb-4">Користувачів в базі: <span id="users-count">0</span></p>
+                    <textarea id="broadcast-message" placeholder="Введіть повідомлення для розсилки..." class="w-full border border-gray-300 rounded-lg p-3 mb-4 h-32"></textarea>
+                    <button onclick="sendBroadcast()" class="w-full bg-green-500 text-white font-semibold py-3 rounded-lg hover:bg-green-600">Відправити розсилку</button>
+                    <div id="broadcast-status" class="hidden mt-4 p-3 rounded-lg"></div>
+                </div>
+
+                <div id="tab-videos" class="tab-content p-6">
+                    <h2 class="text-xl font-bold mb-4">Відео на модерації</h2>
+                    <div id="videos-list" class="space-y-4">
+                        <p class="text-gray-500 text-center">Завантаження...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let adminToken = null;
+
+        async function login() {
+            const password = document.getElementById('password-input').value;
+            try {
+                const response = await fetch(`${API_URL}/api/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    adminToken = data.token;
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('admin-panel').classList.remove('hidden');
+                    loadAdminData();
+                } else {
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                alert('Помилка входу');
+            }
+        }
+
+        function logout() {
+            adminToken = null;
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('admin-panel').classList.add('hidden');
+            document.getElementById('password-input').value = '';
+        }
+
+        async function loadAdminData() {
+            try {
+                const settingsRes = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`);
+                const settings = await settingsRes.json();
+                
+                document.getElementById('img-news').value = settings.heroImages.news;
+                document.getElementById('img-schedule').value = settings.heroImages.schedule;
+                document.getElementById('img-video').value = settings.heroImages.video;
+                document.getElementById('img-events').value = settings.heroImages.events;
+                
+                updatePreviews();
+                
+                const usersRes = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`);
+                document.getElementById('users-count').textContent = '0';
+                
+                loadPendingVideos();
+            } catch (error) {
+                console.error('Error loading admin data:', error);
+            }
+        }
+
+        function updatePreviews() {
+            const images = ['news', 'schedule', 'video', 'events'];
+            images.forEach(img => {
+                const input = document.getElementById(`img-${img}`);
+                const preview = document.getElementById(`preview-${img}`);
+                
+                input.addEventListener('input', () => {
+                    if (input.value) {
+                        preview.src = input.value;
+                        preview.classList.remove('hidden');
+                    } else {
+                        preview.classList.add('hidden');
+                    }
+                });
+                
+                if (input.value) {
+                    preview.src = input.value;
+                    preview.classList.remove('hidden');
+                }
+            });
+        }
+
+        async function saveImages() {
+            const heroImages = {
+                heroImages: {
+                    news: document.getElementById('img-news').value,
+                    schedule: document.getElementById('img-schedule').value,
+                    video: document.getElementById('img-video').value,
+                    events: document.getElementById('img-events').value
+                }
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(heroImages)
+                });
+                
+                if (response.ok) {
+                    const status = document.getElementById('images-status');
+                    status.textContent = '✅ Зображення успішно збережено!';
+                    status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
+                    status.classList.remove('hidden');
+                    setTimeout(() => status.classList.add('hidden'), 3000);
+                }
+            } catch (error) {
+                console.error('Error saving images:', error);
+                alert('Помилка збереження');
+            }
+        }
+
+        async function sendBroadcast() {
+            const message = document.getElementById('broadcast-message').value.trim();
+            if (!message) {
+                alert('Введіть повідомлення');
+                return;
+            }
+            
+            if (!confirm('Відправити розсилку всім користувачам?')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/broadcast?token=${adminToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                
+                const data = await response.json();
+                
+                const status = document.getElementById('broadcast-status');
+                status.textContent = `✅ Розсилка завершена! Відправлено: ${data.sent}, Помилок: ${data.failed}`;
+                status.className = 'mt-4 p-3 rounded-lg bg-green-100 text-green-700';
+                status.classList.remove('hidden');
+                
+                document.getElementById('broadcast-message').value = '';
+            } catch (error) {
+                console.error('Error broadcasting:', error);
+                alert('Помилка розсилки');
+            }
+        }
+
+        async function loadPendingVideos() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/videos/pending?token=${adminToken}`);
+                const videos = await response.json();
+                
+                const videosList = document.getElementById('videos-list');
+                
+                if (videos.length === 0) {
+                    videosList.innerHTML = '<p class="text-gray-500 text-center">Немає відео на модерації</p>';
+                    return;
+                }
+                
+                videosList.innerHTML = videos.map(video => `
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <p class="font-semibold">${video.originalName}</p>
+                                <p class="text-sm text-gray-500">Завантажено: ${new Date(video.uploadedAt).toLocaleString('uk-UA')}</p>
+                                <p class="text-sm text-gray-500">Розмір: ${(video.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                        </div>
+                        <video src="${API_URL}${video.path}" controls class="w-full rounded-lg mb-3" style="max-height: 300px;"></video>
+                        <div class="flex gap-2">
+                            <button onclick="moderateVideo('${video.id}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Схвалити</button>
+                            <button onclick="moderateVideo('${video.id}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">Відхилити</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading videos:', error);
+            }
+        }
+
+        async function moderateVideo(videoId, action) {
+            try {
+                const response = await fetch(`${API_URL}/api/videos/${videoId}/moderate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+                
+                if (response.ok) {
+                    loadPendingVideos();
+                }
+            } catch (error) {
+                console.error('Error moderating video:', error);
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('text-blue-500', 'border-b-2', 'border-blue-500');
+                btn.classList.add('text-gray-500');
+            });
+            
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            event.target.classList.remove('text-gray-500');
+            event.target.classList.add('text-blue-500', 'border-b-2', 'border-blue-500');
+            
+            if (tab === 'videos') {
+                loadPendingVideos();
+            }
+        }
+
+        document.getElementById('password-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>

@@ -40,6 +40,17 @@ let schedulesData = [];
 let videosData = [];
 let photosData = [];
 let eventMessages = {};
+let eventParticipants = {};
+let botUsers = [];
+let adminSettings = {
+    heroImages: {
+        news: 'https://placehold.co/600x300/a3e635/444?text=News',
+        schedule: 'https://placehold.co/600x300/60a5fa/FFF?text=Schedule',
+        video: 'https://placehold.co/600x300/f87171/FFF?text=Video',
+        events: 'https://placehold.co/600x300/c084fc/FFF?text=Events'
+    }
+};
+const ADMIN_PASSWORD = '1234';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 let bot = null;
@@ -51,7 +62,46 @@ if (BOT_TOKEN) {
         
         bot.onText(/\/start/, (msg) => {
             const chatId = msg.chat.id;
+            const user = msg.from;
+            
+            if (!botUsers.find(u => u.chatId === chatId)) {
+                botUsers.push({
+                    chatId,
+                    firstName: user.first_name,
+                    username: user.username,
+                    joinedAt: new Date().toISOString()
+                });
+                saveBotUsers();
+            }
+            
             bot.sendMessage(chatId, 'Вітаємо в U-hub Bot! Тут ви отримаєте сповіщення про відео та події.');
+        });
+        
+        bot.on('callback_query', async (query) => {
+            const data = JSON.parse(query.data);
+            
+            if (data.type === 'video_mod') {
+                const video = videosData.find(v => v.id === data.videoId);
+                if (video) {
+                    if (data.action === 'approve') {
+                        video.status = 'approved';
+                        video.approvedAt = new Date().toISOString();
+                        bot.editMessageText(`✅ Відео схвалено`, {
+                            chat_id: query.message.chat.id,
+                            message_id: query.message.message_id
+                        });
+                    } else if (data.action === 'reject') {
+                        video.status = 'rejected';
+                        video.rejectedAt = new Date().toISOString();
+                        bot.editMessageText(`❌ Відео відхилено`, {
+                            chat_id: query.message.chat.id,
+                            message_id: query.message.message_id
+                        });
+                    }
+                    await saveData();
+                }
+                bot.answerCallbackQuery(query.id);
+            }
         });
     } catch (error) {
         console.error('Error initializing Telegram bot:', error.message);
@@ -98,6 +148,9 @@ async function initializeData() {
         
         schedulesData = await scheduleParser.initializeSchedules(dataPath);
         
+        await loadBotUsers();
+        await loadAdminSettings();
+        
     } catch (error) {
         console.error('Error initializing data:', error);
     }
@@ -111,6 +164,53 @@ async function saveData() {
         await fs.writeFile(path.join(dataPath, 'photos.json'), JSON.stringify(photosData, null, 2));
     } catch (error) {
         console.error('Error saving data:', error);
+    }
+}
+
+async function saveBotUsers() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        await fs.mkdir(dataPath, { recursive: true });
+        await fs.writeFile(path.join(dataPath, 'botUsers.json'), JSON.stringify(botUsers, null, 2));
+    } catch (error) {
+        console.error('Error saving bot users:', error);
+    }
+}
+
+async function loadBotUsers() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        const botUsersFile = await fs.readFile(path.join(dataPath, 'botUsers.json'), 'utf-8');
+        botUsers = JSON.parse(botUsersFile);
+    } catch (e) {
+        botUsers = [];
+    }
+}
+
+async function saveAdminSettings() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        await fs.mkdir(dataPath, { recursive: true });
+        await fs.writeFile(path.join(dataPath, 'adminSettings.json'), JSON.stringify(adminSettings, null, 2));
+    } catch (error) {
+        console.error('Error saving admin settings:', error);
+    }
+}
+
+async function loadAdminSettings() {
+    try {
+        const dataPath = path.join(__dirname, 'data');
+        const settingsFile = await fs.readFile(path.join(dataPath, 'adminSettings.json'), 'utf-8');
+        adminSettings = JSON.parse(settingsFile);
+    } catch (e) {
+        adminSettings = {
+            heroImages: {
+                news: 'https://placehold.co/600x300/a3e635/444?text=News',
+                schedule: 'https://placehold.co/600x300/60a5fa/FFF?text=Schedule',
+                video: 'https://placehold.co/600x300/f87171/FFF?text=Video',
+                events: 'https://placehold.co/600x300/c084fc/FFF?text=Events'
+            }
+        };
     }
 }
 
@@ -190,12 +290,21 @@ app.post('/api/events', async (req, res) => {
 
 app.post('/api/events/:id/join', async (req, res) => {
     try {
+        const { userId, firstName, photoUrl } = req.body;
         const event = eventsData.find(e => e.id === req.params.id);
+        
         if (event) {
-            event.participants++;
-            event.joined = true;
-            await saveData();
-            res.json({ success: true, participants: event.participants });
+            if (!eventParticipants[event.id]) {
+                eventParticipants[event.id] = [];
+            }
+            
+            if (!eventParticipants[event.id].find(p => p.userId === userId)) {
+                eventParticipants[event.id].push({ userId, firstName, photoUrl, joinedAt: new Date().toISOString() });
+                event.participants = eventParticipants[event.id].length;
+                await saveData();
+            }
+            
+            res.json({ success: true, participants: event.participants, joined: true });
         } else {
             res.status(404).json({ error: 'Event not found' });
         }
@@ -205,8 +314,42 @@ app.post('/api/events/:id/join', async (req, res) => {
     }
 });
 
+app.post('/api/events/:id/leave', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const event = eventsData.find(e => e.id === req.params.id);
+        
+        if (event) {
+            if (eventParticipants[event.id]) {
+                eventParticipants[event.id] = eventParticipants[event.id].filter(p => p.userId !== userId);
+                event.participants = eventParticipants[event.id].length;
+                await saveData();
+            }
+            
+            res.json({ success: true, participants: event.participants, joined: false });
+        } else {
+            res.status(404).json({ error: 'Event not found' });
+        }
+    } catch (error) {
+        console.error('Error leaving event:', error);
+        res.status(500).json({ error: 'Failed to leave event' });
+    }
+});
+
+app.get('/api/events/:id/joined', (req, res) => {
+    const { userId } = req.query;
+    const event = eventsData.find(e => e.id === req.params.id);
+    
+    if (event && eventParticipants[event.id]) {
+        const isJoined = eventParticipants[event.id].some(p => p.userId === userId);
+        res.json({ joined: isJoined, participants: event.participants });
+    } else {
+        res.json({ joined: false, participants: event?.participants || 0 });
+    }
+});
+
 app.post('/api/events/:id/messages', (req, res) => {
-    const { message } = req.body;
+    const { message, userId, firstName, photoUrl } = req.body;
     const eventId = req.params.id;
     
     if (!eventMessages[eventId]) {
@@ -217,7 +360,10 @@ app.post('/api/events/:id/messages', (req, res) => {
         id: Date.now().toString(),
         text: message,
         timestamp: new Date().toISOString(),
-        sender: 'user'
+        sender: 'user',
+        userId,
+        firstName,
+        photoUrl
     };
     
     eventMessages[eventId].push(newMessage);
@@ -247,6 +393,24 @@ app.post('/api/videos/upload', uploadVideo.single('video'), async (req, res) => 
         
         videosData.push(videoData);
         await saveData();
+        
+        if (bot && botUsers.length > 0) {
+            const adminUsers = botUsers.slice(0, 1);
+            for (const admin of adminUsers) {
+                try {
+                    await bot.sendMessage(admin.chatId, `🎥 Нове відео на модерацію:\n\n📝 Назва: ${videoData.originalName}\n📅 Дата: ${new Date(videoData.uploadedAt).toLocaleString('uk-UA')}\n💾 Розмір: ${(videoData.size / 1024 / 1024).toFixed(2)} MB`, {
+                        reply_markup: {
+                            inline_keyboard: [[
+                                { text: '✅ Підтвердити', callback_data: JSON.stringify({ type: 'video_mod', videoId: videoData.id, action: 'approve' }) },
+                                { text: '❌ Відхилити', callback_data: JSON.stringify({ type: 'video_mod', videoId: videoData.id, action: 'reject' }) }
+                            ]]
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error sending video notification to bot:', error.message);
+                }
+            }
+        }
         
         res.json({ 
             success: true, 
@@ -317,8 +481,88 @@ app.get('/api/photos', (req, res) => {
     res.json(photosData);
 });
 
+app.post('/api/admin/login', (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASSWORD) {
+        res.json({ success: true, token: 'admin-authenticated' });
+    } else {
+        res.status(401).json({ error: 'Невірний пароль' });
+    }
+});
+
+app.get('/api/admin/settings', (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    res.json(adminSettings);
+});
+
+app.post('/api/admin/settings', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    adminSettings = { ...adminSettings, ...req.body };
+    await saveAdminSettings();
+    res.json({ success: true, settings: adminSettings });
+});
+
+app.post('/api/admin/broadcast', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    const { message } = req.body;
+    
+    if (!bot) {
+        return res.status(400).json({ error: 'Telegram бот не налаштований' });
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of botUsers) {
+        try {
+            await bot.sendMessage(user.chatId, message);
+            successCount++;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+            console.error(`Failed to send to ${user.chatId}:`, error.message);
+            errorCount++;
+        }
+    }
+    
+    res.json({ 
+        success: true, 
+        sent: successCount, 
+        failed: errorCount,
+        total: botUsers.length 
+    });
+});
+
+app.get('/api/admin/videos/pending', (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    const pendingVideos = videosData.filter(v => v.status === 'pending');
+    res.json(pendingVideos);
+});
+
+app.get('/api/settings/images', (req, res) => {
+    res.json(adminSettings.heroImages);
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 initializeData().then(() => {
