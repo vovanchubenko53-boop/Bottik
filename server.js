@@ -15,6 +15,17 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Disable caching for HTML, JS, and CSS files
+app.use((req, res, next) => {
+    if (req.url.match(/\.(html|js|css)$/)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
