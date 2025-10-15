@@ -1075,6 +1075,44 @@ app.delete('/api/schedules/user/:userId', async (req, res) => {
     }
 });
 
+// Новый эндпоинт для очистки базы данных
+app.post('/api/admin/clean-database', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        const { type } = req.body;
+        
+        if (type === 'all') {
+            eventsData = [];
+            videosData = [];
+            schedulesData = schedulesData.filter(s => !s.userId); // оставить только системные
+            photosData = [];
+            eventMessages = {};
+            eventParticipants = {};
+            userRestrictions = {};
+        } else if (type === 'events') {
+            eventsData = [];
+            eventMessages = {};
+            eventParticipants = {};
+        } else if (type === 'schedules') {
+            // Удаляем только пользовательские расписания
+            const systemSchedules = schedulesData.filter(s => !s.userId);
+            schedulesData = systemSchedules;
+        } else if (type === 'videos') {
+            videosData = [];
+        }
+        
+        await saveData();
+        res.json({ success: true, message: `Базу успішно очищено: ${type}` });
+    } catch (error) {
+        console.error('Error cleaning database:', error);
+        res.status(500).json({ error: 'Помилка очищення бази' });
+    }
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
