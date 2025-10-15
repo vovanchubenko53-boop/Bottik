@@ -38,26 +38,190 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
+        
+        /* Improved page transitions with smoother animations */
         .page {
             display: none;
             flex-direction: column;
             min-height: 100vh;
             background-color: var(--app-bg);
+            transform: translate3d(0,0,0);
+            backface-visibility: hidden;
+            perspective: 1000px;
+            will-change: transform, opacity;
         }
         .page.active {
             display: flex;
-            animation: slideIn 0.3s ease-out;
+            animation: slideIn 0.35s cubic-bezier(0.22, 0.61, 0.36, 1) both;
         }
         @keyframes slideIn {
             from { 
                 opacity: 0;
-                transform: translateX(20px);
+                transform: translate3d(15px, 0, 0);
             }
             to { 
                 opacity: 1;
-                transform: translateX(0);
+                transform: translate3d(0, 0, 0);
             }
         }
+        
+        /* Отключить анимации для пользователей, которые их не любят */
+        @media (prefers-reduced-motion: reduce) {
+            .page.active {
+                animation: none;
+            }
+        }
+        /* </CHANGE> */
+        
+        /* TikTok кнопка анимация */
+        .tiktok-button {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .tiktok-button.onclic {
+            width: 100% !important;
+            background-color: #EFEFF4 !important;
+            color: transparent !important;
+            cursor: wait;
+        }
+
+        .tiktok-button.onclic:after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin: -15px 0 0 -15px;
+            width: 30px;
+            height: 30px;
+            border: 4px solid #007AFF;
+            border-radius: 50%;
+            border-right-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        .tiktok-button.validate {
+            background-color: #C8FB51 !important;
+            color: #000 !important;
+        }
+
+        .tiktok-button.validate:after {
+            content: "✓";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #000;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Уведомление о модерации */
+        .moderation-notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #C8FB51;
+            color: #000;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideDown 0.3s ease-out;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        /* Карточки дней расписания */
+        .schedule-day-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 1.5rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .schedule-day-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .schedule-day-card:hover::before {
+            left: 100%;
+        }
+
+        .schedule-day-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+
+        .schedule-day-card:active {
+            transform: translateY(-2px) scale(1.01);
+        }
+
+        .schedule-day-card.friday {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .day-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .day-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .class-count {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            background: rgba(255,255,255,0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        /* Prevent long-press link preview on mobile */
+        .cursor-pointer, .event-card, .bg-white, button, a {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+        /* </CHANGE> */
         
         button, .bordered-button, .cursor-pointer {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -94,7 +258,7 @@
         
         .bg-white, .event-card {
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translateZ(0);
+            transform: translate3d(0,0,0);
         }
         
         .bg-white:hover, .event-card:hover {
@@ -416,27 +580,32 @@
                  <p class="font-semibold mt-2" id="schedule-list-title">ННІМВ КНУ ім. Т.Г. Шевченка</p>
                  <p class="text-sm text-gray-500 mt-1">На І семестр 2025 / 2026 навчального року</p>
              </div>
-             <div class="grid grid-cols-2 gap-4">
-                 <div class="cursor-pointer" onclick="viewScheduleDay('monday')">
-                     <p class="text-center font-semibold text-blue-500 mb-1">Понеділок</p>
-                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+             <div class="grid grid-cols-2 gap-3">
+                 <div class="schedule-day-card" onclick="viewScheduleDay('monday')">
+                     <div class="day-icon">📅</div>
+                     <p class="day-name">Понеділок</p>
+                     <div class="class-count" id="monday-count">3 пари</div>
                  </div>
-                 <div class="cursor-pointer" onclick="viewScheduleDay('tuesday')">
-                     <p class="text-center font-semibold text-blue-500 mb-1">Вівторок</p>
-                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 <div class="schedule-day-card" onclick="viewScheduleDay('tuesday')">
+                     <div class="day-icon">📚</div>
+                     <p class="day-name">Вівторок</p>
+                     <div class="class-count" id="tuesday-count">2 пари</div>
                  </div>
-                 <div class="cursor-pointer" onclick="viewScheduleDay('wednesday')">
-                     <p class="text-center font-semibold text-blue-500 mb-1">Середа</p>
-                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 <div class="schedule-day-card" onclick="viewScheduleDay('wednesday')">
+                     <div class="day-icon">🧠</div>
+                     <p class="day-name">Середа</p>
+                     <div class="class-count" id="wednesday-count">2 пари</div>
                  </div>
-                 <div class="cursor-pointer" onclick="viewScheduleDay('thursday')">
-                     <p class="text-center font-semibold text-blue-500 mb-1">Четвер</p>
-                     <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full">
+                 <div class="schedule-day-card" onclick="viewScheduleDay('thursday')">
+                     <div class="day-icon">💼</div>
+                     <p class="day-name">Четвер</p>
+                     <div class="class-count" id="thursday-count">2 пари</div>
                  </div>
              </div>
-             <div class="cursor-pointer" onclick="viewScheduleDay('friday')">
-                <p class="text-center font-semibold text-blue-500 mb-1">П'ятниця</p>
-                <img src="https://i.imgur.com/fL9gZ78.png" class="rounded-lg shadow-md w-full mx-auto max-w-xs">
+             <div class="schedule-day-card friday" onclick="viewScheduleDay('friday')">
+                 <div class="day-icon">🎉</div>
+                 <p class="day-name">П'ятниця</p>
+                 <div class="class-count" id="friday-count">1 пара</div>
              </div>
         </main>
         <div class="flex items-center justify-center space-x-8 p-4 bg-gray-50 border-t">
@@ -464,13 +633,6 @@
                     <div class="text-gray-500 text-center">Завантаження розкладу...</div>
                 </div>
             </div>
-            <div class="bg-white rounded-xl shadow-sm p-4">
-                <h3 class="font-bold mb-3">Схеми переміщення по університету</h3>
-                <div class="grid grid-cols-2 gap-2">
-                    <img src="https://placehold.co/200x200/DDD/555?text=Map+1" class="rounded-lg">
-                    <img src="https://placehold.co/200x200/DDD/555?text=Map+2" class="rounded-lg">
-                </div>
-            </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-schedule-list')">Назад до розкладу</div>
     </div>
@@ -485,7 +647,7 @@
         <main class="flex-grow p-4 space-y-4">
             <h1 class="text-center text-xl font-bold">Відео</h1>
             <div class="bg-white rounded-xl shadow-sm p-4">
-                <label class="block w-full bg-blue-500 text-white text-center font-semibold py-3 rounded-lg cursor-pointer">
+                <label class="block w-full bg-blue-500 text-white text-center font-semibold py-3 rounded-lg cursor-pointer tiktok-button">
                     <input type="file" id="video-upload" accept="video/*" class="hidden" onchange="uploadVideo()">
                     Завантажити відео
                 </label>
@@ -493,7 +655,7 @@
             </div>
             <div class="bg-white rounded-xl shadow-sm p-4">
                 <h2 class="font-bold mb-3">Переглянути у TikTok</h2>
-                <a href="https://www.tiktok.com/" target="_blank" class="block bg-gray-100 text-center py-3 rounded-lg font-medium">
+                <a href="https://www.tiktok.com/@uhub_ua?_t=ZM-90ZcsYFEWWC&_r=1" target="_blank" class="block bg-gray-100 text-center py-3 rounded-lg font-medium">
                     Відкрити канал TikTok
                 </a>
             </div>
@@ -611,7 +773,7 @@
                     <label class="text-sm text-gray-600">Термін дії події (годин):</label>
                     <input type="number" id="event-duration" value="24" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
                 </div>
-                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg" onclick="createNewEvent()">Створити</button>
+                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg tiktok-button" onclick="createNewEvent()">Створити</button>
             </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-events-list')">Назад</div>

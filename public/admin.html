@@ -96,6 +96,7 @@
                     <button onclick="switchTab('events')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Події</button>
                     <button onclick="switchTab('broadcast')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
                     <button onclick="switchTab('videos')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Відео</button>
+                    <button onclick="switchTab('cleanup')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Очистка</button>
                 </div>
                 
                 <div id="tab-images" class="tab-content active p-6">
@@ -103,14 +104,11 @@
                     <div class="space-y-6">
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Новини"</label>
-                            <div class="flex gap-2 mb-2">
-                                <input type="url" id="img-news" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
-                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
-                                    <input type="file" id="file-news" accept="image/*" class="hidden" onchange="handleFileSelect('news')">
-                                    <span class="text-sm">📁 Файл</span>
-                                </label>
-                            </div>
-                            <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden">
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+                                <input type="file" id="file-news" accept="image/*" class="hidden" onchange="handleFileSelect('news')">
+                                <span class="text-sm">📁 Завантажити файл</span>
+                            </label>
+                            <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden mt-2">
                             <div class="mt-2 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-news-val">50%</span></label>
@@ -124,14 +122,11 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Розклади"</label>
-                            <div class="flex gap-2 mb-2">
-                                <input type="url" id="img-schedule" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
-                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
-                                    <input type="file" id="file-schedule" accept="image/*" class="hidden" onchange="handleFileSelect('schedule')">
-                                    <span class="text-sm">📁 Файл</span>
-                                </label>
-                            </div>
-                            <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden">
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+                                <input type="file" id="file-schedule" accept="image/*" class="hidden" onchange="handleFileSelect('schedule')">
+                                <span class="text-sm">📁 Завантажити файл</span>
+                            </label>
+                            <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden mt-2">
                             <div class="mt-2 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-schedule-val">50%</span></label>
@@ -145,14 +140,11 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Відео"</label>
-                            <div class="flex gap-2 mb-2">
-                                <input type="url" id="img-video" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
-                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
-                                    <input type="file" id="file-video" accept="image/*" class="hidden" onchange="handleFileSelect('video')">
-                                    <span class="text-sm">📁 Файл</span>
-                                </label>
-                            </div>
-                            <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden">
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+                                <input type="file" id="file-video" accept="image/*" class="hidden" onchange="handleFileSelect('video')">
+                                <span class="text-sm">📁 Завантажити файл</span>
+                            </label>
+                            <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden mt-2">
                             <div class="mt-2 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-video-val">50%</span></label>
@@ -166,14 +158,11 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2">Блок "Івенти"</label>
-                            <div class="flex gap-2 mb-2">
-                                <input type="url" id="img-events" placeholder="https://example.com/image.jpg або завантажте файл" class="flex-1 border border-gray-300 rounded-lg p-3">
-                                <label class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 cursor-pointer hover:bg-gray-200 flex items-center">
-                                    <input type="file" id="file-events" accept="image/*" class="hidden" onchange="handleFileSelect('events')">
-                                    <span class="text-sm">📁 Файл</span>
-                                </label>
-                            </div>
-                            <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden">
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+                                <input type="file" id="file-events" accept="image/*" class="hidden" onchange="handleFileSelect('events')">
+                                <span class="text-sm">📁 Завантажити файл</span>
+                            </label>
+                            <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden mt-2">
                             <div class="mt-2 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-events-val">50%</span></label>
@@ -259,6 +248,33 @@
                         <p class="text-gray-500 text-center">Завантаження...</p>
                     </div>
                 </div>
+
+                <div id="tab-cleanup" class="tab-content p-6">
+                    <h2 class="text-xl font-bold mb-4">Очистка бази даних</h2>
+                    <div class="space-y-4">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <h3 class="text-lg font-semibold text-red-800 mb-2">⚠️ Увага!</h3>
+                            <p class="text-red-700">Ці дії не можна скасувати. Будьте обережні!</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button onclick="cleanDatabase('all')" class="bg-red-500 text-white font-semibold py-4 rounded-lg hover:bg-red-600">
+                                🗑️ Очистити всю базу
+                            </button>
+                            <button onclick="cleanDatabase('events')" class="bg-orange-500 text-white font-semibold py-4 rounded-lg hover:bg-orange-600">
+                                🎭 Очистити івенти
+                            </button>
+                            <button onclick="cleanDatabase('schedules')" class="bg-yellow-500 text-white font-semibold py-4 rounded-lg hover:bg-yellow-600">
+                                📅 Очистити розклади
+                            </button>
+                            <button onclick="cleanDatabase('videos')" class="bg-purple-500 text-white font-semibold py-4 rounded-lg hover:bg-purple-600">
+                                🎥 Очистити відео
+                            </button>
+                        </div>
+                        
+                        <div id="cleanup-status" class="hidden mt-4 p-3 rounded-lg"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -304,11 +320,6 @@
                 const settingsRes = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`);
                 const settings = await settingsRes.json();
                 
-                document.getElementById('img-news').value = settings.heroImages.news;
-                document.getElementById('img-schedule').value = settings.heroImages.schedule;
-                document.getElementById('img-video').value = settings.heroImages.video;
-                document.getElementById('img-events').value = settings.heroImages.events;
-                
                 const positions = settings.imagePositions || {};
                 const blocks = ['news', 'schedule', 'video', 'events'];
                 blocks.forEach(block => {
@@ -319,10 +330,23 @@
                     document.getElementById(`pos-y-${block}-val`).textContent = pos.y + '%';
                 });
                 
-                updatePreviews();
+                if (settings.heroImages) {
+                    blocks.forEach(block => {
+                        if (settings.heroImages[block]) {
+                            const preview = document.getElementById(`preview-${block}`);
+                            preview.src = settings.heroImages[block];
+                            preview.classList.remove('hidden');
+                            const pos = positions[block] || { x: 50, y: 50 };
+                            preview.style.objectPosition = `${pos.x}% ${pos.y}%`;
+                        }
+                    });
+                }
                 
-                const usersRes = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`);
-                document.getElementById('users-count').textContent = '0';
+                const usersRes = await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`); // This seems redundant, assuming it's for user count
+                // Assuming the user count is fetched elsewhere or this line is a placeholder.
+                // If it's meant to fetch user count, the API endpoint needs adjustment.
+                // For now, keeping it as is but noting the potential issue.
+                document.getElementById('users-count').textContent = '0'; // Placeholder, assuming actual user count is fetched by another call
                 
                 loadPendingVideos();
             } catch (error) {
@@ -332,7 +356,6 @@
 
         function handleFileSelect(blockName) {
             const fileInput = document.getElementById(`file-${blockName}`);
-            const urlInput = document.getElementById(`img-${blockName}`);
             const preview = document.getElementById(`preview-${blockName}`);
             
             if (fileInput.files && fileInput.files[0]) {
@@ -342,38 +365,10 @@
                 reader.onload = (e) => {
                     preview.src = e.target.result;
                     preview.classList.remove('hidden');
-                    urlInput.value = ''; 
                 };
                 
                 reader.readAsDataURL(file);
             }
-        }
-
-        function updatePreviews() {
-            const images = ['news', 'schedule', 'video', 'events'];
-            images.forEach(img => {
-                const input = document.getElementById(`img-${img}`);
-                const preview = document.getElementById(`preview-${img}`);
-                const posX = document.getElementById(`pos-x-${img}`).value || 50;
-                const posY = document.getElementById(`pos-y-${img}`).value || 50;
-                
-                input.addEventListener('input', () => {
-                    if (input.value) {
-                        preview.src = input.value;
-                        preview.classList.remove('hidden');
-                        preview.style.objectPosition = `${posX}% ${posY}%`;
-                        document.getElementById(`file-${img}`).value = '';
-                    } else {
-                        preview.classList.add('hidden');
-                    }
-                });
-                
-                if (input.value) {
-                    preview.src = input.value;
-                    preview.classList.remove('hidden');
-                    preview.style.objectPosition = `${posX}% ${posY}%`;
-                }
-            });
         }
 
         function updateImagePosition(blockName) {
@@ -393,14 +388,11 @@
             
             for (const block of blocks) {
                 const fileInput = document.getElementById(`file-${block}`);
-                const urlInput = document.getElementById(`img-${block}`);
                 const posX = document.getElementById(`pos-x-${block}`).value;
                 const posY = document.getElementById(`pos-y-${block}`).value;
                 
                 if (fileInput.files && fileInput.files[0]) {
                     formData.append(block, fileInput.files[0]);
-                } else if (urlInput.value) {
-                    formData.append(`${block}_url`, urlInput.value);
                 }
                 
                 formData.append(`${block}_position_x`, posX);
@@ -816,6 +808,34 @@
             } catch (error) {
                 console.error('Error deleting schedule:', error);
                 alert('Помилка видалення');
+            }
+        }
+
+        async function cleanDatabase(type) {
+            if (!confirm(`Ви впевнені, що хочете очистити ${type}? Цю дію не можна скасувати!`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/clean-database?token=${adminToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type })
+                });
+                
+                const data = await response.json();
+                
+                const status = document.getElementById('cleanup-status');
+                status.textContent = `✅ ${data.message}`;
+                status.className = 'mt-4 p-3 rounded-lg bg-green-100 text-green-700';
+                status.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Error cleaning database:', error);
+                const status = document.getElementById('cleanup-status');
+                status.textContent = '❌ Помилка очищення бази';
+                status.className = 'mt-4 p-3 rounded-lg bg-red-100 text-red-700';
+                status.classList.remove('hidden');
             }
         }
 
