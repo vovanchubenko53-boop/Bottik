@@ -121,14 +121,14 @@ if (BOT_TOKEN) {
                     if (data.action === 'approve') {
                         video.status = 'approved';
                         video.approvedAt = new Date().toISOString();
-                        bot.editMessageText(`✅ Відео схвалено`, {
+                        bot.editMessageCaption(`✅ Відео схвалено`, {
                             chat_id: query.message.chat.id,
                             message_id: query.message.message_id
                         });
                     } else if (data.action === 'reject') {
                         video.status = 'rejected';
                         video.rejectedAt = new Date().toISOString();
-                        bot.editMessageText(`❌ Відео відхилено`, {
+                        bot.editMessageCaption(`❌ Відео відхилено`, {
                             chat_id: query.message.chat.id,
                             message_id: query.message.message_id
                         });
@@ -157,6 +157,27 @@ if (BOT_TOKEN) {
                     await saveData();
                 }
                 bot.answerCallbackQuery(query.id);
+            } else if (data.type === 'photo_mod') {
+                const photo = photosData.find(p => p.id === data.photoId);
+                if (photo) {
+                    if (data.action === 'approve') {
+                        photo.status = 'approved';
+                        photo.approvedAt = new Date().toISOString();
+                        bot.editMessageCaption(`✅ Фото схвалено`, {
+                            chat_id: query.message.chat.id,
+                            message_id: query.message.message_id
+                        });
+                    } else if (data.action === 'reject') {
+                        photo.status = 'rejected';
+                        photo.rejectedAt = new Date().toISOString();
+                        bot.editMessageCaption(`❌ Фото відхилено`, {
+                            chat_id: query.message.chat.id,
+                            message_id: query.message.message_id
+                        });
+                    }
+                    await saveData();
+                }
+                bot.answerCallbackQuery(query.id);
             }
         });
     } catch (error) {
@@ -172,20 +193,7 @@ async function initializeData() {
             const eventsFile = await fs.readFile(path.join(dataPath, 'events.json'), 'utf-8');
             eventsData = JSON.parse(eventsFile);
         } catch (e) {
-            eventsData = [
-                {
-                    id: '1',
-                    title: 'Піцца та кава',
-                    date: '28.08.2025',
-                    time: '21:00',
-                    location: 'кафе «Зустріч»',
-                    description: 'Неформальна зустріч студентів за піцою та кавою',
-                    participants: 5,
-                    createdAt: new Date().toISOString(),
-                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                    joined: false
-                }
-            ];
+            eventsData = [];
         }
         
         try {
@@ -208,6 +216,16 @@ async function initializeData() {
         await loadAdminSettings();
         await loadUserRestrictions();
         await loadEventParticipants();
+        
+        eventsData.forEach(event => {
+            if (!eventParticipants[event.id]) {
+                eventParticipants[event.id] = [];
+            }
+            event.participants = eventParticipants[event.id].length;
+            if (!eventMessages[event.id]) {
+                eventMessages[event.id] = [];
+            }
+        });
         
     } catch (error) {
         console.error('Error initializing data:', error);
@@ -626,31 +644,126 @@ app.post('/api/videos/:id/moderate', async (req, res) => {
     }
 });
 
-app.post('/api/photos/upload', uploadPhoto.array('photos', 10), async (req, res) => {
+app.post('/api/photos/upload', uploadPhoto.single('photo'), async (req, res) => {
     try {
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'No photos uploaded' });
+        if (!req.file) {
+            return res.status(400).json({ error: 'No photo uploaded' });
         }
         
-        const newPhotos = req.files.map(file => ({
-            id: Date.now().toString() + Math.random(),
-            filename: file.filename,
-            url: `/uploads/photos/${file.filename}`,
-            uploadedAt: new Date().toISOString()
-        }));
+        const { eventId, description, userId, firstName } = req.body;
         
-        photosData.push(...newPhotos);
+        if (!eventId) {
+            return res.status(400).json({ error: 'Event ID is required' });
+        }
+        
+        const newPhoto = {
+            id: Date.now().toString(),
+            filename: req.file.filename,
+            url: `/uploads/photos/${req.file.filename}`,
+            eventId,
+            description: description || '',
+            userId,
+            firstName: firstName || 'Анонім',
+            uploadedAt: new Date().toISOString(),
+            status: 'pending'
+        };
+        
+        photosData.push(newPhoto);
         await saveData();
         
-        res.json({ success: true, photos: newPhotos });
+        if (bot && botUsers.length > 0) {
+            const adminUsers = botUsers.slice(0, 1);
+            for (const admin of adminUsers) {
+                try {
+                    const event = eventsData.find(e => e.id === eventId);
+                    const eventName = event ? event.title : 'Подія';
+                    await bot.sendPhoto(admin.chatId, `${process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : 'http://localhost:5000'}${newPhoto.url}`, {
+                        caption: `📸 Нове фото на модерацію:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || 'без опису'}`,
+                        reply_markup: {
+                            inline_keyboard: [[
+                                { text: '✅ Підтвердити', callback_data: JSON.stringify({ type: 'photo_mod', photoId: newPhoto.id, action: 'approve' }) },
+                                { text: '❌ Відхилити', callback_data: JSON.stringify({ type: 'photo_mod', photoId: newPhoto.id, action: 'reject' }) }
+                            ]]
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error sending photo notification to bot:', error.message);
+                }
+            }
+        }
+        
+        res.json({ success: true, message: 'Фото відправлено на модерацію', photo: newPhoto });
     } catch (error) {
-        console.error('Error uploading photos:', error);
-        res.status(500).json({ error: 'Failed to upload photos' });
+        console.error('Error uploading photo:', error);
+        res.status(500).json({ error: 'Failed to upload photo' });
     }
 });
 
 app.get('/api/photos', (req, res) => {
-    res.json(photosData);
+    const { eventId } = req.query;
+    let photos = photosData.filter(p => p.status === 'approved' || !p.status);
+    
+    if (eventId) {
+        photos = photos.filter(p => p.eventId === eventId);
+    }
+    
+    res.json(photos);
+});
+
+app.get('/api/photos/pending', (req, res) => {
+    const pendingPhotos = photosData.filter(p => p.status === 'pending');
+    res.json(pendingPhotos);
+});
+
+app.post('/api/photos/:id/moderate', async (req, res) => {
+    try {
+        const { action, description } = req.body;
+        const photo = photosData.find(p => p.id === req.params.id);
+        
+        if (!photo) {
+            return res.status(404).json({ error: 'Photo not found' });
+        }
+        
+        if (action === 'approve') {
+            photo.status = 'approved';
+            photo.approvedAt = new Date().toISOString();
+            if (description) photo.description = description;
+            res.json({ success: true, message: 'Фото схвалено' });
+        } else if (action === 'reject') {
+            photo.status = 'rejected';
+            photo.rejectedAt = new Date().toISOString();
+            res.json({ success: true, message: 'Фото відхилено' });
+        }
+        
+        await saveData();
+    } catch (error) {
+        console.error('Error moderating photo:', error);
+        res.status(500).json({ error: 'Failed to moderate photo' });
+    }
+});
+
+app.delete('/api/photos/:id', async (req, res) => {
+    try {
+        const photoIndex = photosData.findIndex(p => p.id === req.params.id);
+        if (photoIndex === -1) {
+            return res.status(404).json({ error: 'Photo not found' });
+        }
+        
+        const photo = photosData[photoIndex];
+        try {
+            await fs.unlink(path.join(__dirname, 'uploads/photos', photo.filename));
+        } catch (error) {
+            console.error('Error deleting photo file:', error);
+        }
+        
+        photosData.splice(photoIndex, 1);
+        await saveData();
+        
+        res.json({ success: true, message: 'Фото видалено' });
+    } catch (error) {
+        console.error('Error deleting photo:', error);
+        res.status(500).json({ error: 'Failed to delete photo' });
+    }
 });
 
 app.post('/api/admin/login', (req, res) => {
@@ -733,6 +846,39 @@ app.get('/api/admin/events/pending', (req, res) => {
     
     const pendingEvents = eventsData.filter(e => e.status === 'pending');
     res.json(pendingEvents);
+});
+
+app.delete('/api/admin/events/:id', async (req, res) => {
+    const { token } = req.query;
+    if (token !== 'admin-authenticated') {
+        return res.status(401).json({ error: 'Не авторизовано' });
+    }
+    
+    try {
+        const eventId = req.params.id;
+        const eventIndex = eventsData.findIndex(e => e.id === eventId);
+        
+        if (eventIndex === -1) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+        
+        eventsData.splice(eventIndex, 1);
+        
+        eventParticipants[eventId] = undefined;
+        delete eventParticipants[eventId];
+        
+        eventMessages[eventId] = undefined;
+        delete eventMessages[eventId];
+        
+        photosData = photosData.filter(p => p.eventId !== eventId);
+        
+        await saveData();
+        
+        res.json({ success: true, message: 'Івент та всі пов\'язані дані видалено' });
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        res.status(500).json({ error: 'Failed to delete event' });
+    }
 });
 
 app.post('/api/admin/events/:id/moderate', async (req, res) => {

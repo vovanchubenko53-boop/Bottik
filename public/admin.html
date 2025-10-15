@@ -96,6 +96,7 @@
                     <button onclick="switchTab('events')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Події</button>
                     <button onclick="switchTab('broadcast')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
                     <button onclick="switchTab('videos')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Відео</button>
+                    <button onclick="switchTab('photos')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Фото</button>
                     <button onclick="switchTab('cleanup')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Очистка</button>
                 </div>
                 
@@ -245,6 +246,13 @@
                 <div id="tab-videos" class="tab-content p-6">
                     <h2 class="text-xl font-bold mb-4">Відео на модерації</h2>
                     <div id="videos-list" class="space-y-4">
+                        <p class="text-gray-500 text-center">Завантаження...</p>
+                    </div>
+                </div>
+
+                <div id="tab-photos" class="tab-content p-6">
+                    <h2 class="text-xl font-bold mb-4">Фото на модерації</h2>
+                    <div id="photos-list" class="space-y-4">
                         <p class="text-gray-500 text-center">Завантаження...</p>
                     </div>
                 </div>
@@ -489,6 +497,91 @@
             }
         }
 
+        async function loadPendingPhotos() {
+            try {
+                const response = await fetch(`${API_URL}/api/photos/pending?token=${adminToken}`);
+                const photos = await response.json();
+                
+                const photosList = document.getElementById('photos-list');
+                
+                if (photos.length === 0) {
+                    photosList.innerHTML = '<p class="text-gray-500 text-center">Немає фото на модерації</p>';
+                    return;
+                }
+                
+                const eventsRes = await fetch(`${API_URL}/api/events`);
+                const events = await eventsRes.json();
+                
+                photosList.innerHTML = photos.map(photo => {
+                    const event = events.find(e => e.id === photo.eventId);
+                    const eventName = event ? event.title : 'Подія';
+                    
+                    return `
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <p class="font-semibold">${eventName}</p>
+                                    <p class="text-sm text-gray-500">Автор: ${photo.firstName || 'Анонім'}</p>
+                                    <p class="text-sm text-gray-500">Завантажено: ${new Date(photo.uploadedAt).toLocaleString('uk-UA')}</p>
+                                    ${photo.description ? `<p class="text-sm text-gray-600 mt-1">${photo.description}</p>` : ''}
+                                </div>
+                            </div>
+                            <img src="${API_URL}${photo.url}" class="w-full rounded-lg mb-3" style="max-height: 400px; object-fit: contain;" alt="${photo.description || eventName}">
+                            <div class="mb-3">
+                                <label class="text-sm text-gray-600">Редагувати опис:</label>
+                                <textarea id="photo-desc-${photo.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">${photo.description || ''}</textarea>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="moderatePhoto('${photo.id}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Схвалити</button>
+                                <button onclick="moderatePhoto('${photo.id}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">Відхилити</button>
+                                <button onclick="deletePhoto('${photo.id}')" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600">Видалити</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading photos:', error);
+            }
+        }
+
+        async function moderatePhoto(photoId, action) {
+            try {
+                const description = document.getElementById(`photo-desc-${photoId}`).value;
+                
+                const response = await fetch(`${API_URL}/api/photos/${photoId}/moderate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, description })
+                });
+                
+                if (response.ok) {
+                    alert(action === 'approve' ? 'Фото схвалено' : 'Фото відхилено');
+                    loadPendingPhotos();
+                }
+            } catch (error) {
+                console.error('Error moderating photo:', error);
+                alert('Помилка модерації');
+            }
+        }
+
+        async function deletePhoto(photoId) {
+            if (!confirm('Видалити це фото назавжди?')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/photos/${photoId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('Фото видалено');
+                    loadPendingPhotos();
+                }
+            } catch (error) {
+                console.error('Error deleting photo:', error);
+                alert('Помилка видалення');
+            }
+        }
+
         async function moderateVideo(videoId, action) {
             try {
                 const response = await fetch(`${API_URL}/api/videos/${videoId}/moderate`, {
@@ -518,6 +611,8 @@
             
             if (tab === 'videos') {
                 loadPendingVideos();
+            } else if (tab === 'photos') {
+                loadPendingPhotos();
             } else if (tab === 'schedules') {
                 loadSchedulesList();
             } else if (tab === 'events') {
@@ -591,6 +686,7 @@
                                     <button onclick="moderateEvent('${event.id}', 'approve')" class="flex-1 bg-green-500 text-white text-sm py-1 rounded hover:bg-green-600">Схвалити</button>
                                     <button onclick="moderateEvent('${event.id}', 'reject')" class="flex-1 bg-red-500 text-white text-sm py-1 rounded hover:bg-red-600">Відхилити</button>
                                 ` : ''}
+                                <button onclick="deleteEvent('${event.id}')" class="bg-gray-500 text-white text-sm py-1 px-3 rounded hover:bg-gray-600">🗑 Видалити</button>
                                 ${event.participants > 0 ? `
                                     <button onclick="viewParticipants('${event.id}', '${event.title}')" class="flex-1 bg-blue-500 text-white text-sm py-1 rounded hover:bg-blue-600">Учасники</button>
                                 ` : ''}
@@ -718,6 +814,29 @@
                 }
             } catch (error) {
                 console.error('Error moderating event:', error);
+            }
+        }
+
+        async function deleteEvent(eventId) {
+            if (!confirm('Ви впевнені, що хочете видалити цю подію? Це призведе до видалення всіх пов\'язаних даних (учасники, повідомлення, фото).')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/${eventId}?token=${adminToken}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('Подію успішно видалено');
+                    loadPendingEvents();
+                    loadAllEvents();
+                } else {
+                    alert('Помилка видалення події');
+                }
+            } catch (error) {
+                console.error('Error deleting event:', error);
+                alert('Помилка видалення події');
             }
         }
 

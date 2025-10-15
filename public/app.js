@@ -66,7 +66,9 @@ function goToPage(pageId, event) {
   } else if (pageId === "page-events-list") {
     loadEvents()
   } else if (pageId === "page-event-photos") {
-    loadPhotos()
+    loadEventPhotos()
+  } else if (pageId === "page-upload-photo") {
+    loadUploadPhotoEvents()
   } else if (pageId === "page-event-chat") {
     loadChatMessages()
   } else if (pageId === "page-schedule-search") {
@@ -826,16 +828,52 @@ function openTikTok(event) {
   }
 }
 
-async function uploadPhotos() {
-  const input = document.getElementById("photo-upload")
-  const files = input.files
+let allPhotos = []
+let allEventsForPhotos = []
 
-  if (!files.length) return
+function previewPhoto() {
+  const input = document.getElementById("photo-file-input")
+  const file = input.files[0]
+  
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const preview = document.getElementById("photo-preview")
+      const img = document.getElementById("photo-preview-img")
+      img.src = e.target.result
+      preview.classList.remove("hidden")
+      document.getElementById("photo-file-label").textContent = file.name
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+async function uploadEventPhoto() {
+  const eventId = document.getElementById("upload-event-select").value
+  const description = document.getElementById("upload-photo-description").value
+  const fileInput = document.getElementById("photo-file-input")
+  const file = fileInput.files[0]
+  const button = event.target
+
+  if (!eventId) {
+    alert("Будь ласка, оберіть івент")
+    return
+  }
+
+  if (!file) {
+    alert("Будь ласка, оберіть фото")
+    return
+  }
+
+  button.classList.add("onclic")
+  button.disabled = true
 
   const formData = new FormData()
-  for (const file of files) {
-    formData.append("photos", file)
-  }
+  formData.append("photo", file)
+  formData.append("eventId", eventId)
+  formData.append("description", description)
+  formData.append("userId", telegramUser.id)
+  formData.append("firstName", telegramUser.first_name)
 
   try {
     const response = await fetch(`${API_URL}/api/photos/upload`, {
@@ -843,37 +881,110 @@ async function uploadPhotos() {
       body: formData,
     })
 
+    const result = await response.json()
+
     if (response.ok) {
-      alert("Фото завантажено успішно!")
-      loadPhotos()
-      input.value = ""
+      button.classList.remove("onclic")
+      button.classList.add("validate")
+      
+      showModerationNotification("Фото відправлено на модерацію!")
+
+      setTimeout(() => {
+        button.classList.remove("validate")
+        button.disabled = false
+        
+        document.getElementById("upload-event-select").value = ""
+        document.getElementById("upload-photo-description").value = ""
+        fileInput.value = ""
+        document.getElementById("photo-preview").classList.add("hidden")
+        document.getElementById("photo-file-label").textContent = "📷 Обрати фото"
+        
+        goToPage("page-event-photos")
+      }, 2000)
+    } else {
+      button.classList.remove("onclic", "validate")
+      button.disabled = false
+      alert(result.message || "Помилка завантаження фото")
     }
   } catch (error) {
-    console.error("Error uploading photos:", error)
+    button.classList.remove("onclic", "validate")
+    button.disabled = false
+    console.error("Error uploading photo:", error)
     alert("Помилка завантаження фото")
   }
 }
 
-async function loadPhotos() {
+async function loadEventPhotos() {
   try {
-    const response = await fetch(`${API_URL}/api/photos`)
-    const photos = await response.json()
-
-    const grid = document.getElementById("photos-grid")
-    if (photos.length === 0) {
-      grid.innerHTML = '<div class="col-span-3 text-center text-gray-500">Фото не знайдено</div>'
-      return
+    const [photosRes, eventsRes] = await Promise.all([
+      fetch(`${API_URL}/api/photos`),
+      fetch(`${API_URL}/api/events`)
+    ])
+    
+    allPhotos = await photosRes.json()
+    allEventsForPhotos = await eventsRes.json()
+    
+    const filter = document.getElementById("photo-event-filter")
+    if (filter) {
+      filter.innerHTML = '<option value="">Всі івенти</option>' + 
+        allEventsForPhotos.map(event => `<option value="${event.id}">${event.title}</option>`).join("")
     }
-
-    grid.innerHTML = photos
-      .map(
-        (photo) => `
-            <img src="${API_URL}${photo.url}" class="w-full h-24 object-cover rounded-md" alt="Event photo">
-        `,
-      )
-      .join("")
+    
+    displayPhotos(allPhotos)
   } catch (error) {
     console.error("Error loading photos:", error)
+    document.getElementById("photos-gallery").innerHTML = 
+      '<div class="col-span-2 text-center text-red-500">Помилка завантаження фото</div>'
+  }
+}
+
+function filterPhotosByEvent() {
+  const selectedEventId = document.getElementById("photo-event-filter").value
+  
+  if (selectedEventId) {
+    const filtered = allPhotos.filter(p => p.eventId === selectedEventId)
+    displayPhotos(filtered)
+  } else {
+    displayPhotos(allPhotos)
+  }
+}
+
+function displayPhotos(photos) {
+  const gallery = document.getElementById("photos-gallery")
+  
+  if (photos.length === 0) {
+    gallery.innerHTML = '<div class="col-span-2 text-center text-gray-500">Фото не знайдено</div>'
+    return
+  }
+
+  gallery.innerHTML = photos.map(photo => {
+    const event = allEventsForPhotos.find(e => e.id === photo.eventId)
+    const eventName = event ? event.title : 'Подія'
+    
+    return `
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm">
+        <img src="${API_URL}${photo.url}" class="w-full h-40 object-cover" alt="${photo.description || eventName}">
+        <div class="p-2">
+          <p class="text-xs font-semibold text-gray-700">${eventName}</p>
+          ${photo.description ? `<p class="text-xs text-gray-500 mt-1">${photo.description}</p>` : ''}
+        </div>
+      </div>
+    `
+  }).join("")
+}
+
+async function loadUploadPhotoEvents() {
+  try {
+    const response = await fetch(`${API_URL}/api/events`)
+    const events = await response.json()
+    
+    const select = document.getElementById("upload-event-select")
+    if (select) {
+      select.innerHTML = '<option value="">Оберіть івент</option>' + 
+        events.map(event => `<option value="${event.id}">${event.title}</option>`).join("")
+    }
+  } catch (error) {
+    console.error("Error loading events for upload:", error)
   }
 }
 

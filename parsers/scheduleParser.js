@@ -81,14 +81,14 @@ async function loadSchedulesFromDirectory(dirPath) {
         try {
             await fs.access(schedulesDir);
         } catch {
-            return getDefaultSchedules();
+            return [];
         }
         
         const files = await fs.readdir(schedulesDir);
         const excelFiles = files.filter(f => f.endsWith('.xlsx') || f.endsWith('.xls'));
         
         if (excelFiles.length === 0) {
-            return getDefaultSchedules();
+            return [];
         }
         
         const schedules = [];
@@ -112,70 +112,15 @@ async function loadSchedulesFromDirectory(dirPath) {
             }
         }
         
-        return schedules.length > 0 ? schedules : getDefaultSchedules();
+        return schedules;
     } catch (error) {
         console.error('Error loading schedules from directory:', error);
-        return getDefaultSchedules();
+        return [];
     }
 }
 
 function getDefaultSchedules() {
-    return [
-        {
-            id: '1',
-            name: 'ННІМВ КНУ ім. Т.Г. Шевченка з ОП (СЗ) Міжнародні комунікації',
-            code: 'C1',
-            course: '1',
-            schedule: {
-                monday: [
-                    { time: '08:30-10:05', subject: 'Українська мова', teacher: 'Проф. Іваненко О.П.', room: 'ауд. 201' },
-                    { time: '10:25-12:00', subject: 'Англійська мова', teacher: 'Доц. Петренко М.В.', room: 'ауд. 305' },
-                    { time: '12:20-13:55', subject: 'Історія України', teacher: 'Доц. Сидоренко А.І.', room: 'ауд. 115' }
-                ],
-                tuesday: [
-                    { time: '08:30-10:05', subject: 'Математика', teacher: 'Проф. Коваленко С.М.', room: 'ауд. 410' },
-                    { time: '10:25-12:00', subject: 'Інформатика', teacher: 'Ст. викл. Бондар Т.В.', room: 'лаб. 2' }
-                ],
-                wednesday: [
-                    { time: '10:25-12:00', subject: 'Філософія', teacher: 'Доц. Мельник В.О.', room: 'ауд. 220' },
-                    { time: '12:20-13:55', subject: 'Фізична культура', teacher: 'Тренер Шевченко Д.П.', room: 'спорт. зал' }
-                ],
-                thursday: [
-                    { time: '08:30-10:05', subject: 'Економіка', teacher: 'Проф. Литвин Н.А.', room: 'ауд. 301' },
-                    { time: '10:25-12:00', subject: 'Соціологія', teacher: 'Доц. Кравченко Ю.С.', room: 'ауд. 215' }
-                ],
-                friday: [
-                    { time: '08:30-10:05', subject: 'Культурологія', teacher: 'Проф. Гончар І.М.', room: 'ауд. 120' }
-                ]
-            }
-        },
-        {
-            id: '2',
-            name: 'Факультет інформаційних технологій. Програмна інженерія',
-            code: 'PI2',
-            course: '2',
-            schedule: {
-                monday: [
-                    { time: '08:30-10:05', subject: 'Алгоритми та структури даних', teacher: 'Проф. Ковальчук В.П.', room: 'ауд. 512' },
-                    { time: '10:25-12:00', subject: 'Бази даних', teacher: 'Доц. Семенов А.В.', room: 'лаб. 3' }
-                ],
-                tuesday: [
-                    { time: '08:30-10:05', subject: 'Веб-технології', teacher: 'Викл. Морозова К.С.', room: 'лаб. 1' },
-                    { time: '10:25-12:00', subject: 'Операційні системи', teacher: 'Проф. Павленко Д.М.', room: 'ауд. 405' }
-                ],
-                wednesday: [
-                    { time: '10:25-12:00', subject: 'Дискретна математика', teacher: 'Доц. Ткаченко О.І.', room: 'ауд. 310' }
-                ],
-                thursday: [
-                    { time: '08:30-10:05', subject: 'Об\'єктно-орієнтоване програмування', teacher: 'Доц. Литвиненко Т.А.', room: 'лаб. 2' },
-                    { time: '10:25-12:00', subject: 'Комп\'ютерні мережі', teacher: 'Проф. Савченко Р.В.', room: 'ауд. 508' }
-                ],
-                friday: [
-                    { time: '08:30-10:05', subject: 'Англійська мова (професійна)', teacher: 'Викл. Бондаренко Н.М.', room: 'ауд. 203' }
-                ]
-            }
-        }
-    ];
+    return [];
 }
 
 async function initializeSchedules(dataPath) {
@@ -185,10 +130,6 @@ async function initializeSchedules(dataPath) {
 }
 
 async function searchSchedules(query, course) {
-    if (schedulesCache.length === 0) {
-        schedulesCache = getDefaultSchedules();
-    }
-    
     let results = [...schedulesCache];
     
     if (course) {

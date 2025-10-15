@@ -45,33 +45,21 @@
             flex-direction: column;
             min-height: 100vh;
             background-color: var(--app-bg);
-            transform: translate3d(0,0,0);
-            backface-visibility: hidden;
-            perspective: 1000px;
-            will-change: transform, opacity;
         }
         .page.active {
             display: flex;
-            animation: slideIn 0.35s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+            animation: fadeIn 0.2s ease-out;
         }
-        @keyframes slideIn {
-            from { 
-                opacity: 0;
-                transform: translate3d(15px, 0, 0);
-            }
-            to { 
-                opacity: 1;
-                transform: translate3d(0, 0, 0);
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         
-        /* Отключить анимации для пользователей, которые их не любят */
         @media (prefers-reduced-motion: reduce) {
-            .page.active {
-                animation: none;
+            .page.active, .event-card, .bg-white, img {
+                animation: none !important;
             }
         }
-        /* </CHANGE> */
         
         /* TikTok кнопка анимация */
         .tiktok-button {
@@ -157,34 +145,12 @@
             padding: 1.5rem 1rem;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .schedule-day-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .schedule-day-card:hover::before {
-            left: 100%;
-        }
-
-        .schedule-day-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
         }
 
         .schedule-day-card:active {
-            transform: translateY(-2px) scale(1.01);
+            transform: scale(0.98);
         }
 
         .schedule-day-card.friday {
@@ -223,96 +189,38 @@
         }
         /* </CHANGE> */
         
-        button, .bordered-button, .cursor-pointer {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        button::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-        
-        button:active::before {
-            width: 300px;
-            height: 300px;
+        button, .bordered-button {
+            transition: all 0.2s ease;
         }
         
         button:active, .bordered-button:active {
             transform: scale(0.96);
         }
         
-        button:hover, .bordered-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-        }
-        
         .bg-white, .event-card {
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translate3d(0,0,0);
-        }
-        
-        .bg-white:hover, .event-card:hover {
-            transform: translateY(-4px) scale(1.02);
-            box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.25);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         
         .bg-white:active, .event-card:active {
-            transform: translateY(-1px) scale(1.01);
-            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: scale(0.98);
+        }
+        
+        .cursor-pointer {
+            transition: transform 0.15s ease;
+        }
+        
+        .cursor-pointer:active {
+            transform: scale(0.98);
         }
         
         .chat-message {
-            animation: messageSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation: messageSlide 0.3s ease-out;
         }
         
         @keyframes messageSlide {
             from {
                 opacity: 0;
-                transform: translateY(20px) scale(0.92);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-        
-        input, textarea {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        input:focus, textarea:focus {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15), 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .cursor-pointer:active {
-            transform: scale(0.97);
-        }
-        
-        .event-card, .bg-white {
-            animation: fadeInUp 0.5s ease-out backwards;
-        }
-        
-        .event-card:nth-child(1) { animation-delay: 0.05s; }
-        .event-card:nth-child(2) { animation-delay: 0.1s; }
-        .event-card:nth-child(3) { animation-delay: 0.15s; }
-        .event-card:nth-child(4) { animation-delay: 0.2s; }
-        .event-card:nth-child(5) { animation-delay: 0.25s; }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(10px);
             }
             to {
                 opacity: 1;
@@ -320,47 +228,21 @@
             }
         }
         
+        input, textarea {
+            transition: box-shadow 0.2s ease;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
         img {
-            transition: opacity 0.3s ease-in-out;
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: skeleton 1.5s ease-in-out infinite;
+            transition: opacity 0.3s ease;
         }
         
         img.loaded {
-            animation: fadeIn 0.4s ease-out;
-            background: none;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-        
-        @keyframes skeleton {
-            0% {
-                background-position: 200% 0;
-            }
-            100% {
-                background-position: -200% 0;
-            }
-        }
-        
-        .image-container {
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: skeleton 1.5s ease-in-out infinite;
-        }
-        
-        .image-container.loaded {
-            animation: none;
-            background: none;
+            opacity: 1;
         }
         .app-header {
             display: flex;
@@ -498,7 +380,7 @@
                 <div class="relative">
                     <img src="https://placehold.co/600x300/c084fc/FFF?text=Events" class="w-full h-36 object-cover rounded-t-xl" id="main-event-img">
                     <span class="absolute top-3 left-3 text-white text-xs font-medium">28.05.2025</span>
-                    <i data-lucide="camera" class="absolute top-3 right-3 text-white cursor-pointer" onclick="goToPage(event, 'page-event-photos')"></i>
+                    <i data-lucide="camera" class="absolute top-3 right-3 text-white cursor-pointer" onclick="event.stopPropagation(); goToPage('page-event-photos')"></i>
                     <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Івенти</span>
                 </div>
                 <div class="p-4">
@@ -779,7 +661,7 @@
         <div class="bottom-nav-link" onclick="goToPage('page-events-list')">Назад</div>
     </div>
 
-    <!-- PAGE 12: Event Photos -->
+    <!-- PAGE 12: Event Photos Gallery -->
     <div id="page-event-photos" class="page">
         <header class="app-header">
             <div class="logo">U-hub</div>
@@ -787,17 +669,62 @@
             <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
-            <h1 class="text-center text-xl font-bold">Фото подій</h1>
-            <div class="bg-white rounded-xl shadow-sm p-4">
-                <label class="block w-full bg-blue-500 text-white text-center font-semibold py-3 rounded-lg cursor-pointer">
-                    <input type="file" id="photo-upload" accept="image/*" multiple class="hidden" onchange="uploadPhotos()">
-                    Завантажити фото
-                </label>
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold">Фотогалерея</h1>
+                <button class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2" onclick="goToPage('page-upload-photo')">
+                    <i data-lucide="plus" class="w-5 h-5"></i>
+                    Додати фото
+                </button>
             </div>
-            <div id="photos-grid" class="grid grid-cols-3 gap-2">
+            
+            <div class="bg-white rounded-xl shadow-sm p-3">
+                <label class="text-sm text-gray-600 block mb-2">Фільтр по івенту:</label>
+                <select id="photo-event-filter" class="w-full border border-gray-300 rounded-lg p-2" onchange="filterPhotosByEvent()">
+                    <option value="">Всі івенти</option>
+                </select>
+            </div>
+            
+            <div id="photos-gallery" class="grid grid-cols-2 gap-3">
+                <div class="col-span-2 text-center text-gray-500">Завантаження фото...</div>
             </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
+    </div>
+
+    <!-- PAGE 13: Upload Photo -->
+    <div id="page-upload-photo" class="page">
+        <header class="app-header">
+            <div class="logo">U-hub</div>
+            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
+            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
+        </header>
+        <main class="flex-grow p-4 space-y-4">
+            <h1 class="text-center text-xl font-bold">Завантажити фото</h1>
+            <div class="bg-white rounded-xl shadow-sm p-4 space-y-4">
+                <div>
+                    <label class="text-sm text-gray-600">Оберіть івент:</label>
+                    <select id="upload-event-select" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
+                        <option value="">Оберіть івент</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600">Опис фото (необов'язково):</label>
+                    <textarea id="upload-photo-description" rows="3" placeholder="Опишіть фото..." class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1"></textarea>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 block mb-2">Фото:</label>
+                    <div id="photo-preview" class="hidden mb-3">
+                        <img id="photo-preview-img" class="w-full rounded-lg" alt="Попередній перегляд">
+                    </div>
+                    <label class="block w-full bg-gray-200 text-gray-700 text-center font-semibold py-3 rounded-lg cursor-pointer hover:bg-gray-300 transition">
+                        <input type="file" id="photo-file-input" accept="image/*" class="hidden" onchange="previewPhoto()">
+                        <span id="photo-file-label">📷 Обрати фото</span>
+                    </label>
+                </div>
+                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg tiktok-button" onclick="uploadEventPhoto()">Завантажити</button>
+            </div>
+        </main>
+        <div class="bottom-nav-link" onclick="goToPage('page-event-photos')">Назад до галереї</div>
     </div>
     </div>
 
