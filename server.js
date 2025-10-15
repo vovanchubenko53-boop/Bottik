@@ -217,6 +217,7 @@ async function initializeData() {
 async function saveData() {
     try {
         const dataPath = path.join(__dirname, 'data');
+        await fs.mkdir(dataPath, { recursive: true });
         await fs.writeFile(path.join(dataPath, 'events.json'), JSON.stringify(eventsData, null, 2));
         await fs.writeFile(path.join(dataPath, 'videos.json'), JSON.stringify(videosData, null, 2));
         await fs.writeFile(path.join(dataPath, 'photos.json'), JSON.stringify(photosData, null, 2));

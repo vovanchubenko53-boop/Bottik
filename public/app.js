@@ -503,7 +503,7 @@ async function leaveEvent() {
     }
 }
 
-async function createEvent() {
+async function createNewEvent() {
     const eventData = {
         title: document.getElementById('event-name').value,
         date: document.getElementById('event-date').value,
