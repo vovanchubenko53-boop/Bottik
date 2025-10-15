@@ -510,7 +510,7 @@ async function createEvent() {
         time: document.getElementById('event-time').value,
         location: document.getElementById('event-location').value,
         description: document.getElementById('event-description').value,
-        duration: parseInt(document.getElementById('event-duration').value)
+        duration: parseInt(document.getElementById('event-duration').value) || 24
     };
     
     if (!eventData.title || !eventData.date || !eventData.time || !eventData.location) {
@@ -534,11 +534,14 @@ async function createEvent() {
             document.getElementById('event-time').value = '';
             document.getElementById('event-location').value = '';
             document.getElementById('event-description').value = '';
+            document.getElementById('event-duration').value = '24';
             goToPage('page-events-list');
+        } else {
+            alert(data.error || data.message || 'Помилка створення події. Спробуйте ще раз.');
         }
     } catch (error) {
         console.error('Error creating event:', error);
-        alert('Помилка створення події');
+        alert('Помилка з\'єднання. Перевірте інтернет та спробуйте ще раз.');
     }
 }
 
