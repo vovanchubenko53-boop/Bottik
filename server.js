@@ -424,7 +424,7 @@ app.post('/api/events/:id/join', async (req, res) => {
                 eventParticipants[event.id] = [];
             }
             
-            if (!eventParticipants[event.id].find(p => p.userId === userId)) {
+            if (!eventParticipants[event.id].find(p => String(p.userId) === String(userId))) {
                 eventParticipants[event.id].push({ userId, firstName, photoUrl, joinedAt: new Date().toISOString() });
                 event.participants = eventParticipants[event.id].length;
                 await saveData();
@@ -447,7 +447,7 @@ app.post('/api/events/:id/leave', async (req, res) => {
         
         if (event) {
             if (eventParticipants[event.id]) {
-                eventParticipants[event.id] = eventParticipants[event.id].filter(p => p.userId !== userId);
+                eventParticipants[event.id] = eventParticipants[event.id].filter(p => String(p.userId) !== String(userId));
                 event.participants = eventParticipants[event.id].length;
                 await saveData();
             }
@@ -467,7 +467,7 @@ app.get('/api/events/:id/joined', (req, res) => {
     const event = eventsData.find(e => e.id === req.params.id);
     
     if (event && eventParticipants[event.id]) {
-        const isJoined = eventParticipants[event.id].some(p => p.userId === userId);
+        const isJoined = eventParticipants[event.id].some(p => String(p.userId) === String(userId));
         res.json({ joined: isJoined, participants: event.participants });
     } else {
         res.json({ joined: false, participants: event?.participants || 0 });
