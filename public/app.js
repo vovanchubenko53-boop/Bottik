@@ -6,6 +6,17 @@ let userSchedule = null
 let telegramUser = null
 const lucide = window.lucide // Declare the lucide variable
 
+let chatUpdateInterval = null
+let typingTimeout = null
+const lastMessageId = null
+
+let uhubChatUpdateInterval = null
+let uhubTypingTimeout = null
+const UHUB_CHAT_ID = "uhub-general-chat"
+
+let allNewsCache = []
+let currentCategory = "all"
+
 if (window.Telegram && window.Telegram.WebApp) {
   const tg = window.Telegram.WebApp
   telegramUser = tg.initDataUnsafe?.user || null
@@ -39,6 +50,17 @@ function goToPage(pageId, event) {
     event.stopPropagation()
   }
 
+  // Останавливаем автообновление чата при выходе
+  if (pageId !== "page-event-chat" && chatUpdateInterval) {
+    clearInterval(chatUpdateInterval)
+    chatUpdateInterval = null
+  }
+
+  if (pageId !== "page-uhub-chat" && uhubChatUpdateInterval) {
+    clearInterval(uhubChatUpdateInterval)
+    uhubChatUpdateInterval = null
+  }
+
   const targetPage = document.getElementById(pageId)
   if (!targetPage) {
     console.error("Page not found:", pageId)
@@ -48,17 +70,16 @@ function goToPage(pageId, event) {
   const currentPage = document.querySelector(".page.active")
   if (currentPage) {
     currentPage.classList.remove("active")
-    // Force reflow to ensure animation restarts
     void currentPage.offsetWidth
   }
 
-  // Small delay to ensure smooth transition
   requestAnimationFrame(() => {
-    targetPage.classList.add("active")
-    if (lucide) {
-      // Check if lucide is declared before using it
-      lucide.createIcons()
-    }
+    requestAnimationFrame(() => {
+      targetPage.classList.add("active")
+      if (lucide) {
+        lucide.createIcons()
+      }
+    })
   })
 
   if (pageId === "page-news-feed") {
@@ -76,6 +97,8 @@ function goToPage(pageId, event) {
   } else if (pageId === "page-schedule-list") {
     loadUserSchedule()
     updateScheduleDayCounts()
+  } else if (pageId === "page-uhub-chat") {
+    loadUhubChatMessages()
   }
 }
 
@@ -137,22 +160,16 @@ async function loadNews() {
     const response = await fetch(`${API_URL}/api/news`)
     const news = await response.json()
 
+    allNewsCache = news.slice(0, 100)
+
     const newsListEl = document.getElementById("news-list")
-    if (news.length === 0) {
+    if (allNewsCache.length === 0) {
       newsListEl.innerHTML = '<div class="p-4 text-center text-gray-500">Новини не знайдено</div>'
       return
     }
 
-    newsListEl.innerHTML = news
-      .map(
-        (item) => `
-            <div class="p-4 cursor-pointer" onclick='viewNewsDetail(${JSON.stringify(item).replace(/'/g, "&apos;")})'>
-                <p class="font-bold leading-tight">${item.title}</p>
-                <p class="text-sm text-gray-500 mt-1">"${item.source}" - ${item.timeAgo}</p>
-            </div>
-        `,
-      )
-      .join("")
+    // Отображаем новости с учетом текущей категории
+    displayFilteredNews()
 
     if (news[0]) {
       document.getElementById("main-news-title").textContent = news[0].title
@@ -206,6 +223,64 @@ function shareNews() {
       )
     }
   }
+}
+
+function filterNewsByCategory(category) {
+  document.querySelectorAll(".category-btn").forEach((btn) => {
+    btn.classList.remove("active")
+  })
+
+  const clickedButton = document.querySelector(`.category-btn[data-category="${category}"]`)
+  if (clickedButton) {
+    clickedButton.classList.add("active")
+  }
+
+  currentCategory = category
+  displayFilteredNews()
+}
+
+function getCategoryEmoji(category) {
+  const emojiMap = {
+    all: "Всі",
+    kyiv: "📰",
+    events: "🎭",
+    music: "🎶",
+    scholarships: "🎓",
+    tech: "💻",
+    energy: "⚡",
+    beauty: "💄",
+    knu: "🎓", // Заменили crypto на knu
+  }
+  return emojiMap[category] || ""
+}
+
+function displayFilteredNews() {
+  const newsListEl = document.getElementById("news-list")
+
+  let filteredNews = allNewsCache
+
+  if (currentCategory !== "all") {
+    filteredNews = allNewsCache.filter((item) => {
+      // Используем поле category, которое добавляется при парсинге
+      return item.category === currentCategory
+    })
+  }
+
+  if (filteredNews.length === 0) {
+    newsListEl.innerHTML = '<div class="p-4 text-center text-gray-500">Новини не знайдено для цієї категорії</div>'
+    return
+  }
+
+  newsListEl.innerHTML = filteredNews
+    .map(
+      (item) => `
+          <div class="p-4 cursor-pointer" onclick='viewNewsDetail(${JSON.stringify(item).replace(/'/g, "&apos;")})'>
+              <p class="font-bold leading-tight">${item.title}</p>
+              <p class="text-sm text-gray-500 mt-1">"${item.source}" - ${item.timeAgo}</p>
+          </div>
+      `,
+    )
+    .join("")
 }
 
 async function loadAvailableSchedules() {
@@ -272,8 +347,12 @@ async function loadUserSchedule() {
       userSchedule = data
       currentSchedule = data
       document.getElementById("schedule-remove-btn").classList.remove("hidden")
+
+      document.getElementById("main-schedule-subtitle").textContent = `• ${data.name}`
+      document.getElementById("main-schedule-subtitle").style.display = "block"
     } else {
       document.getElementById("schedule-remove-btn").classList.add("hidden")
+      document.getElementById("main-schedule-subtitle").style.display = "none"
     }
   } catch (error) {
     console.error("Error loading user schedule:", error)
@@ -296,6 +375,7 @@ async function removeUserSchedule() {
       clearLegacySchedule()
 
       document.getElementById("schedule-remove-btn").classList.add("hidden")
+      document.getElementById("main-schedule-subtitle").style.display = "none"
 
       // Принудительный переход на страницу выбора расписания
       setTimeout(() => {
@@ -345,30 +425,79 @@ function handleScheduleClick() {
     document.getElementById("schedule-list-title").textContent = userSchedule.name
     goToPage("page-schedule-list")
   } else {
+    // Если нет - переходим к выбору расписания
+    goToPage("page-schedule-search")
+  }
+}
+
+function handleScheduleBottomClick() {
+  console.log("[v0] 📅 Клик по нижней части блока расписания")
+  console.log("[v0] 📊 userSchedule:", userSchedule)
+
+  if (userSchedule) {
+    // Если расписание выбрано - переходим к странице с расписанием (понедельник-пятница)
+    console.log("[v0] ✅ Расписание выбрано, переходим к странице расписания")
+    currentSchedule = userSchedule
+    document.getElementById("schedule-list-title").textContent = userSchedule.name
+    goToPage("page-schedule-list")
+  } else {
+    // Если расписание не выбрано - переходим к списку всех расписаний
+    console.log("[v0] ⚠️ Расписание не выбрано, переходим к списку")
     goToPage("page-schedule-search")
   }
 }
 
 async function loadEvents() {
+  console.log("[v0] 📋 ========== ЗАГРУЗКА СОБЫТИЙ ==========")
+
   try {
-    const response = await fetch(`${API_URL}/api/events`)
+    const response = await fetch(`${API_URL}/api/events?_t=${Date.now()}`)
     const events = await response.json()
+
+    console.log("[v0] ✅ Получено событий:", events.length)
+
+    events.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
     const eventsContainer = document.getElementById("events-container")
     if (events.length === 0) {
+      console.log("[v0] ⚠️ Нет событий")
       eventsContainer.innerHTML = '<div class="text-center text-gray-500">Подій не знайдено</div>'
+
+      const mainEventsList = document.getElementById("main-events-list")
+      if (mainEventsList) {
+        mainEventsList.innerHTML = '<p class="text-gray-400">Немає активних івентів</p>'
+      }
       return
     }
 
     const eventsHTML = []
+    const mainEventsHTML = []
+
     for (const event of events) {
+      console.log(`[v0] 🔄 Обрабатываем: ${event.title}`)
+
       const isExpired = new Date(event.expiresAt) < new Date()
-      const joinedResponse = await fetch(`${API_URL}/api/events/${event.id}/joined?userId=${telegramUser.id}`)
+
+      const joinedResponse = await fetch(
+        `${API_URL}/api/events/${event.id}/joined?userId=${telegramUser.id}&_t=${Date.now()}`,
+      )
       const joinedData = await joinedResponse.json()
       const isJoined = joinedData.joined
+      const actualParticipants = joinedData.participants
+
+      console.log(`[v0]   - Участников: ${actualParticipants}`)
+      console.log(`[v0]   - Присоединился: ${isJoined}`)
+      console.log(`[v0]   - Истекло: ${isExpired}`)
+
+      const shortTitle = event.title.length > 15 ? event.title.substring(0, 12) + "…" : event.title
+
+      // Добавляем только первые 3 активных ивента на главную страницу
+      if (!isExpired && mainEventsHTML.length < 3) {
+        mainEventsHTML.push(shortTitle)
+      }
 
       eventsHTML.push(`
-                <div class="event-card" id="event-card-${event.id}">
+                <div class="event-card ${isExpired ? "opacity-50" : ""}" id="event-card-${event.id}">
                     <h3 class="font-bold text-lg mb-2">${event.title}</h3>
                     <div class="flex items-center text-sm text-gray-600 mb-2">
                         <i data-lucide="calendar" class="w-4 h-4 mr-1"></i>
@@ -381,9 +510,15 @@ async function loadEvents() {
                         <span>${event.location}</span>
                     </div>
                     <p class="text-gray-700 mb-3">${event.description}</p>
-                    <div class="flex items-center text-sm text-gray-500 mb-2">
-                        <i data-lucide="users" class="w-4 h-4 mr-1"></i>
-                        <span id="event-participants-${event.id}">${joinedData.participants} учасників</span>
+                    <div class="flex items-center justify-between text-sm mb-2">
+                        <div class="flex items-center text-gray-500">
+                            <i data-lucide="users" class="w-4 h-4 mr-1"></i>
+                            <span id="event-participants-${event.id}">${actualParticipants} учасників</span>
+                        </div>
+                        <div class="flex items-center text-gray-500">
+                            <i data-lucide="user" class="w-4 h-4 mr-1"></i>
+                            <span class="text-xs">@${event.creatorUsername || "Анонім"}</span>
+                        </div>
                     </div>
                     <div id="event-buttons-${event.id}">
                         ${
@@ -400,7 +535,7 @@ async function loadEvents() {
                               : `
                             <button class="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg" onclick="joinEventFromList('${event.id}')">Приєднатися</button>
                         `
-                            : '<div class="text-center text-gray-400 py-2">Подія завершена</div>'
+                            : '<div class="text-center text-gray-400 py-2 bg-gray-100 rounded-lg">Подія завершена</div>'
                         }
                     </div>
                 </div>
@@ -408,16 +543,24 @@ async function loadEvents() {
     }
 
     eventsContainer.innerHTML = eventsHTML.join("")
+
+    const mainEventsList = document.getElementById("main-events-list")
+    if (mainEventsList) {
+      if (mainEventsHTML.length > 0) {
+        mainEventsList.innerHTML = mainEventsHTML.map((title) => `<strong>• ${title}</strong>`).join(" ")
+      } else {
+        mainEventsList.innerHTML = '<p class="text-gray-400">Немає активних івентів</p>'
+      }
+    }
+
     if (lucide) {
-      // Check if lucide is declared before using it
       lucide.createIcons()
     }
 
-    if (events[0]) {
-      document.getElementById("main-event-title").textContent = events[0].title
-    }
+    console.log("[v0] ✅ События отображены")
+    console.log("[v0] 📋 ========== КОНЕЦ ЗАГРУЗКИ СОБЫТИЙ ==========")
   } catch (error) {
-    console.error("Error loading events:", error)
+    console.error("[v0] 💥 Ошибка загрузки событий:", error)
     document.getElementById("events-container").innerHTML =
       '<div class="text-center text-red-500">Помилка завантаження подій</div>'
   }
@@ -500,6 +643,10 @@ async function joinEvent() {
 }
 
 async function joinEventFromList(eventId) {
+  console.log("[v0] 🎉 ========== ПРИСОЕДИНЕНИЕ К СОБЫТИЮ ==========")
+  console.log("[v0] 📋 Event ID:", eventId)
+  console.log("[v0] 👤 User ID:", telegramUser.id)
+
   try {
     const response = await fetch(`${API_URL}/api/events/${eventId}/join`, {
       method: "POST",
@@ -512,13 +659,19 @@ async function joinEventFromList(eventId) {
     })
 
     const data = await response.json()
+    console.log("[v0] 📊 Ответ сервера:", data)
 
     if (response.ok) {
+      console.log("[v0] ✅ Успешно присоединились!")
+      console.log("[v0] 📊 Участников:", data.participants)
+
+      // Обновляем UI
       const participantsEl = document.getElementById(`event-participants-${eventId}`)
       const buttonsEl = document.getElementById(`event-buttons-${eventId}`)
 
       if (participantsEl) {
         participantsEl.textContent = data.participants + " учасників"
+        console.log("[v0] ✅ Обновлено количество участников")
       }
 
       if (buttonsEl) {
@@ -531,19 +684,29 @@ async function joinEventFromList(eventId) {
                     </div>
                 `
         if (lucide) {
-          // Check if lucide is declared before using it
           lucide.createIcons()
         }
+        console.log("[v0] ✅ Обновлены кнопки")
       }
+
+      console.log("[v0] 🎉 ========== КОНЕЦ ПРИСОЕДИНЕНИЯ ==========")
+    } else {
+      console.error("[v0] ❌ Ошибка сервера:", data.error)
+      alert(data.error || "Помилка приєднання")
     }
   } catch (error) {
-    console.error("Error joining event:", error)
+    console.error("[v0] 💥 Критическая ошибка:", error)
     alert("Помилка приєднання до події")
   }
 }
 
 async function leaveEventFromList(eventId) {
-  if (!confirm("Ви впевнені, що хочете вийти з цього івенту?")) return
+  console.log("[v0] 🚪 Выходим из события:", eventId)
+
+  if (!confirm("Ви впевнені, що хочете вийти з цього івенту?")) {
+    console.log("[v0] ❌ Выход отменен пользователем")
+    return
+  }
 
   try {
     const response = await fetch(`${API_URL}/api/events/${eventId}/leave`, {
@@ -555,8 +718,11 @@ async function leaveEventFromList(eventId) {
     })
 
     const data = await response.json()
+    console.log("[v0] 📊 Ответ сервера:", data)
 
     if (response.ok) {
+      console.log("[v0] ✅ Успешно вышли из события")
+
       const participantsEl = document.getElementById(`event-participants-${eventId}`)
       const buttonsEl = document.getElementById(`event-buttons-${eventId}`)
 
@@ -571,20 +737,43 @@ async function leaveEventFromList(eventId) {
       }
     }
   } catch (error) {
-    console.error("Error leaving event:", error)
+    console.error("[v0] 💥 Ошибка выхода:", error)
     alert("Помилка виходу з події")
   }
 }
 
 async function openEventChat(eventId) {
+  console.log("[v0] 💬 ========== ОТКРЫТИЕ ЧАТА ==========")
+  console.log("[v0] 📋 Event ID:", eventId)
+
   try {
+    // Загружаем данные события
     const response = await fetch(`${API_URL}/api/events/${eventId}`)
     currentEvent = await response.json()
+
+    console.log("[v0] ✅ Событие загружено:", currentEvent.title)
+
+    // Устанавливаем название чата
     document.getElementById("event-chat-title").textContent = `Чат: ${currentEvent.title}`
+    console.log("[v0] ✅ Название чата установлено")
+
+    // Переходим на страницу чата
     goToPage("page-event-chat")
-    loadChatMessages()
+
+    // Загружаем сообщения
+    await loadChatMessages()
+
+    if (chatUpdateInterval) {
+      clearInterval(chatUpdateInterval)
+    }
+    chatUpdateInterval = setInterval(async () => {
+      await loadChatMessages(true) // true = тихое обновление без скролла
+      await updateTypingIndicator()
+    }, 1000) // Изменено с 2000 на 1000 мс
+
+    console.log("[v0] 💬 ========== ЧАТ ОТКРЫТ ==========")
   } catch (error) {
-    console.error("Error opening chat:", error)
+    console.error("[v0] 💥 Ошибка открытия чата:", error)
     alert("Помилка відкриття чату")
   }
 }
@@ -615,7 +804,7 @@ async function leaveEvent() {
   }
 }
 
-async function createNewEvent() {
+async function createNewEvent(event) {
   const button = event.target
   const eventData = {
     title: document.getElementById("event-name").value,
@@ -624,6 +813,7 @@ async function createNewEvent() {
     location: document.getElementById("event-location").value,
     description: document.getElementById("event-description").value,
     duration: Number.parseInt(document.getElementById("event-duration").value) || 24,
+    creatorUsername: telegramUser.username || telegramUser.first_name || "Анонім",
   }
 
   if (!eventData.title || !eventData.date || !eventData.time || !eventData.location) {
@@ -631,7 +821,6 @@ async function createNewEvent() {
     return
   }
 
-  // Анимация кнопки
   button.classList.add("onclic")
   button.disabled = true
 
@@ -645,17 +834,14 @@ async function createNewEvent() {
     const data = await response.json()
 
     if (response.ok) {
-      // После успешного создания
       button.classList.remove("onclic")
       button.classList.add("validate")
 
-      // Показать уведомление
       showModerationNotification("Івент відправлено на модерацію!")
 
       setTimeout(() => {
         button.classList.remove("validate")
         button.disabled = false
-        // Переход на страницу ивентов
         goToPage("page-events-list")
       }, 2000)
     } else {
@@ -671,50 +857,230 @@ async function createNewEvent() {
   }
 }
 
-async function loadChatMessages() {
-  if (!currentEvent) return
+async function loadChatMessages(silent = false) {
+  if (!currentEvent) {
+    console.error("[v0] ❌ currentEvent не установлен!")
+    return
+  }
+
+  if (!silent) {
+    console.log("[v0] 💬 Загружаем сообщения для события:", currentEvent.title)
+  }
 
   try {
     const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages`)
     const messages = await response.json()
 
-    const chatMessages = document.getElementById("chat-messages")
-    chatMessages.innerHTML = messages
-      .map((msg) => {
-        const isOwn = msg.userId === telegramUser.id
-        const avatar =
-          msg.photoUrl ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
-
-        return `
-                <div class="flex ${isOwn ? "justify-end" : "justify-start"} mb-3">
-                    ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2" alt="${msg.firstName}">` : ""}
-                    <div class="${isOwn ? "chat-message own" : "chat-message"}">
-                        ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
-                        <div>${msg.text}</div>
-                    </div>
-                    ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2" alt="${msg.firstName}">` : ""}
-                </div>
-            `
-      })
-      .join("")
-
-    if (messages.length === 0) {
-      chatMessages.innerHTML =
-        '<div class="text-center text-gray-500">Чат порожній. Будьте першим, хто напише повідомлення!</div>'
+    if (!silent) {
+      console.log("[v0] 📨 Получено сообщений:", messages.length)
     }
 
-    chatMessages.scrollTop = chatMessages.scrollHeight
+    const chatMessages = document.getElementById("chat-messages")
+
+    if (silent && messages.length > 0) {
+      const existingMessages = chatMessages.querySelectorAll("[data-message-id]")
+      const existingIds = Array.from(existingMessages).map((el) => el.getAttribute("data-message-id"))
+
+      // Добавляем только новые сообщения
+      const newMessages = messages.filter((msg) => {
+        const msgId = `${msg.userId}-${msg.timestamp}`
+        return !existingIds.includes(msgId)
+      })
+
+      if (newMessages.length > 0) {
+        const wasAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50
+
+        newMessages.forEach((msg) => {
+          const isOwn = msg.userId === telegramUser.id
+          const avatar =
+            msg.photoUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
+          const msgId = `${msg.userId}-${msg.timestamp}`
+
+          const messageDiv = document.createElement("div")
+          messageDiv.className = `flex ${isOwn ? "justify-end" : "justify-start"} mb-3 chat-message-new`
+          messageDiv.setAttribute("data-message-id", msgId)
+          messageDiv.innerHTML = `
+            ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
+            <div class="${isOwn ? "chat-message own" : "chat-message"}">
+              ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
+              <div>${msg.text}</div>
+            </div>
+            ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
+          `
+
+          chatMessages.appendChild(messageDiv)
+        })
+
+        if (wasAtBottom) {
+          chatMessages.scrollTop = chatMessages.scrollHeight
+        }
+      }
+    } else {
+      chatMessages.innerHTML = messages
+        .map((msg) => {
+          const isOwn = msg.userId === telegramUser.id
+          const avatar =
+            msg.photoUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
+          const msgId = `${msg.userId}-${msg.timestamp}`
+
+          return `
+            <div class="flex ${isOwn ? "justify-end" : "justify-start"} mb-3" data-message-id="${msgId}">
+              ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
+              <div class="${isOwn ? "chat-message own" : "chat-message"}">
+                ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
+                <div>${msg.text}</div>
+              </div>
+              ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
+            </div>
+          `
+        })
+        .join("")
+
+      if (messages.length === 0) {
+        chatMessages.innerHTML =
+          '<div class="text-center text-gray-500">Чат порожній. Будьте першим, хто напише повідомлення!</div>'
+      }
+
+      chatMessages.scrollTop = chatMessages.scrollHeight
+    }
+
+    if (!silent) {
+      console.log("[v0] ✅ Сообщения отображены")
+    }
   } catch (error) {
-    console.error("Error loading messages:", error)
+    console.error("[v0] 💥 Ошибка загрузки сообщений:", error)
   }
 }
 
+async function updateTypingIndicator() {
+  if (!currentEvent) return
+
+  try {
+    const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/typing?userId=${telegramUser.id}`)
+    const typingUsers = await response.json()
+
+    console.log("[v0] 👀 Печатающие пользователи:", typingUsers)
+
+    const indicator = document.getElementById("typing-indicator")
+    if (typingUsers.length > 0) {
+      const names = typingUsers.slice(0, 2).join(", ")
+      const text = typingUsers.length === 1 ? `${names} друкує...` : `${names} друкують...`
+      indicator.textContent = text
+      indicator.classList.remove("hidden")
+      console.log("[v0] ✅ Показываем индикатор:", text)
+    } else {
+      indicator.classList.add("hidden")
+      console.log("[v0] ⚠️ Скрываем индикатор - никто не печатает")
+    }
+  } catch (error) {
+    console.error("[v0] ❌ Ошибка обновления индикатора печати:", error)
+  }
+}
+
+function handleTyping() {
+  if (!currentEvent) {
+    console.log("[v0] ⚠️ handleTyping: currentEvent не установлен")
+    return
+  }
+
+  console.log("[v0] ⌨️ Пользователь печатает...")
+
+  // Отправляем индикатор "печатает"
+  fetch(`${API_URL}/api/events/${currentEvent.id}/typing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: telegramUser.id,
+      firstName: telegramUser.first_name,
+      isTyping: true,
+    }),
+  })
+    .then(() => console.log("[v0] ✅ Индикатор печати отправлен"))
+    .catch((error) => console.error("[v0] ❌ Ошибка отправки индикатора печати:", error))
+
+  // Сбрасываем таймер
+  if (typingTimeout) {
+    clearTimeout(typingTimeout)
+  }
+
+  // Через 3 секунды убираем индикатор
+  typingTimeout = setTimeout(() => {
+    console.log("[v0] ⏰ Таймаут печати - убираем индикатор")
+    fetch(`${API_URL}/api/events/${currentEvent.id}/typing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: telegramUser.id,
+        firstName: telegramUser.first_name,
+        isTyping: false,
+      }),
+    })
+      .then(() => console.log("[v0] ✅ Индикатор печати сброшен"))
+      .catch((error) => console.error("[v0] ❌ Ошибка сброса индикатора печати:", error))
+  }, 3000)
+}
+
+async function showUserProfile(userId, eventId) {
+  try {
+    const response = await fetch(`${API_URL}/api/events/${eventId}/participants/${userId}`)
+    const participant = await response.json()
+
+    const modal = document.getElementById("user-profile-modal")
+    const avatar =
+      participant.photoUrl ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(participant.firstName || "U")}&background=random&size=128`
+
+    document.getElementById("profile-avatar").src = avatar
+    document.getElementById("profile-name").textContent = participant.firstName || "Користувач"
+    document.getElementById("profile-joined").textContent =
+      `Приєднався: ${new Date(participant.joinedAt).toLocaleDateString("uk-UA")}`
+
+    modal.classList.add("active")
+    document.body.style.overflow = "hidden"
+  } catch (error) {
+    console.error("[v0] Ошибка загрузки профиля:", error)
+    alert("Помилка завантаження профілю")
+  }
+}
+
+function closeUserProfile(event) {
+  if (event && event.target !== event.currentTarget && !event.target.classList.contains("user-profile-close")) {
+    return
+  }
+
+  const modal = document.getElementById("user-profile-modal")
+  modal.classList.remove("active")
+  document.body.style.overflow = ""
+}
+
 async function sendMessage() {
+  console.log("[v0] 📤 Отправляем сообщение...")
+
   const input = document.getElementById("chat-input")
   const message = input.value.trim()
 
-  if (!message || !currentEvent) return
+  if (!message || !currentEvent) {
+    console.log("[v0] ⚠️ Сообщение пустое или событие не выбрано")
+    return
+  }
+
+  console.log("[v0] 📝 Текст сообщения:", message)
+  console.log("[v0] 🎉 Событие:", currentEvent.title)
+
+  if (typingTimeout) {
+    clearTimeout(typingTimeout)
+  }
+  fetch(`${API_URL}/api/events/${currentEvent.id}/typing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: telegramUser.id,
+      firstName: telegramUser.first_name,
+      isTyping: false,
+    }),
+  }).catch(() => {})
 
   try {
     const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages`, {
@@ -728,91 +1094,240 @@ async function sendMessage() {
       }),
     })
 
+    console.log("[v0] 📊 Статус ответа:", response.status)
+
     if (response.ok) {
-      await loadChatMessages()
+      console.log("[v0] ✅ Сообщение отправлено успешно")
       input.value = ""
+
+      // Сразу перезагружаем сообщения
+      await loadChatMessages()
+      console.log("[v0] 🔄 Чат обновлен")
     } else if (response.status === 403) {
       const error = await response.json()
+      console.error("[v0] ❌ Доступ запрещен:", error.error)
       alert(error.error || "У вас немає дозволу писати повідомлення")
+    } else {
+      console.error("[v0] ❌ Ошибка сервера:", response.status)
+      alert("Помилка відправки повідомлення")
     }
   } catch (error) {
-    console.error("Error sending message:", error)
+    console.error("[v0] 💥 Ошибка отправки сообщения:", error)
+    alert("Помилка з'єднання")
   }
 }
 
-async function uploadVideo() {
-  const input = document.getElementById("video-upload")
+async function uploadVideo(event) {
+  console.log("[v0] 🎬 НАЧАЛО ЗАГРУЗКИ ВИДЕО - Функция uploadVideo вызвана")
+  console.log("[v0] 📋 Event объект:", event)
+
+  const input = event.currentTarget
+  console.log("[v0] 📥 Input элемент:", input)
+  console.log("[v0] 📁 Количество выбранных файлов:", input.files.length)
+
   const file = input.files[0]
   const button = input.parentElement
 
-  if (!file) return
+  if (!file) {
+    console.error("[v0] ❌ ОШИБКА: Файл не выбран!")
+    console.log("[v0] 📊 Состояние input.files:", input.files)
+    return
+  }
 
-  // Анимация кнопки
+  console.log("[v0] ✅ Файл выбран успешно")
+  console.log("[v0] 📄 Имя файла:", file.name)
+  console.log("[v0] 📦 Размер файла:", (file.size / 1024 / 1024).toFixed(2), "MB")
+  console.log("[v0] 🎞️ Тип файла:", file.type)
+  console.log("[v0] 🔄 Начинаем анимацию кнопки (onclic)")
+
   button.classList.add("onclic")
 
+  let thumbnail = null
   try {
-    const thumbnail = await generateVideoThumbnail(file)
+    console.log("[v0] 🖼️ Начинаем генерацию превью видео...")
+    const thumbnailStart = Date.now()
+    thumbnail = await generateVideoThumbnail(file)
+    const thumbnailTime = Date.now() - thumbnailStart
 
+    console.log("[v0] ✅ Превью сгенерировано успешно за", thumbnailTime, "мс")
+    console.log("[v0] 🖼️ Размер превью:", thumbnail ? (thumbnail.size / 1024).toFixed(2) + " KB" : "неизвестно")
+  } catch (thumbnailError) {
+    console.warn("[v0] ⚠️ НЕ УДАЛОСЬ СОЗДАТЬ ПРЕВЬЮ, но продолжаем загрузку видео")
+    console.warn("[v0] 📛 Ошибка превью:", thumbnailError.message)
+    console.warn("[v0] 📋 Stack:", thumbnailError.stack)
+    console.log("[v0] ✅ Видео будет загружено БЕЗ превью")
+    thumbnail = null
+  }
+
+  try {
+    console.log("[v0] 📦 Создаем FormData для отправки...")
     const formData = new FormData()
     formData.append("video", file)
-    formData.append("thumbnail", thumbnail)
 
+    if (thumbnail) {
+      formData.append("thumbnail", thumbnail)
+      console.log("[v0] 📋 FormData создан с превью:")
+      console.log("[v0]   - video:", file.name, file.size, "bytes")
+      console.log("[v0]   - thumbnail:", thumbnail.size, "bytes")
+    } else {
+      console.log("[v0] 📋 FormData создан БЕЗ превью:")
+      console.log("[v0]   - video:", file.name, file.size, "bytes")
+      console.log("[v0]   - thumbnail: отсутствует (будет создано на сервере)")
+    }
+
+    console.log("[v0] 🌐 Отправляем запрос на сервер...")
+    console.log("[v0] 🔗 URL:", `${API_URL}/api/videos/upload`)
+    console.log("[v0] ⏰ Время начала запроса:", new Date().toLocaleTimeString())
+
+    const uploadStart = Date.now()
     const response = await fetch(`${API_URL}/api/videos/upload`, {
       method: "POST",
       body: formData,
     })
+    const uploadTime = Date.now() - uploadStart
+
+    console.log("[v0] 📨 Ответ получен за", uploadTime, "мс")
+    console.log("[v0] 📊 HTTP статус:", response.status, response.statusText)
+    console.log("[v0] 📋 Headers ответа:", Object.fromEntries(response.headers.entries()))
 
     const result = await response.json()
+    console.log("[v0] 📄 Тело ответа (JSON):", result)
 
-    // После успешной загрузки
-    button.classList.remove("onclic")
-    button.classList.add("validate")
+    if (response.ok) {
+      console.log("[v0] ✅ УСПЕХ! Видео загружено успешно")
+      console.log("[v0] 🎉 ID видео:", result.video?.id)
+      console.log("[v0] 📝 Статус модерации:", result.video?.status)
 
-    // Показать уведомление
-    showModerationNotification("Ваше відео відправлено на модерацію!")
+      button.classList.remove("onclic")
+      button.classList.add("validate")
+      console.log("[v0] ✔️ Анимация кнопки изменена на validate")
 
-    setTimeout(() => {
-      button.classList.remove("validate")
-    }, 2000)
+      showModerationNotification("Ваше відео відправлено на модерацію!")
+      console.log("[v0] 💬 Уведомление о модерации показано")
 
-    input.value = ""
+      setTimeout(() => {
+        button.classList.remove("validate")
+        console.log("[v0] 🔄 Анимация кнопки сброшена")
+      }, 2000)
+
+      input.value = ""
+      console.log("[v0] 🧹 Input очищен")
+    } else {
+      console.error("[v0] ❌ ОШИБКА СЕРВЕРА!")
+      console.error("[v0] 📛 Код ошибки:", response.status)
+      console.error("[v0] 📄 Сообщение ошибки:", result.error || result.message)
+      console.error("[v0] 📋 Полный ответ:", result)
+
+      button.classList.remove("onclic", "validate")
+      alert(result.error || result.message || "Помилка завантаження відео")
+    }
   } catch (error) {
+    console.error("[v0] 💥 КРИТИЧЕСКАЯ ОШИБКА при отправке на сервер!")
+    console.error("[v0] 📛 Тип ошибки:", error.name)
+    console.error("[v0] 📄 Сообщение:", error.message)
+    console.error("[v0] 📚 Stack trace:", error.stack)
+
     button.classList.remove("onclic", "validate")
-    console.error("Error uploading video:", error)
     alert("Помилка завантаження відео")
   }
+
+  console.log("[v0] 🏁 КОНЕЦ ФУНКЦИИ uploadVideo")
 }
 
-async function generateVideoThumbnail(videoFile) {
-  return new Promise((resolve) => {
+function generateVideoThumbnail(videoFile) {
+  console.log("[v0] 🎬 Начинаем генерацию превью для видео:", videoFile.name)
+
+  return new Promise((resolve, reject) => {
     const video = document.createElement("video")
     const canvas = document.createElement("canvas")
     const ctx = canvas.getContext("2d")
 
+    console.log("[v0] 🎥 Создали video элемент")
+    console.log("[v0] 🖼️ Создали canvas элемент")
+
+    let loadedDataFired = false
+    let seekedFired = false
+
     video.addEventListener("loadeddata", () => {
+      loadedDataFired = true
+      console.log("[v0] ✅ Событие loadeddata сработало")
+      console.log("[v0] 📊 Размеры видео:", video.videoWidth, "x", video.videoHeight)
+      console.log("[v0] ⏱️ Длительность видео:", video.duration, "секунд")
+      console.log("[v0] ⏩ Устанавливаем currentTime на 0.5 секунды")
       video.currentTime = 0.5
     })
 
     video.addEventListener("seeked", () => {
+      seekedFired = true
+      console.log("[v0] ✅ Событие seeked сработало")
+      console.log("[v0] ⏰ Текущее время видео:", video.currentTime)
+
       const size = Math.min(video.videoWidth, video.videoHeight)
       const x = (video.videoWidth - size) / 2
       const y = (video.videoHeight - size) / 2
 
+      console.log("[v0] 📐 Вычисленные параметры кадрирования:")
+      console.log("[v0]   - Размер квадрата:", size)
+      console.log("[v0]   - Смещение X:", x)
+      console.log("[v0]   - Смещение Y:", y)
+
       canvas.width = size
       canvas.height = size
+      console.log("[v0] 🖼️ Canvas размер установлен:", size, "x", size)
 
-      ctx.drawImage(video, x, y, size, size, 0, 0, size, size)
+      try {
+        ctx.drawImage(video, x, y, size, size, 0, 0, size, size)
+        console.log("[v0] ✅ Кадр отрисован на canvas")
+      } catch (drawError) {
+        console.error("[v0] ❌ Ошибка при отрисовке на canvas:", drawError)
+        reject(drawError)
+        return
+      }
 
       canvas.toBlob(
         (blob) => {
-          resolve(blob)
+          if (blob) {
+            console.log("[v0] ✅ Blob создан успешно")
+            console.log("[v0] 📦 Размер blob:", (blob.size / 1024).toFixed(2), "KB")
+            console.log("[v0] 🎞️ Тип blob:", blob.type)
+            resolve(blob)
+          } else {
+            console.error("[v0] ❌ Не удалось создать blob из canvas")
+            reject(new Error("Не удалось создать превью"))
+          }
         },
         "image/jpeg",
         0.8,
       )
     })
 
-    video.src = URL.createObjectURL(videoFile)
+    video.addEventListener("error", (e) => {
+      console.error("[v0] ❌ ОШИБКА при загрузке видео в элемент video")
+      console.error("[v0] 📛 Код ошибки:", video.error?.code)
+      console.error("[v0] 📄 Сообщение:", video.error?.message)
+      console.error("[v0] 📋 Event:", e)
+      reject(new Error("Ошибка загрузки видео: " + (video.error?.message || "неизвестная ошибка")))
+    })
+
+    // Таймаут на случай если события не сработают
+    setTimeout(() => {
+      if (!loadedDataFired) {
+        console.error("[v0] ⏰ ТАЙМАУТ: Событие loadeddata не сработало за 10 секунд")
+        reject(new Error("Таймаут загрузки видео"))
+      } else if (!seekedFired) {
+        console.error("[v0] ⏰ ТАЙМАУТ: Событие seeked не сработало за 10 секунд")
+        reject(new Error("Таймаут перемотки видео"))
+      }
+    }, 10000)
+
+    console.log("[v0] 🔗 Создаем URL для видео файла...")
+    try {
+      video.src = URL.createObjectURL(videoFile)
+      console.log("[v0] ✅ URL создан:", video.src)
+    } catch (urlError) {
+      console.error("[v0] ❌ Ошибка создания URL:", urlError)
+      reject(urlError)
+    }
   })
 }
 
@@ -834,7 +1349,7 @@ let allEventsForPhotos = []
 function previewPhoto() {
   const input = document.getElementById("photo-file-input")
   const file = input.files[0]
-  
+
   if (file) {
     const reader = new FileReader()
     reader.onload = (e) => {
@@ -848,22 +1363,36 @@ function previewPhoto() {
   }
 }
 
-async function uploadEventPhoto() {
+async function uploadEventPhoto(event) {
+  console.log("[v0] 📸 ========== НАЧАЛО ЗАГРУЗКИ ФОТО В СОБЫТИЕ ==========")
+
   const eventId = document.getElementById("upload-event-select").value
   const description = document.getElementById("upload-photo-description").value
   const fileInput = document.getElementById("photo-file-input")
   const file = fileInput.files[0]
-  const button = event.target
+  const button = event.currentTarget
+
+  console.log("[v0] 📋 Данные формы:")
+  console.log("[v0]   - Event ID:", eventId)
+  console.log("[v0]   - Description:", description)
+  console.log("[v0]   - File:", file ? file.name : "не выбран")
 
   if (!eventId) {
+    console.error("[v0] ❌ Событие не выбрано!")
     alert("Будь ласка, оберіть івент")
     return
   }
 
   if (!file) {
+    console.error("[v0] ❌ Файл не выбран!")
     alert("Будь ласка, оберіть фото")
     return
   }
+
+  console.log("[v0] ✅ Файл выбран:")
+  console.log("[v0]   - Имя:", file.name)
+  console.log("[v0]   - Размер:", (file.size / 1024).toFixed(2), "KB")
+  console.log("[v0]   - Тип:", file.type)
 
   button.classList.add("onclic")
   button.disabled = true
@@ -875,74 +1404,87 @@ async function uploadEventPhoto() {
   formData.append("userId", telegramUser.id)
   formData.append("firstName", telegramUser.first_name)
 
+  console.log("[v0] 📦 FormData создан, отправляем на сервер...")
+
   try {
+    const uploadStart = Date.now()
     const response = await fetch(`${API_URL}/api/photos/upload`, {
       method: "POST",
       body: formData,
     })
+    const uploadTime = Date.now() - uploadStart
+
+    console.log("[v0] 📨 Ответ получен за", uploadTime, "мс")
+    console.log("[v0] 📊 HTTP статус:", response.status)
 
     const result = await response.json()
+    console.log("[v0] 📄 Ответ сервера:", result)
 
     if (response.ok) {
+      console.log("[v0] ✅ УСПЕХ! Фото загружено")
+
       button.classList.remove("onclic")
       button.classList.add("validate")
-      
+
       showModerationNotification("Фото відправлено на модерацію!")
 
       setTimeout(() => {
         button.classList.remove("validate")
         button.disabled = false
-        
+
         document.getElementById("upload-event-select").value = ""
         document.getElementById("upload-photo-description").value = ""
         fileInput.value = ""
         document.getElementById("photo-preview").classList.add("hidden")
         document.getElementById("photo-file-label").textContent = "📷 Обрати фото"
-        
+
         goToPage("page-event-photos")
       }, 2000)
     } else {
+      console.error("[v0] ❌ ОШИБКА СЕРВЕРА:", result.error || result.message)
       button.classList.remove("onclic", "validate")
       button.disabled = false
-      alert(result.message || "Помилка завантаження фото")
+      alert(result.message || result.error || "Помилка завантаження фото")
     }
+
+    console.log("[v0] 📸 ========== КОНЕЦ ЗАГРУЗКИ ФОТО ==========")
   } catch (error) {
+    console.error("[v0] 💥 КРИТИЧЕСКАЯ ОШИБКА:", error)
+    console.error("[v0] 📚 Stack:", error.stack)
+
     button.classList.remove("onclic", "validate")
     button.disabled = false
-    console.error("Error uploading photo:", error)
     alert("Помилка завантаження фото")
   }
 }
 
 async function loadEventPhotos() {
   try {
-    const [photosRes, eventsRes] = await Promise.all([
-      fetch(`${API_URL}/api/photos`),
-      fetch(`${API_URL}/api/events`)
-    ])
-    
+    const [photosRes, eventsRes] = await Promise.all([fetch(`${API_URL}/api/photos`), fetch(`${API_URL}/api/events`)])
+
     allPhotos = await photosRes.json()
     allEventsForPhotos = await eventsRes.json()
-    
+
     const filter = document.getElementById("photo-event-filter")
     if (filter) {
-      filter.innerHTML = '<option value="">Всі івенти</option>' + 
-        allEventsForPhotos.map(event => `<option value="${event.id}">${event.title}</option>`).join("")
+      filter.innerHTML =
+        '<option value="">Всі івенти</option>' +
+        allEventsForPhotos.map((event) => `<option value="${event.id}">${event.title}</option>`).join("")
     }
-    
+
     displayPhotos(allPhotos)
   } catch (error) {
     console.error("Error loading photos:", error)
-    document.getElementById("photos-gallery").innerHTML = 
+    document.getElementById("photos-gallery").innerHTML =
       '<div class="col-span-2 text-center text-red-500">Помилка завантаження фото</div>'
   }
 }
 
 function filterPhotosByEvent() {
   const selectedEventId = document.getElementById("photo-event-filter").value
-  
+
   if (selectedEventId) {
-    const filtered = allPhotos.filter(p => p.eventId === selectedEventId)
+    const filtered = allPhotos.filter((p) => p.eventId === selectedEventId)
     displayPhotos(filtered)
   } else {
     displayPhotos(allPhotos)
@@ -951,40 +1493,276 @@ function filterPhotosByEvent() {
 
 function displayPhotos(photos) {
   const gallery = document.getElementById("photos-gallery")
-  
+
   if (photos.length === 0) {
     gallery.innerHTML = '<div class="col-span-2 text-center text-gray-500">Фото не знайдено</div>'
     return
   }
 
-  gallery.innerHTML = photos.map(photo => {
-    const event = allEventsForPhotos.find(e => e.id === photo.eventId)
-    const eventName = event ? event.title : 'Подія'
-    
-    return `
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm">
+  gallery.innerHTML = photos
+    .map((photo) => {
+      const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
+      const eventName = event ? event.title : "Подія видалена"
+
+      return `
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})'>
         <img src="${API_URL}${photo.url}" class="w-full h-40 object-cover" alt="${photo.description || eventName}">
         <div class="p-2">
           <p class="text-xs font-semibold text-gray-700">${eventName}</p>
-          ${photo.description ? `<p class="text-xs text-gray-500 mt-1">${photo.description}</p>` : ''}
+          ${photo.description ? `<p class="text-xs text-gray-500 mt-1">${photo.description}</p>` : ""}
         </div>
       </div>
     `
-  }).join("")
+    })
+    .join("")
+}
+
+function openPhotoModal(photo) {
+  const modal = document.getElementById("photo-modal")
+  const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
+  const eventName = event ? event.title : "Подія видалена"
+
+  document.getElementById("modal-photo-img").src = `${API_URL}${photo.url}`
+  document.getElementById("modal-photo-event").textContent = eventName
+  document.getElementById("modal-photo-description").textContent = photo.description || ""
+  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : ""
+
+  modal.classList.add("active")
+  document.body.style.overflow = "hidden"
+}
+
+function closePhotoModal(event) {
+  if (event && event.target !== event.currentTarget && !event.target.classList.contains("photo-modal-close")) {
+    return
+  }
+
+  const modal = document.getElementById("photo-modal")
+  modal.classList.remove("active")
+  document.body.style.overflow = ""
 }
 
 async function loadUploadPhotoEvents() {
   try {
     const response = await fetch(`${API_URL}/api/events`)
     const events = await response.json()
-    
+
     const select = document.getElementById("upload-event-select")
     if (select) {
-      select.innerHTML = '<option value="">Оберіть івент</option>' + 
-        events.map(event => `<option value="${event.id}">${event.title}</option>`).join("")
+      select.innerHTML =
+        '<option value="">Оберіть івент</option>' +
+        events.map((event) => `<option value="${event.id}">${event.title}</option>`).join("")
     }
   } catch (error) {
     console.error("Error loading events for upload:", error)
+  }
+}
+
+async function loadUhubChatMessages(silent = false) {
+  if (!silent) {
+    console.log("[v0] 💬 Загружаем сообщения общего чата U-hub")
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/uhub-chat/messages`)
+    const messages = await response.json()
+
+    if (!silent) {
+      console.log("[v0] 📨 Получено сообщений:", messages.length)
+    }
+
+    const chatMessages = document.getElementById("uhub-chat-messages")
+
+    if (silent && messages.length > 0) {
+      const existingMessages = chatMessages.querySelectorAll("[data-message-id]")
+      const existingIds = Array.from(existingMessages).map((el) => el.getAttribute("data-message-id"))
+
+      const newMessages = messages.filter((msg) => {
+        const msgId = `${msg.userId}-${msg.timestamp}`
+        return !existingIds.includes(msgId)
+      })
+
+      if (newMessages.length > 0) {
+        const wasAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50
+
+        newMessages.forEach((msg) => {
+          const isOwn = msg.userId === telegramUser.id
+          const avatar =
+            msg.photoUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
+          const msgId = `${msg.userId}-${msg.timestamp}`
+
+          const messageDiv = document.createElement("div")
+          messageDiv.className = `flex ${isOwn ? "justify-end" : "justify-start"} mb-3 chat-message-new`
+          messageDiv.setAttribute("data-message-id", msgId)
+          messageDiv.innerHTML = `
+            ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}">` : ""}
+            <div class="${isOwn ? "chat-message own" : "chat-message"}">
+              ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
+              <div>${msg.text}</div>
+            </div>
+            ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}">` : ""}
+          `
+
+          chatMessages.appendChild(messageDiv)
+        })
+
+        if (wasAtBottom) {
+          chatMessages.scrollTop = chatMessages.scrollHeight
+        }
+      }
+    } else {
+      chatMessages.innerHTML = messages
+        .map((msg) => {
+          const isOwn = msg.userId === telegramUser.id
+          const avatar =
+            msg.photoUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
+          const msgId = `${msg.userId}-${msg.timestamp}`
+
+          return `
+            <div class="flex ${isOwn ? "justify-end" : "justify-start"} mb-3" data-message-id="${msgId}">
+              ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}">` : ""}
+              <div class="${isOwn ? "chat-message own" : "chat-message"}">
+                ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
+                <div>${msg.text}</div>
+              </div>
+              ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}">` : ""}
+            </div>
+          `
+        })
+        .join("")
+
+      if (messages.length === 0) {
+        chatMessages.innerHTML =
+          '<div class="text-center text-gray-500">Чат порожній. Будьте першим, хто напише повідомлення!</div>'
+      }
+
+      chatMessages.scrollTop = chatMessages.scrollHeight
+    }
+
+    // Запускаем автообновление чата
+    if (!uhubChatUpdateInterval) {
+      uhubChatUpdateInterval = setInterval(async () => {
+        await loadUhubChatMessages(true)
+        await updateUhubTypingIndicator()
+      }, 1000)
+    }
+
+    if (!silent) {
+      console.log("[v0] ✅ Сообщения общего чата отображены")
+    }
+  } catch (error) {
+    console.error("[v0] 💥 Ошибка загрузки сообщений общего чата:", error)
+  }
+}
+
+async function sendUhubMessage() {
+  console.log("[v0] 📤 Отправляем сообщение в общий чат...")
+
+  const input = document.getElementById("uhub-chat-input")
+  const message = input.value.trim()
+
+  if (!message) {
+    console.log("[v0] ⚠️ Сообщение пустое")
+    return
+  }
+
+  console.log("[v0] 📝 Текст сообщения:", message)
+
+  if (uhubTypingTimeout) {
+    clearTimeout(uhubTypingTimeout)
+  }
+  fetch(`${API_URL}/api/uhub-chat/typing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: telegramUser.id,
+      firstName: telegramUser.first_name,
+      isTyping: false,
+    }),
+  }).catch(() => {})
+
+  try {
+    const response = await fetch(`${API_URL}/api/uhub-chat/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        userId: telegramUser.id,
+        firstName: telegramUser.first_name,
+        photoUrl: telegramUser.photo_url,
+      }),
+    })
+
+    console.log("[v0] 📊 Статус ответа:", response.status)
+
+    if (response.ok) {
+      console.log("[v0] ✅ Сообщение отправлено успешно")
+      input.value = ""
+
+      await loadUhubChatMessages()
+      console.log("[v0] 🔄 Чат обновлен")
+    } else {
+      console.error("[v0] ❌ Ошибка сервера:", response.status)
+      alert("Помилка відправки повідомлення")
+    }
+  } catch (error) {
+    console.error("[v0] 💥 Ошибка отправки сообщения:", error)
+    alert("Помилка з'єднання")
+  }
+}
+
+function handleUhubTyping() {
+  console.log("[v0] ⌨️ Пользователь печатает в общем чате...")
+
+  fetch(`${API_URL}/api/uhub-chat/typing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: telegramUser.id,
+      firstName: telegramUser.first_name,
+      isTyping: true,
+    }),
+  })
+    .then(() => console.log("[v0] ✅ Индикатор печати отправлен"))
+    .catch((error) => console.error("[v0] ❌ Ошибка отправки индикатора печати:", error))
+
+  if (uhubTypingTimeout) {
+    clearTimeout(uhubTypingTimeout)
+  }
+
+  uhubTypingTimeout = setTimeout(() => {
+    console.log("[v0] ⏰ Таймаут печати - убираем индикатор")
+    fetch(`${API_URL}/api/uhub-chat/typing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: telegramUser.id,
+        firstName: telegramUser.first_name,
+        isTyping: false,
+      }),
+    })
+      .then(() => console.log("[v0] ✅ Индикатор печати сброшен"))
+      .catch((error) => console.error("[v0] ❌ Ошибка сброса индикатора печати:", error))
+  }, 3000)
+}
+
+async function updateUhubTypingIndicator() {
+  try {
+    const response = await fetch(`${API_URL}/api/uhub-chat/typing?userId=${telegramUser.id}`)
+    const typingUsers = await response.json()
+
+    const indicator = document.getElementById("uhub-typing-indicator")
+    if (typingUsers.length > 0) {
+      const names = typingUsers.slice(0, 2).join(", ")
+      const text = typingUsers.length === 1 ? `${names} друкує...` : `${names} друкують...`
+      indicator.textContent = text
+      indicator.classList.remove("hidden")
+    } else {
+      indicator.classList.add("hidden")
+    }
+  } catch (error) {
+    console.error("[v0] ❌ Ошибка обновления индикатора печати:", error)
   }
 }
 
@@ -1001,10 +1779,12 @@ if (savedSchedule) {
 // Очистить старые данные расписания при загрузке
 clearLegacySchedule()
 
+console.log("[v0] 🚀 Инициализация приложения...")
 loadNews()
-loadEvents()
+loadEvents() // Загружаем события сразу
 loadHeroImages()
 loadApprovedVideos()
+console.log("[v0] ✅ Приложение инициализировано")
 
 if (window.Telegram && window.Telegram.WebApp) {
   window.Telegram.WebApp.ready()
@@ -1062,14 +1842,23 @@ async function loadHeroImages() {
 }
 
 async function loadApprovedVideos() {
+  console.log("[v0] 📹 Загружаем одобренные видео для превью...")
+
   try {
     const response = await fetch(`${API_URL}/api/videos/approved`)
     const videos = await response.json()
 
+    console.log("[v0] ✅ Получено видео:", videos.length)
+    console.log("[v0] 📋 Данные видео:", videos)
+
     const grid = document.getElementById("main-video-grid")
-    if (!grid) return
+    if (!grid) {
+      console.error("[v0] ❌ Элемент main-video-grid не найден!")
+      return
+    }
 
     if (videos.length === 0) {
+      console.log("[v0] ⚠️ Нет одобренных видео, показываем плейсхолдеры")
       grid.innerHTML = `
                 <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
                     <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover">
@@ -1087,14 +1876,18 @@ async function loadApprovedVideos() {
     const thumbnails = []
     for (let i = 0; i < 3; i++) {
       if (videos[i] && videos[i].thumbnailPath) {
+        const thumbnailUrl = `${API_URL}${videos[i].thumbnailPath}`
+        console.log(`[v0] 🖼️ Превью ${i + 1}:`, thumbnailUrl)
+
         thumbnails.push(`
-                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
-                        <img src="${API_URL}${videos[i].thumbnailPath}" class="w-full h-full object-cover">
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer transition-transform hover:scale-105" onclick="openTikTok(event)">
+                        <img src="${thumbnailUrl}" class="w-full h-full object-cover" alt="Video ${i + 1}" onerror="console.error('[v0] ❌ Ошибка загрузки превью:', this.src); this.src='https://placehold.co/150x150/fecaca/900?text=V'">
                     </div>
                 `)
       } else {
+        console.log(`[v0] ⚠️ Видео ${i + 1}: превью отсутствует`)
         thumbnails.push(`
-                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer" onclick="openTikTok(event)">
+                    <div class="aspect-square overflow-hidden rounded-md cursor-pointer transition-transform hover:scale-105" onclick="openTikTok(event)">
                         <img src="https://placehold.co/150x150/fecaca/900?text=V" class="w-full h-full object-cover">
                     </div>
                 `)
@@ -1102,7 +1895,9 @@ async function loadApprovedVideos() {
     }
 
     grid.innerHTML = thumbnails.join("")
+    console.log("[v0] ✅ Превью видео обновлены в блоках")
   } catch (error) {
-    console.error("Error loading approved videos:", error)
+    console.error("[v0] ❌ Ошибка загрузки одобренных видео:", error)
+    console.error("[v0] 📋 Stack:", error.stack)
   }
 }
