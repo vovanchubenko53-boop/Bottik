@@ -8,14 +8,13 @@ const lucide = window.lucide // Declare the lucide variable
 
 let chatUpdateInterval = null
 let typingTimeout = null
-const lastMessageId = null
-
-let uhubChatUpdateInterval = null
-let uhubTypingTimeout = null
 const UHUB_CHAT_ID = "uhub-general-chat"
 
 let allNewsCache = []
 let currentCategory = "all"
+
+let currentGroupIndex = 0
+let totalGroups = 1
 
 if (window.Telegram && window.Telegram.WebApp) {
   const tg = window.Telegram.WebApp
@@ -56,11 +55,6 @@ function goToPage(pageId, event) {
     chatUpdateInterval = null
   }
 
-  if (pageId !== "page-uhub-chat" && uhubChatUpdateInterval) {
-    clearInterval(uhubChatUpdateInterval)
-    uhubChatUpdateInterval = null
-  }
-
   const targetPage = document.getElementById(pageId)
   if (!targetPage) {
     console.error("Page not found:", pageId)
@@ -97,8 +91,6 @@ function goToPage(pageId, event) {
   } else if (pageId === "page-schedule-list") {
     loadUserSchedule()
     updateScheduleDayCounts()
-  } else if (pageId === "page-uhub-chat") {
-    loadUhubChatMessages()
   }
 }
 
@@ -241,15 +233,15 @@ function filterNewsByCategory(category) {
 
 function getCategoryEmoji(category) {
   const emojiMap = {
-    all: "Всі",
+    all: "",
     kyiv: "📰",
-    events: "🎭",
+    events: "🎸",
     music: "🎶",
     scholarships: "🎓",
-    tech: "💻",
+    tech: "🔬",
     energy: "⚡",
     beauty: "💄",
-    knu: "🎓", // Заменили crypto на knu
+    knu: "🎓",
   }
   return emojiMap[category] || ""
 }
@@ -401,22 +393,125 @@ function viewScheduleDay(day) {
 
   if (currentSchedule && currentSchedule.schedule && currentSchedule.schedule[day]) {
     const classes = currentSchedule.schedule[day]
-    document.getElementById("schedule-classes").innerHTML = classes
-      .map(
-        (cls) => `
+
+    // Группируем пары по времени
+    const groupedByTime = {}
+    classes.forEach((cls) => {
+      if (!groupedByTime[cls.time]) {
+        groupedByTime.time = []
+      }
+      groupedByTime[cls.time].push(cls)
+    })
+
+    // Определяем максимальное количество групп
+    totalGroups = Math.max(...Object.values(groupedByTime).map((g) => g.length))
+    currentGroupIndex = 0
+
+    const container = document.getElementById("schedule-groups-container")
+    const indicator = document.getElementById("schedule-group-indicator")
+
+    if (totalGroups > 1) {
+      // Создаем контейнеры для каждой группы
+      container.innerHTML = ""
+
+      for (let groupIdx = 0; groupIdx < totalGroups; groupIdx++) {
+        const groupDiv = document.createElement("div")
+        groupDiv.className = "schedule-group"
+
+        const classesHTML = Object.keys(groupedByTime)
+          .map((time) => {
+            const group = groupedByTime[time]
+            const cls = group[groupIdx] || group[0] // Если группы нет, показываем первую
+
+            return `
             <div class="border-l-4 border-blue-500 pl-3">
                 <div class="font-bold">${cls.time}</div>
                 <div class="text-gray-700">${cls.subject}</div>
                 <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
+                ${totalGroups > 1 ? `<div class="text-xs text-blue-500 mt-1">Група ${groupIdx + 1}</div>` : ""}
             </div>
-        `,
-      )
-      .join("")
+          `
+          })
+          .join("")
+
+        groupDiv.innerHTML = `<div class="space-y-4">${classesHTML}</div>`
+        container.appendChild(groupDiv)
+      }
+
+      // Создаем индикаторы
+      indicator.innerHTML = Array.from(
+        { length: totalGroups },
+        (_, i) => `<div class="schedule-group-dot ${i === 0 ? "active" : ""}" data-group="${i}"></div>`,
+      ).join("")
+
+      // Добавляем обработчик скролла
+      container.addEventListener("scroll", handleScheduleScroll)
+
+      // Добавляем клик по индикаторам
+      indicator.querySelectorAll(".schedule-group-dot").forEach((dot, idx) => {
+        dot.addEventListener("click", () => scrollToGroup(idx))
+      })
+    } else {
+      // Одна группа - показываем как обычно
+      container.innerHTML = `
+        <div class="schedule-group">
+          <div class="space-y-4">
+            ${classes
+              .map(
+                (cls) => `
+              <div class="border-l-4 border-blue-500 pl-3">
+                  <div class="font-bold">${cls.time}</div>
+                  <div class="text-gray-700">${cls.subject}</div>
+                  <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
+              </div>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `
+      indicator.innerHTML = ""
+    }
   } else {
-    document.getElementById("schedule-classes").innerHTML = '<div class="text-gray-500 text-center">Занять немає</div>'
+    document.getElementById("schedule-groups-container").innerHTML =
+      '<div class="schedule-group"><div class="text-gray-500 text-center">Занять немає</div></div>'
+    document.getElementById("schedule-group-indicator").innerHTML = ""
   }
 
   goToPage("page-schedule-detail")
+}
+
+function handleScheduleScroll() {
+  const container = document.getElementById("schedule-groups-container")
+  const scrollLeft = container.scrollLeft
+  const width = container.offsetWidth
+  const newIndex = Math.round(scrollLeft / width)
+
+  if (newIndex !== currentGroupIndex) {
+    currentGroupIndex = newIndex
+    updateGroupIndicators()
+  }
+}
+
+function scrollToGroup(index) {
+  const container = document.getElementById("schedule-groups-container")
+  const width = container.offsetWidth
+  container.scrollTo({
+    left: width * index,
+    behavior: "smooth",
+  })
+  currentGroupIndex = index
+  updateGroupIndicators()
+}
+
+function updateGroupIndicators() {
+  document.querySelectorAll(".schedule-group-dot").forEach((dot, idx) => {
+    if (idx === currentGroupIndex) {
+      dot.classList.add("active")
+    } else {
+      dot.classList.remove("active")
+    }
+  })
 }
 
 function handleScheduleClick() {
@@ -900,11 +995,28 @@ async function loadChatMessages(silent = false) {
           const messageDiv = document.createElement("div")
           messageDiv.className = `flex ${isOwn ? "justify-end" : "justify-start"} mb-3 chat-message-new`
           messageDiv.setAttribute("data-message-id", msgId)
+
+          let photosHTML = ""
+          if (msg.photos && msg.photos.length > 0) {
+            photosHTML = `
+              <div class="grid ${msg.photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 mt-2">
+                ${msg.photos
+                  .map(
+                    (photoUrl) => `
+                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick="openPhotoModal('${API_URL}${photoUrl}', '${msg.firstName}', '${currentEvent.title}')" alt="Фото">
+                `,
+                  )
+                  .join("")}
+              </div>
+            `
+          }
+
           messageDiv.innerHTML = `
             ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
             <div class="${isOwn ? "chat-message own" : "chat-message"}">
               ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
-              <div>${msg.text}</div>
+              ${msg.text ? `<div>${msg.text}</div>` : ""}
+              ${photosHTML}
             </div>
             ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
           `
@@ -925,12 +1037,28 @@ async function loadChatMessages(silent = false) {
             `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
           const msgId = `${msg.userId}-${msg.timestamp}`
 
+          let photosHTML = ""
+          if (msg.photos && msg.photos.length > 0) {
+            photosHTML = `
+              <div class="grid ${msg.photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 mt-2">
+                ${msg.photos
+                  .map(
+                    (photoUrl) => `
+                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick="openPhotoModal('${API_URL}${photoUrl}', '${msg.firstName}', '${currentEvent.title}')" alt="Фото">
+                `,
+                  )
+                  .join("")}
+              </div>
+            `
+          }
+
           return `
             <div class="flex ${isOwn ? "justify-end" : "justify-start"} mb-3" data-message-id="${msgId}">
               ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
               <div class="${isOwn ? "chat-message own" : "chat-message"}">
                 ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
-                <div>${msg.text}</div>
+                ${msg.text ? `<div>${msg.text}</div>` : ""}
+                ${photosHTML}
               </div>
               ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}" onclick="showUserProfile('${msg.userId}', '${currentEvent.id}')">` : ""}
             </div>
@@ -1055,19 +1183,66 @@ function closeUserProfile(event) {
   document.body.style.overflow = ""
 }
 
+function previewChatPhotos() {
+  const input = document.getElementById("chat-photo-input")
+  const preview = document.getElementById("chat-photo-preview")
+  const files = input.files
+
+  if (files.length > 10) {
+    alert("Максимум 10 фото")
+    input.value = ""
+    return
+  }
+
+  if (files.length > 0) {
+    preview.classList.remove("hidden")
+    preview.innerHTML = ""
+
+    Array.from(files).forEach((file, index) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const div = document.createElement("div")
+        div.className = "relative"
+        div.innerHTML = `
+          <img src="${e.target.result}" class="w-full h-16 object-cover rounded-lg">
+          <button onclick="removeChatPhoto(${index})" class="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">✕</button>
+        `
+        preview.appendChild(div)
+      }
+      reader.readAsDataURL(file)
+    })
+  } else {
+    preview.classList.add("hidden")
+  }
+}
+
+function removeChatPhoto(index) {
+  const input = document.getElementById("chat-photo-input")
+  const dt = new DataTransfer()
+  const files = Array.from(input.files)
+
+  files.splice(index, 1)
+  files.forEach((file) => dt.items.add(file))
+
+  input.files = dt.files
+  previewChatPhotos()
+}
+
 async function sendMessage() {
   console.log("[v0] 📤 Отправляем сообщение...")
 
   const input = document.getElementById("chat-input")
+  const photoInput = document.getElementById("chat-photo-input")
   const message = input.value.trim()
+  const photos = photoInput.files
 
-  if (!message || !currentEvent) {
-    console.log("[v0] ⚠️ Сообщение пустое или событие не выбрано")
+  if (!message && photos.length === 0) {
+    console.log("[v0] ⚠️ Сообщение и фото пустые")
     return
   }
 
   console.log("[v0] 📝 Текст сообщения:", message)
-  console.log("[v0] 🎉 Событие:", currentEvent.title)
+  console.log("[v0] 📷 Количество фото:", photos.length)
 
   if (typingTimeout) {
     clearTimeout(typingTimeout)
@@ -1083,37 +1258,59 @@ async function sendMessage() {
   }).catch(() => {})
 
   try {
-    const response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        userId: telegramUser.id,
-        firstName: telegramUser.first_name,
-        photoUrl: telegramUser.photo_url,
-      }),
-    })
+    let response
+
+    if (photos.length > 0) {
+      const formData = new FormData()
+      Array.from(photos).forEach((photo) => {
+        formData.append("photos", photo)
+      })
+      formData.append("message", message)
+      formData.append("eventId", currentEvent.id)
+      formData.append("userId", telegramUser.id)
+      formData.append("firstName", telegramUser.first_name)
+      formData.append("photoUrl", telegramUser.photo_url || "")
+
+      response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages/photos`, {
+        method: "POST",
+        body: formData,
+      })
+    } else {
+      response = await fetch(`${API_URL}/api/events/${currentEvent.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          userId: telegramUser.id,
+          firstName: telegramUser.first_name,
+          photoUrl: telegramUser.photo_url,
+        }),
+      })
+    }
 
     console.log("[v0] 📊 Статус ответа:", response.status)
 
     if (response.ok) {
       console.log("[v0] ✅ Сообщение отправлено успешно")
       input.value = ""
+      photoInput.value = ""
+      document.getElementById("chat-photo-preview").classList.add("hidden")
 
-      // Сразу перезагружаем сообщения
       await loadChatMessages()
       console.log("[v0] 🔄 Чат обновлен")
-    } else if (response.status === 403) {
-      const error = await response.json()
-      console.error("[v0] ❌ Доступ запрещен:", error.error)
-      alert(error.error || "У вас немає дозволу писати повідомлення")
     } else {
-      console.error("[v0] ❌ Ошибка сервера:", response.status)
-      alert("Помилка відправки повідомлення")
+      const errorData = await response.json()
+      console.error("[v0] ❌ Ошибка:", errorData)
+
+      if (response.status === 403) {
+        alert(errorData.error || "Ви не можете писати в цьому чаті")
+      } else {
+        alert("Помилка відправки повідомлення")
+      }
     }
   } catch (error) {
     console.error("[v0] 💥 Ошибка отправки сообщения:", error)
-    alert("Помилка з'єднання")
+    alert("Помилка відправки повідомлення")
   }
 }
 
@@ -1348,113 +1545,234 @@ let allEventsForPhotos = []
 
 function previewPhoto() {
   const input = document.getElementById("photo-file-input")
-  const file = input.files[0]
+  const files = Array.from(input.files)
+  const preview = document.getElementById("photo-preview")
 
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const preview = document.getElementById("photo-preview")
-      const img = document.getElementById("photo-preview-img")
-      img.src = e.target.result
-      preview.classList.remove("hidden")
-      document.getElementById("photo-file-label").textContent = file.name
-    }
-    reader.readAsDataURL(file)
+  if (files.length > 10) {
+    alert("Максимум 10 фото за раз!")
+    input.value = ""
+    return
+  }
+
+  if (files.length > 0) {
+    preview.innerHTML = ""
+    preview.classList.remove("hidden")
+
+    files.forEach((file, index) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const imgContainer = document.createElement("div")
+        imgContainer.className = "relative"
+        imgContainer.innerHTML = `
+          <img src="${e.target.result}" class="w-full h-32 object-cover rounded-lg" alt="Фото ${index + 1}">
+          <div class="absolute top-1 right-1 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">${index + 1}</div>
+        `
+        preview.appendChild(imgContainer)
+      }
+      reader.readAsDataURL(file)
+    })
+
+    document.getElementById("photo-file-label").textContent = `${files.length} фото обрано`
   }
 }
 
+let currentAlbumPhotos = []
+let currentAlbumIndex = 0
+
+function openAlbumModal(photos) {
+  currentAlbumPhotos = photos
+  currentAlbumIndex = 0
+  showAlbumPhoto(0)
+
+  const modal = document.getElementById("photo-modal")
+  modal.classList.add("active")
+  document.body.style.overflow = "hidden"
+}
+
+function showAlbumPhoto(index) {
+  if (index < 0 || index >= currentAlbumPhotos.length) return
+
+  currentAlbumIndex = index
+  const photo = currentAlbumPhotos[index]
+  const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
+  const eventName = event ? event.title : "Подія видалена"
+
+  document.getElementById("modal-photo-img").src = `${API_URL}${photo.url}`
+  document.getElementById("modal-photo-event").textContent = `${eventName} (${index + 1}/${currentAlbumPhotos.length})`
+  document.getElementById("modal-photo-description").textContent = photo.description || ""
+  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : ""
+}
+
+function nextAlbumPhoto() {
+  if (currentAlbumIndex < currentAlbumPhotos.length - 1) {
+    showAlbumPhoto(currentAlbumIndex + 1)
+  }
+}
+
+function prevAlbumPhoto() {
+  if (currentAlbumIndex > 0) {
+    showAlbumPhoto(currentAlbumIndex - 1)
+  }
+}
+
+// Додаємо обробники клавіш для навігації по альбому
+document.addEventListener("keydown", (e) => {
+  const modal = document.getElementById("photo-modal")
+  if (modal.classList.contains("active") && currentAlbumPhotos.length > 0) {
+    if (e.key === "ArrowRight") {
+      nextAlbumPhoto()
+    } else if (e.key === "ArrowLeft") {
+      prevAlbumPhoto()
+    }
+  }
+})
+
 async function uploadEventPhoto(event) {
-  console.log("[v0] 📸 ========== НАЧАЛО ЗАГРУЗКИ ФОТО В СОБЫТИЕ ==========")
+  event.preventDefault()
 
   const eventId = document.getElementById("upload-event-select").value
   const description = document.getElementById("upload-photo-description").value
   const fileInput = document.getElementById("photo-file-input")
-  const file = fileInput.files[0]
-  const button = event.currentTarget
-
-  console.log("[v0] 📋 Данные формы:")
-  console.log("[v0]   - Event ID:", eventId)
-  console.log("[v0]   - Description:", description)
-  console.log("[v0]   - File:", file ? file.name : "не выбран")
+  const files = fileInput.files
 
   if (!eventId) {
-    console.error("[v0] ❌ Событие не выбрано!")
-    alert("Будь ласка, оберіть івент")
+    alert("Оберіть івент")
     return
   }
 
-  if (!file) {
-    console.error("[v0] ❌ Файл не выбран!")
-    alert("Будь ласка, оберіть фото")
+  if (files.length === 0) {
+    alert("Оберіть хоча б одне фото")
     return
   }
 
-  console.log("[v0] ✅ Файл выбран:")
-  console.log("[v0]   - Имя:", file.name)
-  console.log("[v0]   - Размер:", (file.size / 1024).toFixed(2), "KB")
-  console.log("[v0]   - Тип:", file.type)
+  if (files.length > 10) {
+    alert("Максимум 10 фото")
+    return
+  }
 
+  const button = event.target
   button.classList.add("onclic")
-  button.disabled = true
-
-  const formData = new FormData()
-  formData.append("photo", file)
-  formData.append("eventId", eventId)
-  formData.append("description", description)
-  formData.append("userId", telegramUser.id)
-  formData.append("firstName", telegramUser.first_name)
-
-  console.log("[v0] 📦 FormData создан, отправляем на сервер...")
 
   try {
-    const uploadStart = Date.now()
-    const response = await fetch(`${API_URL}/api/photos/upload`, {
-      method: "POST",
-      body: formData,
-    })
-    const uploadTime = Date.now() - uploadStart
+    const albumId = Date.now().toString()
 
-    console.log("[v0] 📨 Ответ получен за", uploadTime, "мс")
-    console.log("[v0] 📊 HTTP статус:", response.status)
+    for (let i = 0; i < files.length; i++) {
+      const formData = new FormData()
+      formData.append("photo", files[i])
+      formData.append("eventId", eventId)
+      formData.append("description", i === 0 ? description : "") // Опис тільки для першого фото
+      formData.append("userId", telegramUser.id)
+      formData.append("firstName", telegramUser.first_name)
+      formData.append("albumId", albumId) // Додаємо ID альбому
+      formData.append("albumIndex", i) // Індекс фото в альбомі
+      formData.append("albumTotal", files.length) // Загальна кількість фото в альбомі
 
-    const result = await response.json()
-    console.log("[v0] 📄 Ответ сервера:", result)
+      const response = await fetch(`${API_URL}/api/photos/upload`, {
+        method: "POST",
+        body: formData,
+      })
 
-    if (response.ok) {
-      console.log("[v0] ✅ УСПЕХ! Фото загружено")
-
-      button.classList.remove("onclic")
-      button.classList.add("validate")
-
-      showModerationNotification("Фото відправлено на модерацію!")
-
-      setTimeout(() => {
-        button.classList.remove("validate")
-        button.disabled = false
-
-        document.getElementById("upload-event-select").value = ""
-        document.getElementById("upload-photo-description").value = ""
-        fileInput.value = ""
-        document.getElementById("photo-preview").classList.add("hidden")
-        document.getElementById("photo-file-label").textContent = "📷 Обрати фото"
-
-        goToPage("page-event-photos")
-      }, 2000)
-    } else {
-      console.error("[v0] ❌ ОШИБКА СЕРВЕРА:", result.error || result.message)
-      button.classList.remove("onclic", "validate")
-      button.disabled = false
-      alert(result.message || result.error || "Помилка завантаження фото")
+      if (!response.ok) {
+        throw new Error(`Помилка завантаження фото ${i + 1}`)
+      }
     }
 
-    console.log("[v0] 📸 ========== КОНЕЦ ЗАГРУЗКИ ФОТО ==========")
-  } catch (error) {
-    console.error("[v0] 💥 КРИТИЧЕСКАЯ ОШИБКА:", error)
-    console.error("[v0] 📚 Stack:", error.stack)
+    button.classList.remove("onclic")
+    button.classList.add("validate")
 
-    button.classList.remove("onclic", "validate")
-    button.disabled = false
+    setTimeout(() => {
+      button.classList.remove("validate")
+      alert(`${files.length} фото відправлено на модерацію`)
+
+      fileInput.value = ""
+      document.getElementById("upload-photo-description").value = ""
+      document.getElementById("photo-preview").classList.add("hidden")
+      document.getElementById("photo-file-label").textContent = "📷 Обрати фото (до 10)"
+
+      goToPage("page-event-photos")
+    }, 1500)
+  } catch (error) {
+    console.error("Error uploading photos:", error)
+    button.classList.remove("onclic")
     alert("Помилка завантаження фото")
+  }
+}
+
+function displayPhotos(photos) {
+  const gallery = document.getElementById("photos-gallery")
+
+  if (photos.length === 0) {
+    gallery.innerHTML = '<div class="col-span-2 text-center text-gray-500">Фото не знайдено</div>'
+    return
+  }
+
+  // Групуємо фото по альбомах
+  const albums = {}
+  const singlePhotos = []
+
+  photos.forEach((photo) => {
+    if (photo.albumId) {
+      if (!albums[photo.albumId]) {
+        albums[photo.albumId] = []
+      }
+      albums[photo.albumId].push(photo)
+    } else {
+      singlePhotos.push(photo)
+    }
+  })
+
+  // Сортуємо фото в альбомах по індексу
+  Object.keys(albums).forEach((albumId) => {
+    albums[albumId].sort((a, b) => (a.albumIndex || 0) - (b.albumIndex || 0))
+  })
+
+  let html = ""
+
+  // Відображаємо альбоми
+  Object.keys(albums).forEach((albumId) => {
+    const albumPhotos = albums[albumId]
+    const firstPhoto = albumPhotos[0]
+    const event = allEventsForPhotos.find((e) => e.id === firstPhoto.eventId)
+    const eventName = event ? event.title : "Подія видалена"
+
+    html += `
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition col-span-2" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
+        <div class="relative">
+          <img src="${API_URL}${firstPhoto.url}" class="w-full h-48 object-cover" alt="${firstPhoto.description || eventName}">
+          <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1">
+            <i data-lucide="images" class="w-3 h-3"></i>
+            ${albumPhotos.length}
+          </div>
+        </div>
+        <div class="p-2">
+          <p class="text-xs font-semibold text-gray-700">${eventName}</p>
+          ${firstPhoto.description ? `<p class="text-xs text-gray-500 mt-1">${firstPhoto.description}</p>` : ""}
+        </div>
+      </div>
+    `
+  })
+
+  // Відображаємо окремі фото
+  singlePhotos.forEach((photo) => {
+    const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
+    const eventName = event ? event.title : "Подія видалена"
+
+    html += `
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})'>
+        <img src="${API_URL}${photo.url}" class="w-full h-40 object-cover" alt="${photo.description || eventName}">
+        <div class="p-2">
+          <p class="text-xs font-semibold text-gray-700">${eventName}</p>
+          ${photo.description ? `<p class="text-xs text-gray-500 mt-1">${photo.description}</p>` : ""}
+        </div>
+      </div>
+    `
+  })
+
+  gallery.innerHTML = html
+
+  // Ініціалізуємо іконки
+  if (lucide) {
+    lucide.createIcons()
   }
 }
 
@@ -1491,41 +1809,16 @@ function filterPhotosByEvent() {
   }
 }
 
-function displayPhotos(photos) {
-  const gallery = document.getElementById("photos-gallery")
-
-  if (photos.length === 0) {
-    gallery.innerHTML = '<div class="col-span-2 text-center text-gray-500">Фото не знайдено</div>'
-    return
-  }
-
-  gallery.innerHTML = photos
-    .map((photo) => {
-      const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
-      const eventName = event ? event.title : "Подія видалена"
-
-      return `
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})'>
-        <img src="${API_URL}${photo.url}" class="w-full h-40 object-cover" alt="${photo.description || eventName}">
-        <div class="p-2">
-          <p class="text-xs font-semibold text-gray-700">${eventName}</p>
-          ${photo.description ? `<p class="text-xs text-gray-500 mt-1">${photo.description}</p>` : ""}
-        </div>
-      </div>
-    `
-    })
-    .join("")
-}
-
-function openPhotoModal(photo) {
+function openPhotoModal(photoUrl, author, eventTitle) {
   const modal = document.getElementById("photo-modal")
-  const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
-  const eventName = event ? event.title : "Подія видалена"
+  const img = document.getElementById("modal-photo-img")
+  const eventEl = document.getElementById("modal-photo-event")
+  const authorEl = document.getElementById("modal-photo-author")
 
-  document.getElementById("modal-photo-img").src = `${API_URL}${photo.url}`
-  document.getElementById("modal-photo-event").textContent = eventName
-  document.getElementById("modal-photo-description").textContent = photo.description || ""
-  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : ""
+  img.src = photoUrl
+  eventEl.textContent = eventTitle
+  authorEl.textContent = `Автор: ${author}`
+  document.getElementById("modal-photo-description").textContent = ""
 
   modal.classList.add("active")
   document.body.style.overflow = "hidden"
@@ -1557,223 +1850,94 @@ async function loadUploadPhotoEvents() {
   }
 }
 
-async function loadUhubChatMessages(silent = false) {
-  if (!silent) {
-    console.log("[v0] 💬 Загружаем сообщения общего чата U-hub")
-  }
+let navigationPhotos = []
 
-  try {
-    const response = await fetch(`${API_URL}/api/uhub-chat/messages`)
-    const messages = await response.json()
+async function uploadNavigationPhotos() {
+  const input = document.getElementById("navigation-photo-input")
+  const files = input.files
 
-    if (!silent) {
-      console.log("[v0] 📨 Получено сообщений:", messages.length)
-    }
+  if (files.length === 0) return
 
-    const chatMessages = document.getElementById("uhub-chat-messages")
-
-    if (silent && messages.length > 0) {
-      const existingMessages = chatMessages.querySelectorAll("[data-message-id]")
-      const existingIds = Array.from(existingMessages).map((el) => el.getAttribute("data-message-id"))
-
-      const newMessages = messages.filter((msg) => {
-        const msgId = `${msg.userId}-${msg.timestamp}`
-        return !existingIds.includes(msgId)
-      })
-
-      if (newMessages.length > 0) {
-        const wasAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50
-
-        newMessages.forEach((msg) => {
-          const isOwn = msg.userId === telegramUser.id
-          const avatar =
-            msg.photoUrl ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
-          const msgId = `${msg.userId}-${msg.timestamp}`
-
-          const messageDiv = document.createElement("div")
-          messageDiv.className = `flex ${isOwn ? "justify-end" : "justify-start"} mb-3 chat-message-new`
-          messageDiv.setAttribute("data-message-id", msgId)
-          messageDiv.innerHTML = `
-            ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}">` : ""}
-            <div class="${isOwn ? "chat-message own" : "chat-message"}">
-              ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
-              <div>${msg.text}</div>
-            </div>
-            ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}">` : ""}
-          `
-
-          chatMessages.appendChild(messageDiv)
-        })
-
-        if (wasAtBottom) {
-          chatMessages.scrollTop = chatMessages.scrollHeight
-        }
-      }
-    } else {
-      chatMessages.innerHTML = messages
-        .map((msg) => {
-          const isOwn = msg.userId === telegramUser.id
-          const avatar =
-            msg.photoUrl ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
-          const msgId = `${msg.userId}-${msg.timestamp}`
-
-          return `
-            <div class="flex ${isOwn ? "justify-end" : "justify-start"} mb-3" data-message-id="${msgId}">
-              ${!isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full mr-2 cursor-pointer" alt="${msg.firstName}">` : ""}
-              <div class="${isOwn ? "chat-message own" : "chat-message"}">
-                ${!isOwn ? `<div class="text-xs font-semibold mb-1">${msg.firstName}</div>` : ""}
-                <div>${msg.text}</div>
-              </div>
-              ${isOwn ? `<img src="${avatar}" class="w-8 h-8 rounded-full ml-2 cursor-pointer" alt="${msg.firstName}">` : ""}
-            </div>
-          `
-        })
-        .join("")
-
-      if (messages.length === 0) {
-        chatMessages.innerHTML =
-          '<div class="text-center text-gray-500">Чат порожній. Будьте першим, хто напише повідомлення!</div>'
-      }
-
-      chatMessages.scrollTop = chatMessages.scrollHeight
-    }
-
-    // Запускаем автообновление чата
-    if (!uhubChatUpdateInterval) {
-      uhubChatUpdateInterval = setInterval(async () => {
-        await loadUhubChatMessages(true)
-        await updateUhubTypingIndicator()
-      }, 1000)
-    }
-
-    if (!silent) {
-      console.log("[v0] ✅ Сообщения общего чата отображены")
-    }
-  } catch (error) {
-    console.error("[v0] 💥 Ошибка загрузки сообщений общего чата:", error)
-  }
-}
-
-async function sendUhubMessage() {
-  console.log("[v0] 📤 Отправляем сообщение в общий чат...")
-
-  const input = document.getElementById("uhub-chat-input")
-  const message = input.value.trim()
-
-  if (!message) {
-    console.log("[v0] ⚠️ Сообщение пустое")
+  if (files.length > 10) {
+    alert("Максимум 10 фото")
+    input.value = ""
     return
   }
 
-  console.log("[v0] 📝 Текст сообщения:", message)
-
-  if (uhubTypingTimeout) {
-    clearTimeout(uhubTypingTimeout)
-  }
-  fetch(`${API_URL}/api/uhub-chat/typing`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId: telegramUser.id,
-      firstName: telegramUser.first_name,
-      isTyping: false,
-    }),
-  }).catch(() => {})
-
   try {
-    const response = await fetch(`${API_URL}/api/uhub-chat/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        userId: telegramUser.id,
-        firstName: telegramUser.first_name,
-        photoUrl: telegramUser.photo_url,
-      }),
-    })
+    for (let i = 0; i < files.length; i++) {
+      const formData = new FormData()
+      formData.append("photo", files[i])
+      formData.append("type", "navigation")
+      formData.append("userId", telegramUser.id)
 
-    console.log("[v0] 📊 Статус ответа:", response.status)
+      const response = await fetch(`${API_URL}/api/navigation/upload`, {
+        method: "POST",
+        body: formData,
+      })
 
-    if (response.ok) {
-      console.log("[v0] ✅ Сообщение отправлено успешно")
-      input.value = ""
-
-      await loadUhubChatMessages()
-      console.log("[v0] 🔄 Чат обновлен")
-    } else {
-      console.error("[v0] ❌ Ошибка сервера:", response.status)
-      alert("Помилка відправки повідомлення")
+      if (!response.ok) {
+        throw new Error(`Помилка завантаження фото ${i + 1}`)
+      }
     }
+
+    alert("Фото схеми завантажено успішно")
+    input.value = ""
+    loadNavigationPhotos()
   } catch (error) {
-    console.error("[v0] 💥 Ошибка отправки сообщения:", error)
-    alert("Помилка з'єднання")
+    console.error("Error uploading navigation photos:", error)
+    alert("Помилка завантаження фото")
   }
 }
 
-function handleUhubTyping() {
-  console.log("[v0] ⌨️ Пользователь печатает в общем чате...")
+async function loadNavigationPhotos() {
+  try {
+    const response = await fetch(`${API_URL}/api/navigation/photos`)
+    navigationPhotos = await response.json()
 
-  fetch(`${API_URL}/api/uhub-chat/typing`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId: telegramUser.id,
-      firstName: telegramUser.first_name,
-      isTyping: true,
-    }),
-  })
-    .then(() => console.log("[v0] ✅ Индикатор печати отправлен"))
-    .catch((error) => console.error("[v0] ❌ Ошибка отправки индикатора печати:", error))
+    const grid = document.getElementById("navigation-photos-grid")
+    if (navigationPhotos.length === 0) {
+      grid.innerHTML = '<p class="col-span-2 text-center text-gray-500 text-sm">Немає завантажених схем</p>'
+      return
+    }
 
-  if (uhubTypingTimeout) {
-    clearTimeout(uhubTypingTimeout)
+    grid.innerHTML = navigationPhotos
+      .map(
+        (photo) => `
+      <div class="relative cursor-pointer" onclick='openNavigationPhoto("${photo.url}")'>
+        <img src="${API_URL}${photo.url}" class="w-full h-24 object-cover rounded-lg">
+      </div>
+    `,
+      )
+      .join("")
+  } catch (error) {
+    console.error("Error loading navigation photos:", error)
   }
-
-  uhubTypingTimeout = setTimeout(() => {
-    console.log("[v0] ⏰ Таймаут печати - убираем индикатор")
-    fetch(`${API_URL}/api/uhub-chat/typing`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: telegramUser.id,
-        firstName: telegramUser.first_name,
-        isTyping: false,
-      }),
-    })
-      .then(() => console.log("[v0] ✅ Индикатор печати сброшен"))
-      .catch((error) => console.error("[v0] ❌ Ошибка сброса индикатора печати:", error))
-  }, 3000)
 }
 
-async function updateUhubTypingIndicator() {
-  try {
-    const response = await fetch(`${API_URL}/api/uhub-chat/typing?userId=${telegramUser.id}`)
-    const typingUsers = await response.json()
-
-    const indicator = document.getElementById("uhub-typing-indicator")
-    if (typingUsers.length > 0) {
-      const names = typingUsers.slice(0, 2).join(", ")
-      const text = typingUsers.length === 1 ? `${names} друкує...` : `${names} друкують...`
-      indicator.textContent = text
-      indicator.classList.remove("hidden")
-    } else {
-      indicator.classList.add("hidden")
-    }
-  } catch (error) {
-    console.error("[v0] ❌ Ошибка обновления индикатора печати:", error)
-  }
+function openNavigationPhoto(url) {
+  const modal = document.getElementById("photo-modal")
+  document.getElementById("modal-photo-img").src = `${API_URL}${url}`
+  document.getElementById("modal-photo-event").textContent = "Схема корпусів"
+  document.getElementById("modal-photo-description").textContent = ""
+  document.getElementById("modal-photo-author").textContent = ""
+  modal.classList.add("active")
+  document.body.style.overflow = "hidden"
 }
 
 updateTime()
 setInterval(updateTime, 1000)
 
+// Загружаем расписание пользователя
 const savedSchedule = localStorage.getItem("userSchedule")
 if (savedSchedule) {
   userSchedule = JSON.parse(savedSchedule)
   document.getElementById("main-schedule-subtitle").textContent = `• ${userSchedule.name}`
   document.getElementById("main-schedule-subtitle").style.display = "block"
+}
+
+if (document.getElementById("page-schedule-detail")) {
+  loadNavigationPhotos()
 }
 
 // Очистить старые данные расписания при загрузке
@@ -1901,3 +2065,18 @@ async function loadApprovedVideos() {
     console.error("[v0] 📋 Stack:", error.stack)
   }
 }
+
+// function openPhotoModal(photoUrl, author, eventTitle) { // Redeclared function
+//   const modal = document.getElementById("photo-modal")
+//   const img = document.getElementById("modal-photo-img")
+//   const eventEl = document.getElementById("modal-photo-event")
+//   const authorEl = document.getElementById("modal-photo-author")
+
+//   img.src = photoUrl
+//   eventEl.textContent = eventTitle
+//   authorEl.textContent = `Автор: ${author}`
+//   document.getElementById("modal-photo-description").textContent = ""
+
+//   modal.classList.add("active")
+//   document.body.style.overflow = "hidden"
+// }

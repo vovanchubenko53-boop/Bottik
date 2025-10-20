@@ -247,6 +247,37 @@
             }
         }
         
+        /* Анимация иконки чата */
+        .chat-icon {
+            animation: chatIconJiggle 3s infinite;
+            transition: transform 0.2s ease;
+        }
+        
+        @keyframes chatIconJiggle {
+            0%, 100% {
+                transform: rotate(0deg);
+            }
+            10% {
+                transform: rotate(-10deg);
+            }
+            20% {
+                transform: rotate(10deg);
+            }
+            30% {
+                transform: rotate(-10deg);
+            }
+            40% {
+                transform: rotate(10deg);
+            }
+            50% {
+                transform: rotate(0deg);
+            }
+        }
+        
+        .chat-icon:hover {
+            transform: scale(1.1);
+        }
+        
         input, textarea {
             transition: box-shadow 0.2s ease;
         }
@@ -581,6 +612,49 @@
             transform: scale(0.98);
             background: #F5F5F5;
         }
+
+        /* Добавляем стили для горизонтального скролла групп в расписании */
+        .schedule-groups-container {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            gap: 1rem;
+            padding: 0.5rem 0;
+        }
+        
+        .schedule-groups-container::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .schedule-group {
+            flex: 0 0 100%;
+            scroll-snap-align: start;
+            min-width: 100%;
+        }
+        
+        .schedule-group-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .schedule-group-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #C8C7CC;
+            transition: all 0.3s;
+        }
+        
+        .schedule-group-dot.active {
+            background: #007AFF;
+            width: 24px;
+            border-radius: 4px;
+        }
+        
     </style>
 </head>
 <body>
@@ -601,10 +675,11 @@
                     <img src="https://placehold.co/600x300/a3e635/444?text=News" class="w-full h-36 object-cover rounded-t-xl" id="main-news-img">
                     <span class="absolute top-3 left-3 text-white text-xs font-medium" id="main-news-date">28.05.2025</span>
                     <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Новини</span>
-                    <!-- Добавляем иконку чата в верхний правый угол -->
-                    <div class="absolute top-3 right-3 bg-white rounded-full p-2 shadow-lg cursor-pointer chat-icon" onclick="event.stopPropagation(); goToPage('page-uhub-chat')">
-                        <i data-lucide="message-circle" class="w-5 h-5 text-blue-500"></i>
-                    </div>
+                    <!-- Иконка чата в верхний правый угол с анимацией -->
+                    <!-- Видалено іконку чату в кутку блоку новин -->
+                    <!-- <div class="absolute top-3 right-3 bg-white rounded-full p-2 shadow-lg cursor-pointer chat-icon" onclick="event.stopPropagation(); window.open('https://t.me/u_hub_chat', '_blank')" title="Чат U-hub"> -->
+                        <!-- <i data-lucide="message-circle" class="w-5 h-5 text-blue-500"></i> -->
+                    <!-- </div> -->
                 </div>
                 <div class="p-4">
                     <p class="font-bold" id="main-news-title">Завантаження новин...</p>
@@ -666,16 +741,18 @@
             <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
         </header>
         <main class="flex-grow p-4 space-y-4">
-            <!-- Добавляем фильтр категорий над лентой новостей -->
+            <!-- Фильтр категорий над лентой новостей с эмодзи -->
             <div class="category-filter">
                 <button class="category-btn active" data-category="all" onclick="filterNewsByCategory('all')">Всі</button>
                 <button class="category-btn" data-category="kyiv" onclick="filterNewsByCategory('kyiv')">📰 Новини Києва</button>
-                <button class="category-btn" data-category="events" onclick="filterNewsByCategory('events')">🎭 Афіша</button>
+                <button class="category-btn" data-category="events" onclick="filterNewsByCategory('events')">🎸 Афіша</button>
                 <button class="category-btn" data-category="music" onclick="filterNewsByCategory('music')">🎶 Музика</button>
                 <button class="category-btn" data-category="scholarships" onclick="filterNewsByCategory('scholarships')">🎓 Стипендії</button>
-                <button class="category-btn" data-category="tech" onclick="filterNewsByCategory('tech')">💻 Наука та AI</button>
+                <button class="category-btn" data-category="tech" onclick="filterNewsByCategory('tech')">🔬 Наука та AI</button>
                 <button class="category-btn" data-category="energy" onclick="filterNewsByCategory('energy')">⚡ Електроенергія</button>
-                <button class="category-btn" data-category="beauty" onclick="filterNewsByCategory('beauty')">💄 Бьюті</button>
+                <button class="category-btn" data-category="beauty" onclick="filterNewsByCategory('beauty')">💄 Б'юті</button>
+                <!-- Видалено кнопку категорії Крипта -->
+                <!-- <button class="category-btn" data-category="crypto" onclick="filterNewsByCategory('crypto')">₿ Крипта</button> -->
                 <button class="category-btn" data-category="knu" onclick="filterNewsByCategory('knu')">🎓 КНУ</button>
             </div>
             
@@ -794,13 +871,36 @@
                  <p class="text-sm text-gray-500 mt-1">На І семестр 2025 / 2026 навчального року</p>
             </div>
             <p class="text-center font-semibold text-xl" id="schedule-detail-day">Понеділок</p>
+            
+            <!-- Контейнер для горизонтального скролла групп -->
             <div class="bg-white rounded-xl shadow-sm p-4" id="schedule-detail-content">
-                <div class="space-y-4" id="schedule-classes">
-                    <div class="text-gray-500 text-center">Завантаження розкладу...</div>
+                <div class="schedule-groups-container" id="schedule-groups-container">
+                    <div class="schedule-group">
+                        <div class="space-y-4" id="schedule-classes">
+                            <div class="text-gray-500 text-center">Завантаження розкладу...</div>
+                        </div>
+                    </div>
                 </div>
+                <!-- Индикаторы групп -->
+                <div class="schedule-group-indicator" id="schedule-group-indicator"></div>
             </div>
         </main>
-        <div class="bottom-nav-link" onclick="goToPage('page-schedule-list')">Назад до розкладу</div>
+        <div class="p-4 space-y-3">
+            <!-- Видалено можливість завантаження схем користувачами - тільки для адміністраторів -->
+            <!-- Замінено Google Maps на завантаження фото схеми -->
+            <!-- <div class="bg-white rounded-xl shadow-sm p-4">
+                <h3 class="text-sm font-bold text-gray-700 mb-3">🗺️ Навігація по Уніку</h3>
+                <div class="space-y-2">
+                    <button class="w-full bg-blue-50 text-blue-600 font-medium py-2.5 px-4 rounded-lg text-center hover:bg-blue-100 transition" onclick="document.getElementById('navigation-photo-input').click()">
+                        📷 Завантажити схему корпусів
+                    </button>
+                    <input type="file" id="navigation-photo-input" accept="image/*" multiple class="hidden" onchange="uploadNavigationPhotos()">
+                    <div id="navigation-photos-grid" class="grid grid-cols-2 gap-2 mt-3">
+                    </div>
+                </div>
+            </div> -->
+            <div class="bottom-nav-link" onclick="goToPage('page-schedule-list')">Назад до розкладу</div>
+        </div>
     </div>
 
     <!-- PAGE 7: Video Upload/View -->
@@ -896,7 +996,14 @@
                 <div class="chat-message">Привіт! Вітаємо в чаті події</div>
             </div>
             <div id="typing-indicator" class="typing-indicator mb-2 hidden"></div>
+            <!-- Додано можливість відправки до 10 фото -->
+            <div id="chat-photo-preview" class="hidden mb-2 grid grid-cols-5 gap-2">
+            </div>
             <div class="flex space-x-2">
+                <input type="file" id="chat-photo-input" accept="image/*" multiple class="hidden" onchange="previewChatPhotos()">
+                <button class="bg-gray-200 text-gray-700 px-4 rounded-lg" onclick="document.getElementById('chat-photo-input').click()">
+                    <i data-lucide="paperclip" class="w-5 h-5"></i>
+                </button>
                 <input type="text" id="chat-input" placeholder="Напишіть повідомлення..." class="flex-grow bg-white border border-gray-300 rounded-lg p-3" oninput="handleTyping()" onkeypress="if(event.key==='Enter') sendMessage()">
                 <button class="bg-blue-500 text-white px-4 rounded-lg" onclick="sendMessage()">
                     <i data-lucide="send" class="w-5 h-5"></i>
@@ -997,13 +1104,13 @@
                     <textarea id="upload-photo-description" rows="3" placeholder="Опишіть фото..." class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1"></textarea>
                 </div>
                 <div>
-                    <label class="text-sm text-gray-600 block mb-2">Фото:</label>
-                    <div id="photo-preview" class="hidden mb-3">
-                        <img id="photo-preview-img" class="w-full rounded-lg" alt="Попередній перегляд">
+                    <!-- Поддержка загрузки до 10 фото -->
+                    <label class="text-sm text-gray-600 block mb-2">Фото (до 10 фото):</label>
+                    <div id="photo-preview" class="hidden mb-3 grid grid-cols-2 gap-2">
                     </div>
                     <label class="block w-full bg-gray-200 text-gray-700 text-center font-semibold py-3 rounded-lg cursor-pointer hover:bg-gray-300 transition">
-                        <input type="file" id="photo-file-input" accept="image/*" class="hidden" onchange="previewPhoto()">
-                        <span id="photo-file-label">📷 Обрати фото</span>
+                        <input type="file" id="photo-file-input" accept="image/*" multiple class="hidden" onchange="previewPhoto()">
+                        <span id="photo-file-label">📷 Обрати фото (до 10)</span>
                     </label>
                 </div>
                 <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg tiktok-button" onclick="uploadEventPhoto(event)">Завантажити</button>
@@ -1013,27 +1120,37 @@
     </div>
 
     <!-- PAGE 14: U-hub Chat -->
-    <div id="page-uhub-chat" class="page">
-        <header class="app-header">
-            <div class="logo">U-hub</div>
-            <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div>
-            <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo">
-        </header>
-        <main class="flex-grow p-4 flex flex-col">
-            <h2 class="text-lg font-bold mb-3">Чат U-hub</h2>
-            <div class="flex-grow bg-white rounded-xl shadow-sm p-4 mb-2 overflow-y-auto" id="uhub-chat-messages" style="max-height: 60vh;">
-                <div class="chat-message">Привіт! Вітаємо в загальному чаті U-hub</div>
-            </div>
-            <div id="uhub-typing-indicator" class="typing-indicator mb-2 hidden"></div>
-            <div class="flex space-x-2">
-                <input type="text" id="uhub-chat-input" placeholder="Напишіть повідомлення..." class="flex-grow bg-white border border-gray-300 rounded-lg p-3" oninput="handleUhubTyping()" onkeypress="if(event.key==='Enter') sendUhubMessage()">
-                <button class="bg-blue-500 text-white px-4 rounded-lg" onclick="sendUhubMessage()">
-                    <i data-lucide="send" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </main>
-        <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
-    </div>
+    <!-- Видалено PAGE 14: U-hub Chat -->
+    <!-- <div id="page-uhub-chat" class="page"> -->
+        <!-- <header class="app-header"> -->
+            <!-- <div class="logo">U-hub</div> -->
+            <!-- <div class="time-date"><div class="time">12:07:05</div><div class="date">12 серпня 2025 р</div></div> -->
+            <!-- <img src="/images/knu-logo.png" alt="KNU Logo" class="uni-logo"> -->
+        <!-- </header> -->
+        <!-- <main class="flex-grow p-4 flex flex-col"> -->
+            <!-- <h2 class="text-lg font-bold mb-3">Чат U-hub</h2> -->
+            <!-- <div class="flex-grow bg-white rounded-xl shadow-sm p-4 mb-2 overflow-y-auto" id="uhub-chat-messages" style="max-height: 60vh;"> -->
+                <!-- <div class="chat-message">Привіт! Вітаємо в загальному чаті U-hub</div> -->
+            <!-- </div> -->
+            <!-- <div id="uhub-typing-indicator" class="typing-indicator mb-2 hidden"></div> -->
+            <!-- Добавляем превью фото и кнопку для прикрепления -->
+            <!-- <div id="uhub-photo-preview" class="hidden mb-2 relative"> -->
+                <!-- <img id="uhub-photo-preview-img" class="w-32 h-32 object-cover rounded-lg" alt="Попередній перегляд"> -->
+                <!-- <button onclick="removeUhubChatPhoto()" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button> -->
+            <!-- </div> -->
+            <!-- <div class="flex space-x-2"> -->
+                <!-- <input type="file" id="uhub-chat-photo-input" accept="image/*" class="hidden" onchange="previewUhubChatPhoto()"> -->
+                <!-- <button class="bg-gray-200 text-gray-700 px-4 rounded-lg" onclick="document.getElementById('uhub-chat-photo-input').click()"> -->
+                    <!-- <i data-lucide="paperclip" class="w-5 h-5"></i> -->
+                <!-- </button> -->
+                <!-- <input type="text" id="uhub-chat-input" placeholder="Напишіть повідомлення..." class="flex-grow bg-white border border-gray-300 rounded-lg p-3" oninput="handleUhubTyping()" onkeypress="if(event.key==='Enter') sendUhubMessage()"> -->
+                <!-- <button class="bg-blue-500 text-white px-4 rounded-lg" onclick="sendUhubMessage()"> -->
+                    <!-- <i data-lucide="send" class="w-5 h-5"></i> -->
+                <!-- </button> -->
+            <!-- </div> -->
+        <!-- </main> -->
+        <!-- <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div> -->
+    <!-- </div> -->
 
     <!-- PAGE 15: Telegram Channels -->
     <div id="page-telegram-channels" class="page">
@@ -1244,6 +1361,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=20251017"></script>
+    <script src="app.js?v=20251019"></script>
 </body>
 </html>

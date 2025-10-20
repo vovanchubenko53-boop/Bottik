@@ -187,8 +187,27 @@
                         <ul class="text-sm text-blue-700 ml-4 mt-2">
                             <li>• Стовпці: Час, Понеділок, Вівторок, Середа, Четвер, П'ятниця</li>
                             <li>• Кожна клітинка: Предмет / Викладач / Аудиторія</li>
+                            <li>• <strong>Для мовних груп:</strong> Якщо в одній клітинці кілька предметів (розділені переносом рядка), вони будуть показані як окремі групи з можливістю горизонтального скроллінгу</li>
                         </ul>
                     </div>
+                    
+                    <!-- Додано секцію для завантаження схем навігації (тільки для адміністраторів) -->
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                        <h3 class="text-lg font-semibold mb-3">🗺️ Схеми навігації по Уніку</h3>
+                        <p class="text-sm text-gray-700 mb-3">Завантажте фото схем корпусів для студентів</p>
+                        <div class="space-y-2">
+                            <input type="file" id="navigation-scheme-input" accept="image/*" multiple class="w-full border border-gray-300 rounded-lg p-3">
+                            <button onclick="uploadNavigationSchemes()" class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Завантажити схеми</button>
+                            <div id="navigation-schemes-status" class="hidden mt-2 p-3 rounded-lg"></div>
+                        </div>
+                        <div class="mt-4">
+                            <h4 class="text-sm font-semibold mb-2">Завантажені схеми:</h4>
+                            <div id="navigation-schemes-list" class="grid grid-cols-3 gap-2">
+                                <p class="col-span-3 text-gray-500 text-center text-sm">Завантаження...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium mb-2">Назва розкладу (група/курс):</label>
@@ -666,6 +685,7 @@
                 loadPendingPhotos();
             } else if (tab === 'schedules') {
                 loadSchedulesList();
+                loadNavigationSchemes(); // Завантажуємо схеми при переключенні на вкладку розкладів
             } else if (tab === 'events') {
                 loadPendingEvents();
                 loadAllEvents();
@@ -1072,6 +1092,96 @@
                 reader.readAsDataURL(file);
             });
         });
+        
+        async function uploadNavigationSchemes() {
+            const input = document.getElementById('navigation-scheme-input');
+            const files = input.files;
+            
+            if (!files || files.length === 0) {
+                alert('Оберіть файли для завантаження');
+                return;
+            }
+            
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('photos', file);
+            });
+            formData.append('userId', 'admin');
+            
+            try {
+                const response = await fetch(`${API_URL}/api/navigation/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const status = document.getElementById('navigation-schemes-status');
+                    status.textContent = '✅ Схеми успішно завантажено!';
+                    status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
+                    status.classList.remove('hidden');
+                    setTimeout(() => status.classList.add('hidden'), 3000);
+                    
+                    input.value = '';
+                    loadNavigationSchemes();
+                } else {
+                    throw new Error('Помилка завантаження');
+                }
+            } catch (error) {
+                console.error('Error uploading schemes:', error);
+                const status = document.getElementById('navigation-schemes-status');
+                status.textContent = '❌ Помилка завантаження схем';
+                status.className = 'mt-2 p-3 rounded-lg bg-red-100 text-red-700';
+                status.classList.remove('hidden');
+            }
+        }
+        
+        async function loadNavigationSchemes() {
+            try {
+                const response = await fetch(`${API_URL}/api/navigation/photos`);
+                const photos = await response.json();
+                
+                const list = document.getElementById('navigation-schemes-list');
+                
+                if (photos.length === 0) {
+                    list.innerHTML = '<p class="col-span-3 text-gray-500 text-center text-sm">Немає завантажених схем</p>';
+                    return;
+                }
+                
+                list.innerHTML = photos.map(photo => `
+                    <div class="relative group">
+                        <img src="${API_URL}${photo.url}" class="w-full h-24 object-cover rounded-lg">
+                        <button onclick="deleteNavigationScheme('${photo.id}')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition">✕</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading schemes:', error);
+            }
+        }
+        
+        async function deleteNavigationScheme(photoId) {
+            if (!confirm('Видалити цю схему?')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/navigation/photos/${photoId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadNavigationSchemes();
+                }
+            } catch (error) {
+                console.error('Error deleting scheme:', error);
+            }
+        }
+        
+        // Завантажуємо схеми при переключенні на вкладку розкладів
+        const originalSwitchTab = switchTab;
+        switchTab = function(tab) {
+            originalSwitchTab.call(this, tab);
+            if (tab === 'schedules') {
+                loadNavigationSchemes();
+            }
+        };
     </script>
 </body>
 </html>
