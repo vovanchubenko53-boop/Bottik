@@ -85,6 +85,7 @@ let eventMessages = {}
 let eventParticipants = {}
 let botUsers = []
 let userRestrictions = {}
+let navigationPhotos = [] // Додано для фото навігації
 let adminSettings = {
   heroImages: {
     news: "https://placehold.co/600x300/a3e635/444?text=News",
@@ -103,9 +104,6 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 let bot = null
-
-let uhubChatMessages = []
-const uhubTypingUsers = {}
 
 if (BOT_TOKEN) {
   try {
@@ -283,12 +281,12 @@ async function initializeData() {
     }
 
     try {
-      const uhubChatFile = await fs.readFile(path.join(dataPath, "uhubChatMessages.json"), "utf-8")
-      uhubChatMessages = JSON.parse(uhubChatFile)
-      console.log("[v0] ✅ Сообщения общего чата загружены:", uhubChatMessages.length)
-    } catch (e) {
-      uhubChatMessages = []
-      console.log("[v0] ⚠️ Файл сообщений общего чата не найден, создан новый массив")
+      const navigationPhotosFile = await fs.readFile(path.join(dataPath, "navigationPhotos.json"), "utf-8")
+      navigationPhotos = JSON.parse(navigationPhotosFile)
+      console.log("[v0] ✅ Фото навігації завантажено:", navigationPhotos.length)
+    } catch (error) {
+      navigationPhotos = []
+      console.log("[v0] ⚠️ Файл фото навігації не знайдено, створено новий масив")
     }
 
     eventsData.forEach((event) => {
@@ -300,6 +298,7 @@ async function initializeData() {
         eventMessages[event.id] = []
       }
     })
+    console.log("Data loaded successfully")
   } catch (error) {
     console.error("Error initializing data:", error)
   }
@@ -309,22 +308,20 @@ async function saveData() {
   try {
     const dataPath = path.join(__dirname, "data")
     await fs.mkdir(dataPath, { recursive: true })
-    await fs.writeFile(path.join(dataPath, "events.json"), JSON.stringify(eventsData, null, 2))
-    await fs.writeFile(path.join(dataPath, "videos.json"), JSON.stringify(videosData, null, 2))
-    await fs.writeFile(path.join(dataPath, "photos.json"), JSON.stringify(photosData, null, 2))
-    await saveEventParticipants()
-    // Сохраняем сообщения событий в файл
-    try {
-      await fs.mkdir(dataPath, { recursive: true })
-      await fs.writeFile(path.join(dataPath, "eventMessages.json"), JSON.stringify(eventMessages, null, 2))
-    } catch (error) {
-      console.error("Error saving event messages:", error)
-    }
-    try {
-      await fs.writeFile(path.join(dataPath, "uhubChatMessages.json"), JSON.stringify(uhubChatMessages, null, 2))
-    } catch (error) {
-      console.error("Error saving uhub chat messages:", error)
-    }
+
+    await Promise.all([
+      fs.writeFile(path.join(dataPath, "events.json"), JSON.stringify(eventsData, null, 2)),
+      fs.writeFile(path.join(dataPath, "schedules.json"), JSON.stringify(schedulesData, null, 2)),
+      fs.writeFile(path.join(dataPath, "videos.json"), JSON.stringify(videosData, null, 2)),
+      fs.writeFile(path.join(dataPath, "photos.json"), JSON.stringify(photosData, null, 2)),
+      fs.writeFile(path.join(dataPath, "eventMessages.json"), JSON.stringify(eventMessages, null, 2)),
+      fs.writeFile(path.join(dataPath, "eventParticipants.json"), JSON.stringify(eventParticipants, null, 2)),
+      fs.writeFile(path.join(dataPath, "adminSettings.json"), JSON.stringify(adminSettings, null, 2)),
+      fs.writeFile(path.join(dataPath, "userRestrictions.json"), JSON.stringify(userRestrictions, null, 2)),
+      fs.writeFile(path.join(dataPath, "navigationPhotos.json"), JSON.stringify(navigationPhotos, null, 2)), // Додано збереження фото навігації
+    ])
+
+    console.log("Data saved successfully")
   } catch (error) {
     console.error("Error saving data:", error)
   }
@@ -422,6 +419,63 @@ async function loadEventParticipants() {
     eventParticipants = {}
   }
 }
+
+// Система Push сповіщень за 1 годину до події
+const notifiedEvents = new Set()
+
+function parseEventDateTime(eventDate, eventTime) {
+  try {
+    const [day, month, year] = eventDate.split(".")
+    const [hours, minutes] = eventTime.split(":")
+    return new Date(year, month - 1, day, hours, minutes)
+  } catch (error) {
+    console.error("Error parsing event date/time:", error)
+    return null
+  }
+}
+
+async function checkUpcomingEvents() {
+  try {
+    console.log("[v0] 🔔 Проверяем предстоящие события...")
+
+    const now = new Date()
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000)
+    const fiveMinutesFromOneHour = new Date(now.getTime() + 55 * 60 * 1000)
+
+    for (const event of eventsData) {
+      if (notifiedEvents.has(event.id)) continue
+
+      const eventDateTime = parseEventDateTime(event.date, event.time)
+
+      if (eventDateTime >= fiveMinutesFromOneHour && eventDateTime <= oneHourFromNow) {
+        console.log(`[v0] 🔔 Отправляем уведомление для события: ${event.title}`)
+
+        const participants = eventParticipants[event.id] || []
+
+        for (const participant of participants) {
+          if (bot && participant.userId) {
+            try {
+              await bot.sendMessage(
+                participant.userId,
+                `🔔 Нагадування!\n\nПодія "${event.title}" почнеться через 1 годину!\n\n📅 ${event.date} о ${event.time}\n📍 ${event.location}`,
+              )
+              console.log(`[v0] ✅ Уведомление отправлено пользователю ${participant.userId}`)
+            } catch (error) {
+              console.error(`[v0] ❌ Ошибка отправки уведомления пользователю ${participant.userId}:`, error.message)
+            }
+          }
+        }
+
+        notifiedEvents.add(event.id)
+      }
+    }
+  } catch (error) {
+    console.error("[v0] ❌ Ошибка проверки предстоящих событий:", error)
+  }
+}
+
+// Запускаем проверку каждые 5 минут
+setInterval(checkUpcomingEvents, 5 * 60 * 1000)
 
 async function updateNewsCache() {
   try {
@@ -1042,21 +1096,24 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     console.log("[v0]   - MIME тип:", req.file.mimetype)
     console.log("[v0]   - Путь:", req.file.path)
 
-    const { eventId, description, userId, firstName } = req.body
+    const { eventId, description, userId, firstName, albumId, albumIndex, albumTotal } = req.body
 
     if (!eventId) {
       console.error("[v0] ❌ ОШИБКА: Event ID не предоставлен!")
       return res.status(400).json({ error: "Event ID is required" })
     }
 
-    console.log("[v0] 📝 Данные фото:")
+    console.log("[v0] 📝 Дані фото:")
     console.log("[v0]   - Event ID:", eventId)
     console.log("[v0]   - Description:", description)
     console.log("[v0]   - User ID:", userId)
     console.log("[v0]   - First Name:", firstName)
+    console.log("[v0]   - Album ID:", albumId)
+    console.log("[v0]   - Album Index:", albumIndex)
+    console.log("[v0]   - Album Total:", albumTotal)
 
     const newPhoto = {
-      id: Date.now().toString(),
+      id: Date.now().toString() + "-" + (albumIndex || "0"),
       filename: req.file.filename,
       url: `/uploads/photos/${req.file.filename}`,
       eventId,
@@ -1065,6 +1122,9 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       firstName: firstName || "Анонім",
       uploadedAt: new Date().toISOString(),
       status: "pending",
+      albumId: albumId || null, // Додано ID альбому
+      albumIndex: albumIndex ? Number.parseInt(albumIndex) : null, // Додано індекс в альбомі
+      albumTotal: albumTotal ? Number.parseInt(albumTotal) : null, // Додано загальну кількість в альбомі
     }
 
     console.log("[v0] 💾 Добавляем фото в массив photosData...")
@@ -1074,30 +1134,42 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     await saveData()
     console.log("[v0] ✅ Данные сохранены")
 
-    if (bot && botUsers.length > 0) {
+    // Відправляємо повідомлення в Telegram тільки для першого фото альбому або окремого фото
+    if (bot && botUsers.length > 0 && (!albumIndex || albumIndex === "0")) {
       console.log("[v0] 🤖 Отправляем уведомление в Telegram...")
       const adminUsers = botUsers.slice(0, 1)
       for (const admin of adminUsers) {
         try {
           const event = eventsData.find((e) => e.id === eventId)
           const eventName = event ? event.title : "Подія"
-          console.log("[v0] 📤 Отправляем фото админу:", admin.chatId)
+          const photoCount = albumTotal ? ` (${albumTotal} фото)` : ""
+          console.log("[v0] 📤 Отправляем фото адміну:", admin.chatId)
 
           await bot.sendPhoto(
             admin.chatId,
             `${process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : "http://localhost:5000"}${newPhoto.url}`,
             {
-              caption: `📸 Нове фото на модерацію:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || "без опису"}`,
+              caption: `📸 Нове фото на модерацію${photoCount}:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || "без опису"}`,
               reply_markup: {
                 inline_keyboard: [
                   [
                     {
                       text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({ type: "photo_mod", photoId: newPhoto.id, action: "approve" }),
+                      callback_data: JSON.stringify({
+                        type: "photo_mod",
+                        photoId: newPhoto.id,
+                        action: "approve",
+                        albumId: albumId || null,
+                      }),
                     },
                     {
                       text: "❌ Відхилити",
-                      callback_data: JSON.stringify({ type: "photo_mod", photoId: newPhoto.id, action: "reject" }),
+                      callback_data: JSON.stringify({
+                        type: "photo_mod",
+                        photoId: newPhoto.id,
+                        action: "reject",
+                        albumId: albumId || null,
+                      }),
                     },
                   ],
                 ],
@@ -1113,7 +1185,7 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
 
     console.log("[v0] 📤 Отправляем успешный ответ клиенту")
     res.json({ success: true, message: "Фото відправлено на модерацію", photo: newPhoto })
-    console.log("[v0] 📸 ========== КОНЕЦ ОБРАБОТКИ ЗАГРУЗКИ ФОТО ==========")
+    console.log("[v0] 📸 ========== КІНЕЦЬ ОБРОБКИ ЗАВАНТАЖЕННЯ ФОТО ==========")
   } catch (error) {
     console.error("[v0] 💥 ========== КРИТИЧЕСКАЯ ОШИБКА ==========")
     console.error("[v0] 📛 Тип ошибки:", error.name)
@@ -1142,7 +1214,7 @@ app.get("/api/photos/pending", (req, res) => {
 
 app.post("/api/photos/:id/moderate", async (req, res) => {
   try {
-    const { action, description, eventId } = req.body
+    const { action, description, eventId, albumId } = req.body // Додано albumId
     const photo = photosData.find((p) => p.id === req.params.id)
 
     if (!photo) {
@@ -1154,6 +1226,7 @@ app.post("/api/photos/:id/moderate", async (req, res) => {
       photo.approvedAt = new Date().toISOString()
       if (description !== undefined) photo.description = description
       if (eventId !== undefined) photo.eventId = eventId
+      if (albumId !== undefined) photo.albumId = albumId // Оновлюємо albumId, якщо надано
       res.json({ success: true, message: "Фото схвалено" })
     } else if (action === "reject") {
       photo.status = "rejected"
@@ -1407,7 +1480,7 @@ app.delete("/api/admin/events/:id", async (req, res) => {
     eventMessages[eventId] = undefined
     delete eventMessages[eventId]
 
-    // Убрали строку: photosData = photosData.filter((p) => p.eventId !== eventId)
+    // Удалено строку: photosData = photosData.filter((p) => p.eventId !== eventId)
 
     await saveData()
 
@@ -1766,43 +1839,38 @@ app.delete("/api/schedules/user/:userId", async (req, res) => {
 
 // Новый эндпоинт для очистки базы данных
 app.post("/api/admin/clean-database", async (req, res) => {
-  const { token } = req.query
-  if (token !== "admin-authenticated") {
-    return res.status(401).json({ error: "Не авторизовано" })
+  const { password, type } = req.body
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: "Invalid password" })
   }
 
   try {
-    const { type } = req.body
-
-    if (type === "all") {
-      eventsData = []
-      videosData = []
-      schedulesData = schedulesData.filter((s) => !s.userId) // оставить только системные
-      photosData = []
-      eventMessages = {}
-      eventParticipants = {}
-      userRestrictions = {}
-      uhubChatMessages = [] // Очистка общего чата
-    } else if (type === "events") {
+    if (type === "events") {
       eventsData = []
       eventMessages = {}
       eventParticipants = {}
-    } else if (type === "schedules") {
-      // Удаляем только пользовательские расписания
-      const systemSchedules = schedulesData.filter((s) => !s.userId)
-      schedulesData = systemSchedules
     } else if (type === "videos") {
       videosData = []
-    } else if (type === "uhubChat") {
-      // Добавлена очистка общего чата
-      uhubChatMessages = []
+    } else if (type === "photos") {
+      photosData = []
+    } else if (type === "schedules") {
+      schedulesData = []
+    } else if (type === "all") {
+      eventsData = []
+      videosData = []
+      photosData = []
+      schedulesData = []
+      eventMessages = {}
+      eventParticipants = {}
+      navigationPhotos = [] // Додано очищення фото навігації
     }
 
     await saveData()
-    res.json({ success: true, message: `Базу успішно очищено: ${type}` })
+    res.json({ success: true, message: "Database cleaned successfully" })
   } catch (error) {
     console.error("Error cleaning database:", error)
-    res.status(500).json({ error: "Помилка очищення бази" })
+    res.status(500).json({ error: "Failed to clean database" })
   }
 })
 
@@ -1842,88 +1910,142 @@ app.post("/api/admin/events", async (req, res) => {
   }
 })
 
-app.post("/api/uhub-chat/messages", async (req, res) => {
-  console.log("[v0] 💬 ========== ОТПРАВКА СООБЩЕНИЯ В ОБЩИЙ ЧАТ ==========")
-  console.log("[v0] 📝 Message:", req.body.message)
-  console.log("[v0] 👤 User:", req.body.firstName)
+app.post("/api/events/:id/messages/photos", uploadPhoto.array("photos", 10), async (req, res) => {
+  console.log("[v0] 📸 ========== ВІДПРАВКА МНОЖИННИХ ФОТО В ЧАТ ==========")
 
-  const { message, userId, firstName, photoUrl } = req.body
+  try {
+    const { message, userId, firstName, photoUrl } = req.body // Видалено eventId, воно береться з params
+    const photos = req.files
+    const eventId = req.params.id // Використовуємо id з параметрів маршруту
 
-  const newMessage = {
-    id: Date.now().toString(),
-    text: message,
-    timestamp: new Date().toISOString(),
-    sender: "user",
-    userId,
-    firstName,
-    photoUrl,
-  }
+    if (!photos || photos.length === 0) {
+      return res.status(400).json({ error: "Фото не завантажено" })
+    }
 
-  uhubChatMessages.push(newMessage)
-  console.log("[v0] ✅ Сообщение добавлено")
-  console.log("[v0] 📊 Всего сообщений в общем чате:", uhubChatMessages.length)
+    if (photos.length > 10) {
+      return res.status(400).json({ error: "Максимум 10 фото" })
+    }
 
-  if (uhubTypingUsers[userId]) {
-    delete uhubTypingUsers[userId]
-  }
+    console.log("[v0] 📷 Кількість фото:", photos.length)
 
-  await saveData()
-  console.log("[v0] 💾 Сообщения сохранены")
+    const restrictionKey = `${eventId}_${userId}`
+    if (userRestrictions[restrictionKey]) {
+      const restriction = userRestrictions[restrictionKey]
+      if (restriction.blocked) {
+        return res.status(403).json({ error: "Ви заблоковані в цьому івенті" })
+      }
+      if (restriction.muted && (!restriction.muteUntil || new Date(restriction.muteUntil) > new Date())) {
+        return res.status(403).json({ error: "Ви в муті. Не можете писати повідомлення" })
+      }
+    }
 
-  console.log("[v0] 💬 ========== КОНЕЦ ОТПРАВКИ СООБЩЕНИЯ ==========")
-  res.json(newMessage)
-})
+    if (!eventMessages[eventId]) {
+      eventMessages[eventId] = []
+    }
 
-app.get("/api/uhub-chat/messages", (req, res) => {
-  console.log("[v0] 📨 Запрос сообщений общего чата")
-  console.log("[v0] 📊 Количество сообщений:", uhubChatMessages.length)
-  res.json(uhubChatMessages)
-})
+    // Створюємо одне повідомлення з множинними фото
+    const photoPaths = photos.map((photo) => `/uploads/photos/${photo.filename}`)
 
-app.post("/api/uhub-chat/typing", (req, res) => {
-  const { userId, firstName, isTyping } = req.body
-
-  console.log("[v0] ⌨️ Typing event (общий чат):", { userId, firstName, isTyping })
-
-  if (isTyping) {
-    uhubTypingUsers[userId] = {
+    const newMessage = {
+      id: Date.now().toString(),
+      text: message || "",
+      timestamp: new Date().toISOString(),
+      sender: "user",
+      userId,
       firstName,
-      timestamp: Date.now(),
+      photoUrl,
+      photos: photoPaths, // Масив шляхів до фото
     }
-    console.log("[v0] ✅ Пользователь добавлен в печатающие:", firstName)
-  } else {
-    delete uhubTypingUsers[userId]
-    console.log("[v0] ❌ Пользователь удален из печатающих:", firstName)
-  }
 
-  res.json({ success: true })
+    eventMessages[eventId].push(newMessage)
+    console.log("[v0] ✅ Повідомлення з фото додано")
+
+    if (typingUsers[eventId] && typingUsers[eventId][userId]) {
+      delete typingUsers[eventId][userId]
+    }
+
+    await saveData()
+    console.log("[v0] 💾 Дані збережено")
+
+    res.json(newMessage)
+  } catch (error) {
+    console.error("[v0] ❌ Помилка:", error)
+    res.status(500).json({ error: "Помилка відправки фото" })
+  }
 })
 
-app.get("/api/uhub-chat/typing", (req, res) => {
-  const { userId } = req.query
+const uploadNavigation = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, "uploads/navigation/")
+    },
+    filename: (req, file, cb) => {
+      const uniqueName = "nav-" + Date.now() + path.extname(file.originalname)
+      cb(null, uniqueName)
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+})
 
-  console.log("[v0] 👀 Запрос печатающих для общего чата от пользователя:", userId)
+// Створюємо директорію для фото навігації
+const navigationDir = path.join(__dirname, "uploads/navigation")
+fs.mkdir(navigationDir, { recursive: true }).catch(console.error)
 
-  const now = Date.now()
-  let cleaned = 0
-  Object.keys(uhubTypingUsers).forEach((uid) => {
-    if (now - uhubTypingUsers[uid].timestamp > 5000) {
-      delete uhubTypingUsers[uid]
-      cleaned++
+app.post("/api/navigation/upload", uploadNavigation.single("photo"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Фото не завантажено" })
     }
-  })
 
-  if (cleaned > 0) {
-    console.log("[v0] 🧹 Очищено устаревших индикаторов:", cleaned)
+    const { userId } = req.body
+
+    const newPhoto = {
+      id: Date.now().toString(),
+      filename: req.file.filename,
+      url: `/uploads/navigation/${req.file.filename}`,
+      userId,
+      uploadedAt: new Date().toISOString(),
+    }
+
+    navigationPhotos.push(newPhoto)
+    await saveData()
+
+    res.json({ success: true, photo: newPhoto })
+  } catch (error) {
+    console.error("Error uploading navigation photo:", error)
+    res.status(500).json({ error: "Помилка завантаження фото" })
   }
+})
 
-  const typing = Object.entries(uhubTypingUsers)
-    .filter(([uid]) => uid !== userId)
-    .map(([uid, data]) => data.firstName)
+app.get("/api/navigation/photos", (req, res) => {
+  res.json(navigationPhotos)
+})
 
-  console.log("[v0] 📊 Печатающие пользователи (кроме текущего):", typing)
+app.delete("/api/navigation/photos/:id", async (req, res) => {
+  try {
+    const photoIndex = navigationPhotos.findIndex((p) => p.id === req.params.id)
 
-  res.json(typing)
+    if (photoIndex === -1) {
+      return res.status(404).json({ error: "Фото не знайдено" })
+    }
+
+    const photo = navigationPhotos[photoIndex]
+
+    // Видаляємо файл
+    try {
+      await fs.unlink(path.join(__dirname, "uploads/navigation", photo.filename))
+    } catch (err) {
+      console.error("Error deleting file:", err)
+    }
+
+    navigationPhotos.splice(photoIndex, 1)
+    await saveData()
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting navigation photo:", error)
+    res.status(500).json({ error: "Помилка видалення фото" })
+  }
 })
 
 app.get("/", (req, res) => {
