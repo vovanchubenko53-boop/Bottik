@@ -13,6 +13,7 @@ const TELEGRAM_CHANNELS = [
   { name: "Нумо їхати!", username: "numogo", category: "music" },
   { name: "NUAM", username: "NewUAM", category: "music" },
   { name: "ПОТОП", username: "potopvydav", category: "music" },
+  { name: "Slay Music", username: "slaymsc", category: "music" },
   { name: "Liroom", username: "liroom", category: "music" },
   { name: "Bezodnya Music🎧", username: "bezodnyamusic", category: "music" },
 
@@ -52,6 +53,10 @@ const TELEGRAM_CHANNELS = [
   // Бьюті
   { name: "UA Eva", username: "uaeva", category: "beauty" },
   { name: "Fashion Department KP", username: "fashiondepartment_kp", category: "beauty" },
+
+  // Електроенергія
+  // Додайте сюда канали про электроенергію, якщо потрібно
+  { name: "Energy Channel", username: "energy_channel", category: "energy" },
 ]
 
 const NEWS_SOURCES = [
