@@ -694,6 +694,7 @@
             color: white;
             cursor: pointer;
             border-radius: 8px;
+            backdrop-filter: blur(2px);
         }
 
         .photo-reactions {
@@ -1208,7 +1209,8 @@
                 </select>
             </div>
             
-            <div id="photos-gallery" class="grid grid-cols-3 gap-3">
+            <!-- 3 квадрата в ряд, адаптивно на мобильных -->
+            <div id="photos-gallery" class="grid grid-cols-3 gap-2 sm:gap-3">
                 <div class="col-span-3 text-center text-gray-500">Завантаження фото...</div>
             </div>
         </main>

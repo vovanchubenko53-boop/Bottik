@@ -8,6 +8,18 @@ const path = require("path")
 const fs = require("fs").promises
 const ExcelJS = require("exceljs")
 const newsParser = require("./parsers/newsParser")
+
+// Helper to build compact callback_data (<=64 bytes)
+function buildCallbackData(kind, id, action) {
+  // kind: 'e' (event), 'v' (video), 'p' (photo)
+  // action: 'ap' (approve), 'rj' (reject)
+  try {
+    return JSON.stringify({ t: kind, i: String(id), a: action })
+  } catch (e) {
+    // Fallback minimal string if JSON fails
+    return `${kind}|${String(id)}|${action}`.slice(0, 64)
+  }
+}
 const scheduleParser = require("./parsers/scheduleParser")
 const TelegramBot = require("node-telegram-bot-api")
 const { exec } = require("child_process")
@@ -299,19 +311,36 @@ if (BOT_TOKEN) {
         console.error("[v0] ❌ Ошибка сохранения пользователя при callback:", error.message)
       }
 
-      const data = JSON.parse(query.data)
+      let data
+      try {
+        data = JSON.parse(query.data)
+      } catch (e) {
+        // поддержка компактного формата {t:'p',i:'id',a:'ap'}
+        const parts = String(query.data).split("|")
+        if (parts.length === 3) {
+          data = { t: parts[0], i: parts[1], a: parts[2] }
+        } else {
+          data = {}
+        }
+      }
 
-      if (data.type === "video_mod") {
-        const video = videosData.find((v) => v.id === data.videoId)
+      const type = data.type || data.t
+      const action = data.action || data.a
+      const videoId = data.videoId || data.i
+      const eventId = data.eventId || data.i
+      const photoId = data.photoId || data.i
+
+      if (type === "video_mod" || type === 'v') {
+        const video = videosData.find((v) => v.id === videoId)
         if (video) {
-          if (data.action === "approve") {
+          if (action === "approve" || action === 'ap') {
             video.status = "approved"
             video.approvedAt = new Date().toISOString()
             bot.editMessageCaption(`✅ Відео схвалено`, {
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
             })
-          } else if (data.action === "reject") {
+          } else if (action === "reject" || action === 'rj') {
             video.status = "rejected"
             video.rejectedAt = new Date().toISOString()
             bot.editMessageCaption(`❌ Відео відхилено`, {
@@ -322,17 +351,17 @@ if (BOT_TOKEN) {
           await saveData()
         }
         bot.answerCallbackQuery(query.id)
-      } else if (data.type === "event_mod") {
-        const event = eventsData.find((e) => e.id === data.eventId)
+      } else if (type === "event_mod" || type === 'e') {
+        const event = eventsData.find((e) => e.id === eventId)
         if (event) {
-          if (data.action === "approve") {
+          if (action === "approve" || action === 'ap') {
             event.status = "approved"
             event.approvedAt = new Date().toISOString()
             bot.editMessageText(`✅ Івент схвалено`, {
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
             })
-          } else if (data.action === "reject") {
+          } else if (action === "reject" || action === 'rj') {
             event.status = "rejected"
             event.rejectedAt = new Date().toISOString()
             bot.editMessageText(`❌ Івент відхилено`, {
@@ -343,17 +372,17 @@ if (BOT_TOKEN) {
           await saveData()
         }
         bot.answerCallbackQuery(query.id)
-      } else if (data.type === "photo_mod") {
-        const photo = photosData.find((p) => p.id === data.photoId)
+      } else if (type === "photo_mod" || type === 'p') {
+        const photo = photosData.find((p) => p.id === photoId)
         if (photo) {
-          if (data.action === "approve") {
+          if (action === "approve" || action === 'ap') {
             photo.status = "approved"
             photo.approvedAt = new Date().toISOString()
             bot.editMessageCaption(`✅ Фото схвалено`, {
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
             })
-          } else if (data.action === "reject") {
+          } else if (action === "reject" || action === 'rj') {
             photo.status = "rejected"
             photo.rejectedAt = new Date().toISOString()
             bot.editMessageCaption(`❌ Фото відхилено`, {
@@ -783,11 +812,11 @@ app.post("/api/events", async (req, res) => {
                   [
                     {
                       text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({ type: "event_mod", eventId: newEvent.id, action: "approve" }),
+                      callback_data: buildCallbackData('e', newEvent.id, 'ap'),
                     },
                     {
                       text: "❌ Відхилити",
-                      callback_data: JSON.stringify({ type: "event_mod", eventId: newEvent.id, action: "reject" }),
+                      callback_data: buildCallbackData('e', newEvent.id, 'rj'),
                     },
                   ],
                 ],
@@ -1197,14 +1226,8 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
               reply_markup: {
                 inline_keyboard: [
                   [
-                    {
-                      text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({ type: "video_mod", videoId: videoData.id, action: "approve" }),
-                    },
-                    {
-                      text: "❌ Відхилити",
-                      callback_data: JSON.stringify({ type: "video_mod", videoId: videoData.id, action: "reject" }),
-                    },
+                    { text: "✅ Підтвердити", callback_data: buildCallbackData('v', videoData.id, 'ap') },
+                    { text: "❌ Відхилити", callback_data: buildCallbackData('v', videoData.id, 'rj') },
                   ],
                 ],
               },
@@ -1373,38 +1396,33 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
           const photoCount = albumTotal ? ` (${albumTotal} фото)` : ""
           console.log("[v0] 📤 Отправляем фото адміну:", admin.chatId)
 
-          await bot.sendPhoto(
-            admin.chatId,
-            `${process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : "http://localhost:5000"}${newPhoto.url}`,
-            {
+          // Определяем публичный базовый URL для отправки фото в Telegram (локальный URL не подойдет)
+          const baseUrlFromEnv = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || process.env.BASE_URL || null
+          const requestBaseUrl = `${req.protocol}://${req.get("host")}`
+          const publicBaseUrl = baseUrlFromEnv || (requestBaseUrl.startsWith("http://localhost") ? null : requestBaseUrl)
+
+          if (!publicBaseUrl) {
+            console.warn(
+              "[v0] ⚠️ PUBLIC_BASE_URL не задан и хост локальный. Пропускаем отправку фото админу, чтобы избежать 'wrong HTTP URL specified'",
+            )
+          } else {
+            await bot.sendPhoto(
+              admin.chatId,
+              `${publicBaseUrl}${newPhoto.url}`,
+              {
               caption: `📸 Нове фото на модерацію${photoCount}:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || "без опису"}`,
               reply_markup: {
                 inline_keyboard: [
                   [
-                    {
-                      text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({
-                        type: "photo_mod",
-                        photoId: newPhoto.id,
-                        action: "approve",
-                        albumId: albumId || null,
-                      }),
-                    },
-                    {
-                      text: "❌ Відхилити",
-                      callback_data: JSON.stringify({
-                        type: "photo_mod",
-                        photoId: newPhoto.id,
-                        action: "reject",
-                        albumId: albumId || null,
-                      }),
-                    },
+                    { text: "✅ Підтвердити", callback_data: buildCallbackData('p', newPhoto.id, 'ap') },
+                    { text: "❌ Відхилити", callback_data: buildCallbackData('p', newPhoto.id, 'rj') },
                   ],
                 ],
               },
-            },
-          )
-          console.log("[v0] ✅ Уведомление отправлено")
+              },
+            )
+            console.log("[v0] ✅ Уведомление отправлено (baseUrl=", publicBaseUrl, ")")
+          }
         } catch (error) {
           console.error("[v0] ❌ Ошибка отправки в Telegram:", error.message)
         }

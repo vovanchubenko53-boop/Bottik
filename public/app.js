@@ -1618,6 +1618,8 @@ function showAlbumPhoto(index) {
   document.getElementById("modal-photo-description").textContent = photo.description || ""
   document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : (photo.authorName ? `Автор: ${photo.authorName}` : "")
 
+  console.log(`[v0] MODAL show photo id=${photo.id} hasBlur=${photo.hasBlur}`)
+
   // Якщо фото з галереї і воно заблюрене — показуємо накладку розблокування
   const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
   const shouldBlur = photo.hasBlur && !isOwnPhoto
@@ -1638,12 +1640,17 @@ function showAlbumPhoto(index) {
     `
     overlay.onclick = (e) => {
       e.stopPropagation()
+      console.log(`[v0] MODAL unlock click photo id=${photo.id}`)
       unlockPhoto(String(photo.id)).then(async () => {
+        console.log(`[v0] MODAL unlock returned, checking status for id=${photo.id}`)
         // Після оплати перевіряємо статус і прибираємо блюр
         const unlocked = await checkPhotoUnlocked(String(photo.id))
         if (unlocked) {
+          console.log(`[v0] MODAL unlocked success remove blur id=${photo.id}`)
           img.classList.remove('photo-blurred')
           overlay.remove()
+        } else {
+          console.log(`[v0] MODAL still locked id=${photo.id}`)
         }
       })
     }
@@ -1783,10 +1790,25 @@ async function uploadEventPhoto(event) {
 
         console.log(`[v0] 📤 Завантажуємо фото ${i + 1}/${files.length}, hasBlur: ${hasBlur}`)
 
-        const response = await fetch(`${API_URL}/api/photos/upload`, {
-          method: "POST",
-          body: formData,
-        })
+        let response
+        let attempt = 0
+        let lastError
+        while (attempt < 2) {
+          attempt++
+          try {
+            response = await fetch(`${API_URL}/api/photos/upload`, { method: "POST", body: formData })
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: 'Невідома помилка' }))
+              throw new Error(errorData.error || `Помилка завантаження фото ${i + 1}`)
+            }
+            break
+          } catch (err) {
+            lastError = err
+            console.warn(`[v0] ⚠️ Retry upload photo ${i + 1}, attempt ${attempt} error:`, err.message)
+            if (attempt >= 2) throw err
+            await new Promise((r) => setTimeout(r, 500))
+          }
+        }
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Невідома помилка' }))
@@ -1800,6 +1822,7 @@ async function uploadEventPhoto(event) {
         }
       } catch (fileError) {
         console.error(`[v0] ❌ Помилка завантаження фото ${i + 1}:`, fileError)
+        alert(fileError.message || `Помилка завантаження фото ${i + 1}`)
         throw fileError
       }
     }
@@ -1872,8 +1895,8 @@ function displayPhotos(photos) {
     const eventName = event ? event.title : "Подія видалена"
 
     html += `
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition col-span-3" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
-        <div class="relative aspect-square">
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
+        <div class="relative aspect-square cursor-pointer" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
           <img src="${API_URL}${firstPhoto.url}" class="w-full h-full object-cover" alt="${firstPhoto.description || eventName}">
           <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1">
             <i data-lucide="images" class="w-3 h-3"></i>
@@ -1894,6 +1917,7 @@ function displayPhotos(photos) {
     const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
     const eventName = event ? event.title : "Подія видалена"
     const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
+    console.log(`[v0] GALLERY render photo id=${photo.id} hasBlur=${photo.hasBlur} isOwn=${isOwnPhoto}`)
 
     const earnedStarsCount = Math.floor((photo.unlockCount || 0) / 50)
     const starsDisplay = earnedStarsCount > 0 ? "⭐".repeat(Math.min(earnedStarsCount, 5)) : ""
@@ -1938,8 +1962,10 @@ function displayPhotos(photos) {
 
     const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
     if (!isOwnPhoto) {
+      console.log(`[v0] GALLERY check unlocked photo id=${photo.id}`)
       const unlocked = await checkPhotoUnlocked(photo.id)
       if (unlocked) {
+        console.log(`[v0] GALLERY unlocked=true remove blur id=${photo.id}`)
         const img = document.getElementById(`photo-${photo.id}`)
         const container = document.querySelector(`.photo-container-${photo.id}`)
         if (img) img.classList.remove("photo-blurred")
@@ -1947,6 +1973,8 @@ function displayPhotos(photos) {
           const overlay = container.querySelector(".photo-unlock-overlay")
           if (overlay) overlay.remove()
         }
+      } else {
+        console.log(`[v0] GALLERY unlocked=false keep blur id=${photo.id}`)
       }
     }
   })
