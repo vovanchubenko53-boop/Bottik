@@ -1615,8 +1615,12 @@ function showAlbumPhoto(index) {
 
   img.src = `${API_URL}${photo.url}`
   document.getElementById("modal-photo-event").textContent = `${eventName} (${index + 1}/${currentAlbumPhotos.length})`
-  document.getElementById("modal-photo-description").textContent = photo.description || ""
-  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : (photo.authorName ? `Автор: ${photo.authorName}` : "")
+  const descEl = document.getElementById("modal-photo-description")
+  const authorEl = document.getElementById("modal-photo-author")
+  descEl.textContent = photo.description || ""
+  authorEl.textContent = photo.username
+    ? `Автор: @${photo.username}`
+    : (photo.firstName || photo.authorName) ? `Автор: @${(photo.firstName || photo.authorName)}` : ""
 
   console.log(`[v0] MODAL show photo id=${photo.id} hasBlur=${photo.hasBlur}`)
 

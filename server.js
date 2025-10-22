@@ -131,6 +131,10 @@ function getWeekStart() {
 }
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "5336123108"
+function getAdminChatIds() {
+  return [ADMIN_TELEGRAM_ID].filter(Boolean)
+}
 let bot = null
 
 if (BOT_TOKEN) {
@@ -799,12 +803,12 @@ app.post("/api/events", async (req, res) => {
     eventMessages[newEvent.id] = []
     await saveData()
 
-    if (bot && botUsers.length > 0) {
-      const adminUsers = botUsers.slice(0, 1)
-      for (const admin of adminUsers) {
+    if (bot) {
+      const adminUsers = getAdminChatIds()
+      for (const adminChatId of adminUsers) {
         try {
           await bot.sendMessage(
-            admin.chatId,
+            adminChatId,
             `🎉 Новий івент на модерацію:\n\n📝 Назва: ${newEvent.title}\n📅 Дата: ${newEvent.date}\n⏰ Час: ${newEvent.time}\n📍 Місце: ${newEvent.location}\n👤 Автор: ${newEvent.creatorUsername}\n\nОпис: ${newEvent.description}`,
             {
               reply_markup: {
@@ -1209,18 +1213,16 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
     await saveData()
     console.log("[v0] ✅ Данные сохранены успешно")
 
-    if (bot && botUsers.length > 0) {
+    if (bot) {
       console.log("[v0] 🤖 Отправляем уведомление в Telegram бот...")
-      console.log("[v0] 👥 Количество пользователей бота:", botUsers.length)
+      const adminUsers = getAdminChatIds()
+      console.log("[v0] 👤 Отправляем админам:", adminUsers)
 
-      const adminUsers = botUsers.slice(0, 1)
-      console.log("[v0] 👤 Отправляем админам:", adminUsers.length)
-
-      for (const admin of adminUsers) {
+      for (const adminChatId of adminUsers) {
         try {
-          console.log("[v0] 📤 Отправляем сообщение админу:", admin.chatId)
+          console.log("[v0] 📤 Отправляем сообщение админу:", adminChatId)
           await bot.sendMessage(
-            admin.chatId,
+            adminChatId,
             `🎥 Нове відео на модерацію:\n\n📝 Назва: ${videoData.originalName}\n📅 Дата: ${new Date(videoData.uploadedAt).toLocaleString("uk-UA")}\n💾 Розмір: ${(videoData.size / 1024 / 1024).toFixed(2)} MB`,
             {
               reply_markup: {
@@ -1239,10 +1241,6 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
           console.error("[v0] 📚 Stack:", error.stack)
         }
       }
-    } else {
-      console.log("[v0] ⚠️ Telegram бот не настроен или нет пользователей")
-      console.log("[v0] 🤖 Bot:", bot ? "инициализирован" : "не инициализирован")
-      console.log("[v0] 👥 Пользователей:", botUsers.length)
     }
 
     console.log("[v0] 📤 Отправляем успешный ответ клиенту...")
@@ -1401,15 +1399,15 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     console.log("[v0] ✅ Данные сохранены")
 
     // Відправляємо повідомлення в Telegram тільки для першого фото альбому або окремого фото
-    if (bot && botUsers.length > 0 && (!albumIndex || albumIndex === "0")) {
+    if (bot && (!albumIndex || albumIndex === "0")) {
       console.log("[v0] 🤖 Отправляем уведомление в Telegram...")
-      const adminUsers = botUsers.slice(0, 1)
-      for (const admin of adminUsers) {
+      const adminUsers = getAdminChatIds()
+      for (const adminChatId of adminUsers) {
         try {
           const event = eventsData.find((e) => e.id === eventId)
           const eventName = event ? event.title : "Подія"
           const photoCount = albumTotal ? ` (${albumTotal} фото)` : ""
-          console.log("[v0] 📤 Отправляем фото адміну:", admin.chatId)
+          console.log("[v0] 📤 Отправляем фото адміну:", adminChatId)
 
           // Определяем публичный базовый URL для отправки фото в Telegram (локальный URL не подойдет)
           const baseUrlFromEnv = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || process.env.BASE_URL || null
@@ -1422,7 +1420,7 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
             )
           } else {
             await bot.sendPhoto(
-              admin.chatId,
+              adminChatId,
               `${publicBaseUrl}${newPhoto.url}`,
               {
               caption: `📸 Нове фото на модерацію${photoCount}:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || "без опису"}`,
