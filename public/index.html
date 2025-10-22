@@ -247,33 +247,10 @@
             }
         }
         
-        /* Анимация иконки чата */
+        /* Анимация иконки чата — мягкая покачивающаяся */
         .chat-icon {
-            animation: chatIconJiggle 3s infinite;
             transition: transform 0.2s ease;
         }
-        
-        @keyframes chatIconJiggle {
-            0%, 100% {
-                transform: rotate(0deg);
-            }
-            10% {
-                transform: rotate(-10deg);
-            }
-            20% {
-                transform: rotate(10deg);
-            }
-            30% {
-                transform: rotate(-10deg);
-            }
-            40% {
-                transform: rotate(10deg);
-            }
-            50% {
-                transform: rotate(0deg);
-            }
-        }
-        
         .chat-icon:hover {
             transform: scale(1.1);
         }
@@ -580,14 +557,13 @@
 
         /* Добавляем анимацию для иконки чата */
         @keyframes wiggle {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(-5deg); }
-            75% { transform: rotate(5deg); }
+            0%, 96%, 100% { transform: rotate(0deg); }
+            48% { transform: rotate(3deg); }
+            52% { transform: rotate(-3deg); }
         }
-        
+        /* Ненавязчивая анимация каждые ~6 секунд */
         .chat-icon {
-            animation: wiggle 2s ease-in-out infinite;
-            animation-delay: 3s;
+            animation: wiggle 6s ease-in-out infinite;
         }
         
         .chat-icon:hover {
@@ -1513,7 +1489,10 @@
         <div class="photo-nav-button photo-nav-prev hidden" id="photo-nav-prev" onclick="event.stopPropagation(); prevAlbumPhoto()">‹</div>
         <div class="photo-nav-button photo-nav-next hidden" id="photo-nav-next" onclick="event.stopPropagation(); nextAlbumPhoto()">›</div>
         <div class="photo-modal-content" id="photo-modal-content" onclick="event.stopPropagation()">
-            <img id="modal-photo-img" src="/placeholder.svg" alt="Photo">
+            <div class="relative" id="modal-photo-frame">
+                <img id="modal-photo-img" src="/placeholder.svg" alt="Photo">
+                <!-- overlay для розблокування буде додано динамічно -->
+            </div>
             <div class="photo-modal-info">
                 <h3 id="modal-photo-event" class="font-bold text-lg"></h3>
                 <p id="modal-photo-description" class="text-gray-700 mt-2"></p>

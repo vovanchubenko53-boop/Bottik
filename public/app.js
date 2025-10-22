@@ -998,12 +998,13 @@ async function loadChatMessages(silent = false) {
 
           let photosHTML = ""
           if (msg.photos && msg.photos.length > 0) {
+            const photos = msg.photos.map((url) => ({ url }))
             photosHTML = `
               <div class="grid ${msg.photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 mt-2">
                 ${msg.photos
                   .map(
-                    (photoUrl) => `
-                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick="openPhotoModal('${API_URL}${photoUrl}', '${msg.firstName}', '${currentEvent.title}')" alt="Фото">
+                    (photoUrl, idx) => `
+                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick='openAlbumFromChat(${JSON.stringify(photos).replace(/'/g, "&apos;")}, ${idx}, ${JSON.stringify({ firstName: msg.firstName, eventTitle: currentEvent.title }).replace(/'/g, "&apos;")})' alt="Фото">
                 `,
                   )
                   .join("")}
@@ -1039,12 +1040,13 @@ async function loadChatMessages(silent = false) {
 
           let photosHTML = ""
           if (msg.photos && msg.photos.length > 0) {
+            const photos = msg.photos.map((url) => ({ url }))
             photosHTML = `
               <div class="grid ${msg.photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 mt-2">
                 ${msg.photos
                   .map(
-                    (photoUrl) => `
-                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick="openPhotoModal('${API_URL}${photoUrl}', '${msg.firstName}', '${currentEvent.title}')" alt="Фото">
+                    (photoUrl, idx) => `
+                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick='openAlbumFromChat(${JSON.stringify(photos).replace(/'/g, "&apos;")}, ${idx}, ${JSON.stringify({ firstName: msg.firstName, eventTitle: currentEvent.title }).replace(/'/g, "&apos;")})' alt="Фото">
                 `,
                   )
                   .join("")}
@@ -1606,12 +1608,47 @@ function showAlbumPhoto(index) {
   currentAlbumIndex = index
   const photo = currentAlbumPhotos[index]
   const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
-  const eventName = event ? event.title : "Подія видалена"
+  const eventName = event ? event.title : (photo.eventTitle || "Подія видалена")
 
-  document.getElementById("modal-photo-img").src = `${API_URL}${photo.url}`
+  const img = document.getElementById("modal-photo-img")
+  const frame = document.getElementById("modal-photo-frame")
+
+  img.src = `${API_URL}${photo.url}`
   document.getElementById("modal-photo-event").textContent = `${eventName} (${index + 1}/${currentAlbumPhotos.length})`
   document.getElementById("modal-photo-description").textContent = photo.description || ""
-  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : ""
+  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : (photo.authorName ? `Автор: ${photo.authorName}` : "")
+
+  // Якщо фото з галереї і воно заблюрене — показуємо накладку розблокування
+  const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
+  const shouldBlur = photo.hasBlur && !isOwnPhoto
+
+  // При кожному показі прибираємо минулий overlay
+  const existingOverlay = frame.querySelector('.photo-unlock-overlay')
+  if (existingOverlay) existingOverlay.remove()
+  img.classList.remove('photo-blurred')
+
+  if (shouldBlur) {
+    img.classList.add('photo-blurred')
+    const overlay = document.createElement('div')
+    overlay.className = 'photo-unlock-overlay'
+    overlay.innerHTML = `
+      <div class="text-2xl mb-2">🔒</div>
+      <div class="font-bold">Відкрити фото</div>
+      <div class="text-sm">1 ⭐</div>
+    `
+    overlay.onclick = (e) => {
+      e.stopPropagation()
+      unlockPhoto(String(photo.id)).then(async () => {
+        // Після оплати перевіряємо статус і прибираємо блюр
+        const unlocked = await checkPhotoUnlocked(String(photo.id))
+        if (unlocked) {
+          img.classList.remove('photo-blurred')
+          overlay.remove()
+        }
+      })
+    }
+    frame.appendChild(overlay)
+  }
 }
 
 function nextAlbumPhoto() {
@@ -1668,6 +1705,37 @@ function handleSwipe() {
       prevAlbumPhoto()
     }
   }
+}
+
+// Відкрити групу фото з чату як альбом і підтримати свайп/навігацію
+function openAlbumFromChat(photos, startIndex, meta) {
+  const enriched = photos.map((p) => ({
+    url: p.url,
+    description: '',
+    firstName: meta?.firstName || '',
+    authorName: meta?.firstName || '',
+    eventTitle: meta?.eventTitle || 'Чат події',
+    // чат-фото не мають блюру/ID, тож не блокуємо
+    hasBlur: false,
+  }))
+  currentAlbumPhotos = enriched
+  currentAlbumIndex = Math.min(Math.max(0, startIndex || 0), enriched.length - 1)
+
+  const modal = document.getElementById('photo-modal')
+  modal.classList.add('active')
+  document.body.style.overflow = 'hidden'
+
+  const prevBtn = document.getElementById('photo-nav-prev')
+  const nextBtn = document.getElementById('photo-nav-next')
+  if (enriched.length > 1) {
+    prevBtn.classList.remove('hidden')
+    nextBtn.classList.remove('hidden')
+  } else {
+    prevBtn.classList.add('hidden')
+    nextBtn.classList.add('hidden')
+  }
+
+  showAlbumPhoto(currentAlbumIndex)
 }
 
 async function uploadEventPhoto(event) {
@@ -1832,7 +1900,7 @@ function displayPhotos(photos) {
 
     html += `
       <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
-        <div class="relative photo-container-${photo.id} aspect-square" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})' style="cursor: pointer;">
+        <div class="relative photo-container-${photo.id} aspect-square" onclick='openAlbumModal(${JSON.stringify([photo]).replace(/'/g, "&apos;")})' style="cursor: pointer;">
           <img id="photo-${photo.id}" src="${API_URL}${photo.url}" class="w-full h-full object-cover ${isOwnPhoto || !photo.hasBlur ? "" : "photo-blurred"}" alt="${photo.description || eventName}">
           ${starsDisplay ? `<div class="absolute top-2 left-2 text-2xl">${starsDisplay}</div>` : ""}
           ${
