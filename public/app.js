@@ -1893,15 +1893,26 @@ function displayPhotos(photos) {
     const firstPhoto = albumPhotos[0]
     const event = allEventsForPhotos.find((e) => e.id === firstPhoto.eventId)
     const eventName = event ? event.title : "Подія видалена"
+    const isOwnAlbum = String(firstPhoto.userId) === String(telegramUser.id)
+    const albumHasBlur = albumPhotos.some((p) => p.hasBlur)
 
     html += `
       <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
-        <div class="relative aspect-square cursor-pointer" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
+        <div class="relative aspect-square">
           <img src="${API_URL}${firstPhoto.url}" class="w-full h-full object-cover" alt="${firstPhoto.description || eventName}">
           <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1">
             <i data-lucide="images" class="w-3 h-3"></i>
             ${albumPhotos.length}
           </div>
+          ${
+            !isOwnAlbum && albumHasBlur
+              ? `<div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${firstPhoto.id}', true)">
+                   <div class=\"text-2xl mb-1\">🔒</div>
+                   <div class=\"font-bold\">Відкрити фото</div>
+                   <div class=\"text-sm opacity-90\">1 ⭐/фото</div>
+                 </div>`
+              : `<div class=\"absolute inset-0\" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'></div>`
+          }
         </div>
         <div class="p-2">
           <p class="text-xs font-semibold text-gray-700">${eventName}</p>
@@ -1927,14 +1938,14 @@ function displayPhotos(photos) {
         <div class="relative photo-container-${photo.id} aspect-square" onclick='openAlbumModal(${JSON.stringify([photo]).replace(/'/g, "&apos;")})' style="cursor: pointer;">
           <img id="photo-${photo.id}" src="${API_URL}${photo.url}" class="w-full h-full object-cover ${isOwnPhoto || !photo.hasBlur ? "" : "photo-blurred"}" alt="${photo.description || eventName}">
           ${starsDisplay ? `<div class="absolute top-2 left-2 text-2xl">${starsDisplay}</div>` : ""}
-          ${
+      ${
             isOwnPhoto || !photo.hasBlur
               ? ""
               : `
-          <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}')">
-            <div class="text-2xl mb-2">🔒</div>
+          <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}', true)">
+            <div class="text-2xl mb-1">🔒</div>
             <div class="font-bold">Відкрити фото</div>
-            <div class="text-sm">1 ⭐</div>
+            <div class="text-sm opacity-90">1 ⭐</div>
           </div>
           `
           }
@@ -2451,7 +2462,7 @@ async function checkPhotoUnlocked(photoId) {
 }
 
 // Розблокувати фото через Telegram Stars
-async function unlockPhoto(photoId) {
+async function unlockPhoto(photoId, openInApp = false) {
   try {
     const response = await fetch(`${API_URL}/api/photos/${photoId}/createInvoice`, {
       method: "POST",
@@ -2469,8 +2480,42 @@ async function unlockPhoto(photoId) {
         const overlay = img.nextElementSibling
         if (overlay) overlay.remove()
       }
-    } else if (data.success) {
-      alert("Інвойс відправлено в Telegram бота. Перевірте повідомлення від бота для оплати.")
+    } else if (data.success || data.invoiceLink) {
+      const link = data.invoiceLink
+      if (openInApp && window.Telegram && window.Telegram.WebApp && link) {
+        // Якщо доступно, використовуємо openInvoice, інакше openLink
+        const tg = window.Telegram.WebApp
+        const open = tg.openInvoice ? () => tg.openInvoice(link) : () => tg.openLink(link)
+        try {
+          const res = await open()
+          // деякі клієнти повертають проміс зі статусом
+          console.log("[v0] openInvoice/openLink result:", res)
+        } catch (e) {
+          console.warn("[v0] openInvoice/openLink error:", e)
+        }
+        // Після відкриття інвойсу запускаємо коротке опитування статусу (до 30с)
+        const start = Date.now()
+        const poll = async () => {
+          const unlocked = await checkPhotoUnlocked(photoId)
+          if (unlocked) {
+            const img = document.getElementById(`photo-${photoId}`)
+            if (img) {
+              img.classList.remove("photo-blurred")
+              const overlay = img.nextElementSibling
+              if (overlay) overlay.remove()
+            }
+            return
+          }
+          if (Date.now() - start < 30000) {
+            setTimeout(poll, 2000)
+          }
+        }
+        setTimeout(poll, 1500)
+      } else if (link) {
+        window.open(link, "_blank")
+      } else {
+        alert("Інвойс створено. Перевірте повідомлення від бота для оплати.")
+      }
     }
   } catch (error) {
     console.error("Error creating invoice:", error)

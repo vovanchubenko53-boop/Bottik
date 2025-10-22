@@ -1338,16 +1338,31 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     if (blurEnabled) {
       const weekStart = getWeekStart()
       const userWeekKey = `${userId}_${weekStart}`
-      
+
       if (weeklyBlurPhotos[userWeekKey]) {
-        console.log("[v0] ⚠️ Користувач досяг ліміту блюр-фото на цей тиждень")
-        return res.status(400).json({ 
-          error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)" 
-        })
+        // Дозволяємо продовжити, якщо це той самий альбом із блюром від цього ж користувача
+        if (albumId) {
+          const sameAlbumBlur = photosData.find(
+            (p) => p.albumId === albumId && String(p.userId) === String(userId) && p.hasBlur,
+          )
+          if (!sameAlbumBlur) {
+            console.log("[v0] ⚠️ Ліміт блюр-фото: інший альбом/фото у цей тиждень")
+            return res.status(400).json({
+              error:
+                "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото/альбом з блюром на тиждень)",
+            })
+          }
+        } else {
+          console.log("[v0] ⚠️ Ліміт блюр-фото: вже було фото з блюром цього тижня")
+          return res.status(400).json({
+            error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)",
+          })
+        }
+      } else {
+        // Помічаємо використання ліміту на цей тиждень
+        weeklyBlurPhotos[userWeekKey] = albumId || new Date().toISOString()
+        console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, ключ: ${userWeekKey}, альбом: ${albumId || 'single'}`)
       }
-      
-      weeklyBlurPhotos[userWeekKey] = new Date().toISOString()
-      console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, ключ: ${userWeekKey}`)
     }
 
     console.log("[v0] 📝 Дані фото:")
@@ -2392,26 +2407,19 @@ app.post("/api/photos/:photoId/createInvoice", async (req, res) => {
       return res.status(500).json({ error: "Telegram bot not configured" })
     }
 
-    // Створюємо інвойс через Telegram Bot API
+    // Створюємо посилання на інвойс, щоб оплатити всередині Mini App
     const prices = [{ label: "XTR", amount: 1 }]
-
-    // Відправляємо інвойс користувачу
-    const invoice = await bot.sendInvoice(
-      userId,
+    const payload = JSON.stringify({ type: "photo_unlock", photoId, userId })
+    const invoiceLink = await bot.createInvoiceLink(
       "Відкрити фото",
       `Розблокуйте фото для перегляду`,
-      JSON.stringify({ type: "photo_unlock", photoId, userId }),
+      payload,
       "",
       "XTR",
       prices,
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: "Оплатити 1 ⭐️", pay: true }]],
-        },
-      },
     )
 
-    res.json({ success: true, invoiceMessageId: invoice.message_id })
+    res.json({ success: true, invoiceLink })
   } catch (error) {
     console.error("Error creating invoice:", error)
     res.status(500).json({ error: "Failed to create invoice" })
