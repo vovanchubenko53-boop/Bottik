@@ -1634,6 +1634,7 @@ async function uploadEventPhoto(event) {
   const description = document.getElementById("upload-photo-description").value
   const fileInput = document.getElementById("photo-file-input")
   const files = fileInput.files
+  const hasBlur = document.getElementById("blur-toggle").checked
 
   if (!eventId) {
     alert("Оберіть івент")
@@ -1660,12 +1661,13 @@ async function uploadEventPhoto(event) {
       const formData = new FormData()
       formData.append("photo", files[i])
       formData.append("eventId", eventId)
-      formData.append("description", i === 0 ? description : "") // Опис тільки для першого фото
+      formData.append("description", i === 0 ? description : "")
       formData.append("userId", telegramUser.id)
       formData.append("firstName", telegramUser.first_name)
-      formData.append("albumId", albumId) // Додаємо ID альбому
-      formData.append("albumIndex", i) // Індекс фото в альбомі
-      formData.append("albumTotal", files.length) // Загальна кількість фото в альбомі
+      formData.append("albumId", albumId)
+      formData.append("albumIndex", i)
+      formData.append("albumTotal", files.length)
+      formData.append("hasBlur", hasBlur)
 
       const response = await fetch(`${API_URL}/api/photos/upload`, {
         method: "POST",
@@ -1676,7 +1678,6 @@ async function uploadEventPhoto(event) {
         throw new Error(`Помилка завантаження фото ${i + 1}`)
       }
 
-      // Зберігаємо дані про зароблені зірки (тільки для першого фото в альбомі)
       if (i === 0) {
         const data = await response.json()
         window.lastUploadResponse = data
@@ -1690,10 +1691,8 @@ async function uploadEventPhoto(event) {
       button.classList.remove("validate")
 
       let message = `${files.length} фото відправлено на модерацію`
-      if (window.lastUploadResponse && window.lastUploadResponse.earnedStars > 0) {
-        message += `\n\n🌟 Ви заробили ${window.lastUploadResponse.earnedStars} зірок за першу публікацію сьогодні!`
-      } else if (window.lastUploadResponse && window.lastUploadResponse.dailyLimitReached) {
-        message += `\n\n⚠️ Ви вже отримали зірки за сьогодні. Публікуйте знову завтра!`
+      if (hasBlur) {
+        message += `\n\n🔒 Фото з блюром - користувачі платитимуть 1 ⭐ за перегляд`
       }
 
       alert(message)
@@ -1702,6 +1701,8 @@ async function uploadEventPhoto(event) {
       document.getElementById("upload-photo-description").value = ""
       document.getElementById("photo-preview").classList.add("hidden")
       document.getElementById("photo-file-label").textContent = "📷 Обрати фото (до 10)"
+      document.getElementById("blur-toggle").checked = false
+      updateBlurStatus()
 
       goToPage("page-event-photos")
       updateHeaderStarsBalance()
@@ -1908,8 +1909,47 @@ async function loadUploadPhotoEvents() {
         '<option value="">Оберіть івент</option>' +
         events.map((event) => `<option value="${event.id}">${event.title}</option>`).join("")
     }
+    
+    await checkBlurLimit()
   } catch (error) {
     console.error("Error loading events for upload:", error)
+  }
+}
+
+function updateBlurStatus() {
+  const toggle = document.getElementById("blur-toggle")
+  const statusText = document.getElementById("blur-status-text")
+  
+  if (toggle.checked) {
+    statusText.textContent = "Блюр увімкнено - користувачі платитимуть 1 ⭐ за перегляд"
+    statusText.classList.remove("text-gray-500")
+    statusText.classList.add("text-blue-600", "font-medium")
+  } else {
+    statusText.textContent = "Блюр вимкнено - фото буде доступне безкоштовно"
+    statusText.classList.remove("text-blue-600", "font-medium")
+    statusText.classList.add("text-gray-500")
+  }
+}
+
+async function checkBlurLimit() {
+  try {
+    const response = await fetch(`${API_URL}/api/photos/blur-limit/${telegramUser.id}`)
+    const data = await response.json()
+    
+    const toggle = document.getElementById("blur-toggle")
+    const warning = document.getElementById("blur-limit-warning")
+    
+    if (data.limitReached) {
+      toggle.disabled = true
+      toggle.checked = false
+      warning.classList.remove("hidden")
+      updateBlurStatus()
+    } else {
+      toggle.disabled = false
+      warning.classList.add("hidden")
+    }
+  } catch (error) {
+    console.error("Error checking blur limit:", error)
   }
 }
 

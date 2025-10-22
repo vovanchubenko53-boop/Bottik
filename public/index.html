@@ -1219,6 +1219,18 @@
                     <textarea id="upload-photo-description" rows="3" placeholder="Опишіть фото..." class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1"></textarea>
                 </div>
                 <div>
+                    <label class="text-sm text-gray-600 block mb-2">Блюр (платний перегляд за 1 ⭐):</label>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <span class="text-sm text-gray-700">Увімкнути блюр для фото</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="blur-toggle" class="sr-only peer" onchange="updateBlurStatus()">
+                            <div class="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-500"></div>
+                        </label>
+                    </div>
+                    <p id="blur-limit-warning" class="text-xs text-red-500 mt-1 hidden">⚠️ Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)</p>
+                    <p id="blur-status-text" class="text-xs text-gray-500 mt-1">Блюр вимкнено - фото буде доступне безкоштовно</p>
+                </div>
+                <div>
                     <!-- Поддержка загрузки до 10 фото -->
                     <label class="text-sm text-gray-600 block mb-2">Фото (до 10 фото):</label>
                     <div id="photo-preview" class="hidden mb-3 grid grid-cols-2 gap-2">

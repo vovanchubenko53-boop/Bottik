@@ -89,7 +89,9 @@ let navigationPhotos = []
 let userStarsBalances = {}
 let photoReactions = {}
 let photoUnlocks = {}
-let dailyPhotoUploads = {} // Додано для фото навігації
+let dailyPhotoUploads = {}
+let weeklyBlurPhotos = {}
+let photoEarnings = {}
 let adminSettings = {
   heroImages: {
     news: "https://placehold.co/600x300/a3e635/444?text=News",
@@ -105,6 +107,16 @@ let adminSettings = {
   },
 }
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234"
+
+function getWeekStart() {
+  const now = new Date()
+  const dayOfWeek = now.getDay()
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - diff)
+  monday.setHours(0, 0, 0, 0)
+  return monday.toISOString().split('T')[0]
+}
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 let bot = null
@@ -160,9 +172,34 @@ if (BOT_TOKEN) {
                 photoUnlocks[photoId].push(String(userId))
               }
 
-              // Нараховуємо зірку автору фото
+              // Збільшуємо лічильник платних відкриттів
+              photo.paidUnlocks = (photo.paidUnlocks || 0) + 1
+
+              // Перевіряємо чи досягнуто 50 відкриттів
               const authorId = String(photo.userId)
-              userStarsBalances[authorId] = (userStarsBalances[authorId] || 0) + 1
+              if (!photoEarnings[photoId]) {
+                photoEarnings[photoId] = { earned: 0, lastPayout: 0 }
+              }
+
+              photoEarnings[photoId].earned += 1
+
+              // Автоматична виплата кожні 50 відкриттів
+              if (photoEarnings[photoId].earned >= 50 && 
+                  photoEarnings[photoId].earned % 50 === 0) {
+                
+                userStarsBalances[authorId] = (userStarsBalances[authorId] || 0) + 50
+                photoEarnings[photoId].lastPayout = photoEarnings[photoId].earned
+
+                // Відправляємо повідомлення автору
+                try {
+                  await bot.sendMessage(
+                    photo.userId,
+                    `🎉 Вітаємо!\n\nВаше фото набрало ${photoEarnings[photoId].earned} платних переглядів!\n\n💰 Вам нараховано 50 Telegram Stars ⭐\n\nПродовжуйте публікувати якісні фото!`
+                  )
+                } catch (notifyError) {
+                  console.error("[v0] ❌ Помилка відправки повідомлення автору:", notifyError)
+                }
+              }
 
               await saveData()
 
@@ -429,6 +466,24 @@ async function initializeData() {
       console.log("[v0] ⚠️ Файл ежедневных загрузок не найден, создан новый объект")
     }
 
+    try {
+      const weeklyBlurPhotosFile = await fs.readFile(path.join(dataPath, "weeklyBlurPhotos.json"), "utf-8")
+      weeklyBlurPhotos = JSON.parse(weeklyBlurPhotosFile)
+      console.log("[v0] ✅ Еженедельные блюр-фото загружены")
+    } catch (e) {
+      weeklyBlurPhotos = {}
+      console.log("[v0] ⚠️ Файл еженедельных блюр-фото не найден, создан новый объект")
+    }
+
+    try {
+      const photoEarningsFile = await fs.readFile(path.join(dataPath, "photoEarnings.json"), "utf-8")
+      photoEarnings = JSON.parse(photoEarningsFile)
+      console.log("[v0] ✅ Заработки по фото загружены")
+    } catch (e) {
+      photoEarnings = {}
+      console.log("[v0] ⚠️ Файл заработков не найден, создан новый объект")
+    }
+
     eventsData.forEach((event) => {
       if (!eventParticipants[event.id]) {
         eventParticipants[event.id] = []
@@ -469,6 +524,8 @@ async function saveData() {
       fs.writeFile(path.join(dataPath, "photoReactions.json"), JSON.stringify(photoReactions, null, 2)),
       fs.writeFile(path.join(dataPath, "photoUnlocks.json"), JSON.stringify(photoUnlocks, null, 2)),
       fs.writeFile(path.join(dataPath, "dailyPhotoUploads.json"), JSON.stringify(dailyPhotoUploads, null, 2)),
+      fs.writeFile(path.join(dataPath, "weeklyBlurPhotos.json"), JSON.stringify(weeklyBlurPhotos, null, 2)),
+      fs.writeFile(path.join(dataPath, "photoEarnings.json"), JSON.stringify(photoEarnings, null, 2)),
     ])
 
     console.log("Data saved successfully")
@@ -1246,11 +1303,26 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     console.log("[v0]   - MIME тип:", req.file.mimetype)
     console.log("[v0]   - Путь:", req.file.path)
 
-    const { eventId, description, userId, firstName, albumId, albumIndex, albumTotal } = req.body
+    const { eventId, description, userId, firstName, albumId, albumIndex, albumTotal, hasBlur } = req.body
 
     if (!eventId) {
       console.error("[v0] ❌ ОШИБКА: Event ID не предоставлен!")
       return res.status(400).json({ error: "Event ID is required" })
+    }
+
+    const blurEnabled = hasBlur === "true" || hasBlur === true
+
+    if (blurEnabled) {
+      const weekStart = getWeekStart()
+      const userWeekKey = `${userId}_${weekStart}`
+      
+      if (weeklyBlurPhotos[userWeekKey]) {
+        return res.status(400).json({ 
+          error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)" 
+        })
+      }
+      
+      weeklyBlurPhotos[userWeekKey] = new Date().toISOString()
     }
 
     console.log("[v0] 📝 Дані фото:")
@@ -1261,6 +1333,7 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     console.log("[v0]   - Album ID:", albumId)
     console.log("[v0]   - Album Index:", albumIndex)
     console.log("[v0]   - Album Total:", albumTotal)
+    console.log("[v0]   - Has Blur:", blurEnabled)
 
     const newPhoto = {
       id: Date.now().toString() + "-" + (albumIndex || "0"),
@@ -1272,10 +1345,12 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       firstName: firstName || "Анонім",
       uploadedAt: new Date().toISOString(),
       status: "pending",
-      albumId: albumId || null, // Додано ID альбому
-      albumIndex: albumIndex ? Number.parseInt(albumIndex) : null, // Додано індекс в альбомі
-      albumTotal: albumTotal ? Number.parseInt(albumTotal) : null, // Додано загальну кількість в альбомі
-      unlockCount: 0, // Инициализируем счетчик открытий
+      albumId: albumId || null,
+      albumIndex: albumIndex ? Number.parseInt(albumIndex) : null,
+      albumTotal: albumTotal ? Number.parseInt(albumTotal) : null,
+      unlockCount: 0,
+      hasBlur: blurEnabled,
+      paidUnlocks: 0,
     }
 
     console.log("[v0] 💾 Добавляем фото в массив photosData...")
@@ -1334,28 +1409,11 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       }
     }
 
-    // Перевірка обмеження 1 фото на день для акції "Місяць зорепаду"
-    const today = new Date().toISOString().split("T")[0]
-    const userDailyKey = `${userId}_${today}`
-
-    let earnedStars = 0
-    if (!dailyPhotoUploads[userDailyKey]) {
-      // Це перше фото користувача за сьогодні
-      dailyPhotoUploads[userDailyKey] = 1
-      earnedStars = 10
-      userStarsBalances[String(userId)] = (userStarsBalances[String(userId)] || 0) + 10
-      console.log(`[v0] ⭐ Нараховано 10 зірок користувачу ${userId} за перше фото дня`)
-    } else {
-      console.log(`[v0] ⚠️ Користувач ${userId} вже завантажив фото сьогодні, зірки не нараховано`)
-    }
-
     console.log("[v0] 📤 Отправляем успешный ответ клиенту")
     res.json({
       success: true,
       message: "Фото відправлено на модерацію",
       photo: newPhoto,
-      earnedStars: earnedStars,
-      dailyLimitReached: earnedStars === 0,
     })
     console.log("[v0] 📸 ========== КІНЕЦЬ ОБРОБКИ ЗАВАНТАЖЕННЯ ФОТО ==========")
   } catch (error) {
@@ -2341,6 +2399,16 @@ app.get("/api/photos/:photoId/unlocked", (req, res) => {
 
   const unlocked = photoUnlocks[photoId] && photoUnlocks[photoId].includes(String(userId))
   res.json({ unlocked })
+})
+
+// Перевірити ліміт блюр-фото на тиждень
+app.get("/api/photos/blur-limit/:userId", (req, res) => {
+  const { userId } = req.params
+  const weekStart = getWeekStart()
+  const userWeekKey = `${userId}_${weekStart}`
+  
+  const limitReached = !!weeklyBlurPhotos[userWeekKey]
+  res.json({ limitReached })
 })
 
 // Запит на вивід зірок
