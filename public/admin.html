@@ -575,11 +575,79 @@
                 const eventsRes = await fetch(`${API_URL}/api/events`);
                 const events = await eventsRes.json();
                 
-                photosList.innerHTML = photos.map(photo => {
+                // Групуємо фото по альбомах
+                const albums = {};
+                const singlePhotos = [];
+                
+                photos.forEach(photo => {
+                    if (photo.albumId && photo.albumTotal > 1) {
+                        if (!albums[photo.albumId]) {
+                            albums[photo.albumId] = [];
+                        }
+                        albums[photo.albumId].push(photo);
+                    } else {
+                        singlePhotos.push(photo);
+                    }
+                });
+                
+                // Сортуємо фото в альбомах
+                Object.keys(albums).forEach(albumId => {
+                    albums[albumId].sort((a, b) => (a.albumIndex || 0) - (b.albumIndex || 0));
+                });
+                
+                let html = '';
+                
+                // Відображаємо альбоми
+                Object.keys(albums).forEach(albumId => {
+                    const albumPhotos = albums[albumId];
+                    const firstPhoto = albumPhotos[0];
+                    const event = events.find(e => e.id === firstPhoto.eventId);
+                    const eventName = event ? event.title : 'Подія видалена';
+                    
+                    html += `
+                        <div class="bg-blue-50 border-2 border-blue-300 p-4 rounded-lg mb-4">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="text-xl">📸</span>
+                                <p class="font-bold text-blue-900">Альбом (${albumPhotos.length} фото)</p>
+                            </div>
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <p class="font-semibold">${eventName}</p>
+                                    <p class="text-sm text-gray-500">Автор: ${firstPhoto.firstName || 'Анонім'}</p>
+                                    <p class="text-sm text-gray-500">Завантажено: ${new Date(firstPhoto.uploadedAt).toLocaleString('uk-UA')}</p>
+                                    ${firstPhoto.description ? `<p class="text-sm text-gray-600 mt-1">${firstPhoto.description}</p>` : ''}
+                                    ${firstPhoto.hasBlur ? `<p class="text-sm text-purple-600 mt-1">🔒 З блюром</p>` : ''}
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 mb-3">
+                                ${albumPhotos.map(photo => `
+                                    <img src="${API_URL}${photo.url}" class="w-full rounded-lg" style="max-height: 200px; object-fit: cover;" alt="">
+                                `).join('')}
+                            </div>
+                            <div class="mb-3">
+                                <label class="text-sm text-gray-600">Івент:</label>
+                                <select id="photo-event-${firstPhoto.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">
+                                    ${events.map(e => `<option value="${e.id}" ${e.id === firstPhoto.eventId ? 'selected' : ''}>${e.title}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="text-sm text-gray-600">Редагувати опис:</label>
+                                <textarea id="photo-desc-${firstPhoto.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">${firstPhoto.description || ''}</textarea>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="moderateAlbum('${albumId}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Схвалити всі</button>
+                                <button onclick="moderateAlbum('${albumId}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">Відхилити всі</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                // Відображаємо окремі фото
+                singlePhotos.forEach(photo => {
                     const event = events.find(e => e.id === photo.eventId);
                     const eventName = event ? event.title : 'Подія видалена';
                     
-                    return `
+                    html += `
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
@@ -587,6 +655,7 @@
                                     <p class="text-sm text-gray-500">Автор: ${photo.firstName || 'Анонім'}</p>
                                     <p class="text-sm text-gray-500">Завантажено: ${new Date(photo.uploadedAt).toLocaleString('uk-UA')}</p>
                                     ${photo.description ? `<p class="text-sm text-gray-600 mt-1">${photo.description}</p>` : ''}
+                                    ${photo.hasBlur ? `<p class="text-sm text-purple-600 mt-1">🔒 З блюром</p>` : ''}
                                 </div>
                             </div>
                             <img src="${API_URL}${photo.url}" class="w-full rounded-lg mb-3" style="max-height: 400px; object-fit: contain;" alt="${photo.description || eventName}">
@@ -607,9 +676,37 @@
                             </div>
                         </div>
                     `;
-                }).join('');
+                });
+                
+                photosList.innerHTML = html;
             } catch (error) {
                 console.error('Error loading photos:', error);
+            }
+        }
+
+        async function moderateAlbum(albumId, action) {
+            try {
+                const response = await fetch(`${API_URL}/api/photos/pending?token=${adminToken}`);
+                const photos = await response.json();
+                const albumPhotos = photos.filter(p => p.albumId === albumId);
+                
+                const firstPhoto = albumPhotos[0];
+                const description = document.getElementById(`photo-desc-${firstPhoto.id}`).value;
+                const eventId = document.getElementById(`photo-event-${firstPhoto.id}`).value;
+                
+                for (const photo of albumPhotos) {
+                    await fetch(`${API_URL}/api/photos/${photo.id}/moderate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action, description, eventId })
+                    });
+                }
+                
+                alert(action === 'approve' ? 'Альбом схвалено' : 'Альбом відхилено');
+                loadPendingPhotos();
+            } catch (error) {
+                console.error('Error moderating album:', error);
+                alert('Помилка модерації альбому');
             }
         }
 
