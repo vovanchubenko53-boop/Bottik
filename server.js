@@ -85,7 +85,11 @@ let eventMessages = {}
 let eventParticipants = {}
 let botUsers = []
 let userRestrictions = {}
-let navigationPhotos = [] // Додано для фото навігації
+let navigationPhotos = []
+let userStarsBalances = {}
+let photoReactions = {}
+let photoUnlocks = {}
+let dailyPhotoUploads = {} // Додано для фото навігації
 let adminSettings = {
   heroImages: {
     news: "https://placehold.co/600x300/a3e635/444?text=News",
@@ -136,6 +140,41 @@ if (BOT_TOKEN) {
     })
 
     bot.on("message", async (msg) => {
+      // Обробка успішних платежів
+      if (msg.successful_payment) {
+        console.log("[v0] ✅ Успішний платіж:", msg.successful_payment)
+
+        try {
+          const payload = JSON.parse(msg.successful_payment.invoice_payload)
+
+          if (payload.type === "photo_unlock") {
+            const { photoId, userId } = payload
+            const photo = photosData.find((p) => p.id === photoId)
+
+            if (photo) {
+              // Розблокування фото
+              if (!photoUnlocks[photoId]) {
+                photoUnlocks[photoId] = []
+              }
+              if (!photoUnlocks[photoId].includes(String(userId))) {
+                photoUnlocks[photoId].push(String(userId))
+              }
+
+              // Нараховуємо зірку автору фото
+              const authorId = String(photo.userId)
+              userStarsBalances[authorId] = (userStarsBalances[authorId] || 0) + 1
+
+              await saveData()
+
+              await bot.sendMessage(msg.chat.id, "✅ Фото розблоковано! Ви можете переглянути його в галереї.")
+            }
+          }
+        } catch (error) {
+          console.error("[v0] ❌ Помилка обробки платежу:", error)
+        }
+        return
+      }
+
       if (msg.text && msg.text.startsWith("/")) return // Пропускаем команды, они обрабатываются отдельно
 
       const chatId = msg.chat.id
@@ -145,6 +184,71 @@ if (BOT_TOKEN) {
         await saveUser(chatId, user.first_name, user.last_name, user.username)
       } catch (error) {
         console.error("[v0] ❌ Ошибка сохранения пользователя при сообщении:", error.message)
+      }
+    })
+
+    bot.on("pre_checkout_query", async (query) => {
+      try {
+        console.log("[v0] 💳 Отримано pre_checkout_query:", query)
+        await bot.answerPreCheckoutQuery(query.id, true)
+      } catch (error) {
+        console.error("[v0] ❌ Помилка pre_checkout_query:", error)
+      }
+    })
+
+    bot.on("successful_payment", async (msg) => {
+      try {
+        console.log("[v0] ✅ Успішна оплата:", msg.successful_payment)
+        const payload = JSON.parse(msg.successful_payment.invoice_payload)
+        const { type, photoId, userId } = payload
+
+        if (type === "photo_unlock") {
+          const photo = photosData.find((p) => p.id === photoId)
+          if (!photo) {
+            console.error("[v0] ❌ Фото не знайдено:", photoId)
+            return
+          }
+
+          // Розблоковуємо фото для користувача
+          if (!photoUnlocks[photoId]) {
+            photoUnlocks[photoId] = []
+          }
+          if (!photoUnlocks[photoId].includes(String(userId))) {
+            photoUnlocks[photoId].push(String(userId))
+          }
+
+          const authorId = String(photo.userId)
+          userStarsBalances[authorId] = (userStarsBalances[authorId] || 0) + 1
+
+          // Оновлюємо лічильник відкриттів фото
+          photo.unlockCount = (photo.unlockCount || 0) + 1
+
+          if (photo.unlockCount % 50 === 0) {
+            const starsToTransfer = 50
+            const currentBalance = userStarsBalances[authorId] || 0
+
+            // Відправляємо повідомлення автору про нагороду
+            try {
+              await bot.sendMessage(
+                authorId,
+                `🎉 Вітаємо! Ваше фото набрало ${photo.unlockCount} відкриттів!\n\n` +
+                  `⭐ Вам нараховано ${starsToTransfer} зірок Telegram!\n` +
+                  `💰 Ваш поточний баланс: ${currentBalance} зірок\n\n` +
+                  `Продовжуйте публікувати якісні фото! 📸`,
+              )
+              console.log(`[v0] 🎁 Відправлено повідомлення автору ${authorId} про ${starsToTransfer} зірок`)
+            } catch (error) {
+              console.error(`[v0] ❌ Помилка відправки повідомлення автору:`, error)
+            }
+          }
+
+          await saveData()
+
+          await bot.sendMessage(userId, "✅ Фото успішно розблоковано!")
+          console.log(`[v0] 🔓 Фото ${photoId} розблоковано для користувача ${userId}`)
+        }
+      } catch (error) {
+        console.error("[v0] ❌ Помилка обробки successful_payment:", error)
       }
     })
 
@@ -289,6 +393,42 @@ async function initializeData() {
       console.log("[v0] ⚠️ Файл фото навігації не знайдено, створено новий масив")
     }
 
+    try {
+      const starsBalancesFile = await fs.readFile(path.join(dataPath, "userStarsBalances.json"), "utf-8")
+      userStarsBalances = JSON.parse(starsBalancesFile)
+      console.log("[v0] ✅ Балансы звезд загружены")
+    } catch (e) {
+      userStarsBalances = {}
+      console.log("[v0] ⚠️ Файл балансов не найден, создан новый объект")
+    }
+
+    try {
+      const photoReactionsFile = await fs.readFile(path.join(dataPath, "photoReactions.json"), "utf-8")
+      photoReactions = JSON.parse(photoReactionsFile)
+      console.log("[v0] ✅ Реакции на фото загружены")
+    } catch (e) {
+      photoReactions = {}
+      console.log("[v0] ⚠️ Файл реакций не найден, создан новый объект")
+    }
+
+    try {
+      const photoUnlocksFile = await fs.readFile(path.join(dataPath, "photoUnlocks.json"), "utf-8")
+      photoUnlocks = JSON.parse(photoUnlocksFile)
+      console.log("[v0] ✅ Разблокировки фото загружены")
+    } catch (e) {
+      photoUnlocks = {}
+      console.log("[v0] ⚠️ Файл разблокировок не найден, создан новый объект")
+    }
+
+    try {
+      const dailyPhotoUploadsFile = await fs.readFile(path.join(dataPath, "dailyPhotoUploads.json"), "utf-8")
+      dailyPhotoUploads = JSON.parse(dailyPhotoUploadsFile)
+      console.log("[v0] ✅ Ежедневные загрузки фото загружены")
+    } catch (e) {
+      dailyPhotoUploads = {}
+      console.log("[v0] ⚠️ Файл ежедневных загрузок не найден, создан новый объект")
+    }
+
     eventsData.forEach((event) => {
       if (!eventParticipants[event.id]) {
         eventParticipants[event.id] = []
@@ -297,6 +437,12 @@ async function initializeData() {
       if (!eventMessages[event.id]) {
         eventMessages[event.id] = []
       }
+      // Инициализация unlockCount для существующих фото
+      photosData.forEach((photo) => {
+        if (photo.id === event.id && !photo.unlockCount) {
+          photo.unlockCount = 0
+        }
+      })
     })
     console.log("Data loaded successfully")
   } catch (error) {
@@ -318,7 +464,11 @@ async function saveData() {
       fs.writeFile(path.join(dataPath, "eventParticipants.json"), JSON.stringify(eventParticipants, null, 2)),
       fs.writeFile(path.join(dataPath, "adminSettings.json"), JSON.stringify(adminSettings, null, 2)),
       fs.writeFile(path.join(dataPath, "userRestrictions.json"), JSON.stringify(userRestrictions, null, 2)),
-      fs.writeFile(path.join(dataPath, "navigationPhotos.json"), JSON.stringify(navigationPhotos, null, 2)), // Додано збереження фото навігації
+      fs.writeFile(path.join(dataPath, "navigationPhotos.json"), JSON.stringify(navigationPhotos, null, 2)),
+      fs.writeFile(path.join(dataPath, "userStarsBalances.json"), JSON.stringify(userStarsBalances, null, 2)),
+      fs.writeFile(path.join(dataPath, "photoReactions.json"), JSON.stringify(photoReactions, null, 2)),
+      fs.writeFile(path.join(dataPath, "photoUnlocks.json"), JSON.stringify(photoUnlocks, null, 2)),
+      fs.writeFile(path.join(dataPath, "dailyPhotoUploads.json"), JSON.stringify(dailyPhotoUploads, null, 2)),
     ])
 
     console.log("Data saved successfully")
@@ -1125,6 +1275,7 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       albumId: albumId || null, // Додано ID альбому
       albumIndex: albumIndex ? Number.parseInt(albumIndex) : null, // Додано індекс в альбомі
       albumTotal: albumTotal ? Number.parseInt(albumTotal) : null, // Додано загальну кількість в альбомі
+      unlockCount: 0, // Инициализируем счетчик открытий
     }
 
     console.log("[v0] 💾 Добавляем фото в массив photosData...")
@@ -1183,8 +1334,29 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       }
     }
 
+    // Перевірка обмеження 1 фото на день для акції "Місяць зорепаду"
+    const today = new Date().toISOString().split("T")[0]
+    const userDailyKey = `${userId}_${today}`
+
+    let earnedStars = 0
+    if (!dailyPhotoUploads[userDailyKey]) {
+      // Це перше фото користувача за сьогодні
+      dailyPhotoUploads[userDailyKey] = 1
+      earnedStars = 10
+      userStarsBalances[String(userId)] = (userStarsBalances[String(userId)] || 0) + 10
+      console.log(`[v0] ⭐ Нараховано 10 зірок користувачу ${userId} за перше фото дня`)
+    } else {
+      console.log(`[v0] ⚠️ Користувач ${userId} вже завантажив фото сьогодні, зірки не нараховано`)
+    }
+
     console.log("[v0] 📤 Отправляем успешный ответ клиенту")
-    res.json({ success: true, message: "Фото відправлено на модерацію", photo: newPhoto })
+    res.json({
+      success: true,
+      message: "Фото відправлено на модерацію",
+      photo: newPhoto,
+      earnedStars: earnedStars,
+      dailyLimitReached: earnedStars === 0,
+    })
     console.log("[v0] 📸 ========== КІНЕЦЬ ОБРОБКИ ЗАВАНТАЖЕННЯ ФОТО ==========")
   } catch (error) {
     console.error("[v0] 💥 ========== КРИТИЧЕСКАЯ ОШИБКА ==========")
@@ -1196,15 +1368,35 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
   }
 })
 
+app.get("/api/photos/:photoId/reactions", (req, res) => {
+  const { photoId } = req.params
+  const reactions = photoReactions[photoId] || {}
+
+  const counts = { "❤️": 0 }
+  Object.values(reactions).forEach((reaction) => {
+    if (counts[reaction] !== undefined) {
+      counts[reaction]++
+    }
+  })
+
+  res.json({ reactions: counts, userReaction: reactions[req.query.userId] || null })
+})
+
 app.get("/api/photos", (req, res) => {
   const { eventId } = req.query
-  let photos = photosData.filter((p) => p.status === "approved" || !p.status)
+
+  let photos = photosData.filter((photo) => photo.status === "approved")
 
   if (eventId) {
     photos = photos.filter((p) => p.eventId === eventId)
   }
 
-  res.json(photos)
+  const photosWithUnlockCount = photos.map((photo) => ({
+    ...photo,
+    unlockCount: photoUnlocks[photo.id] ? photoUnlocks[photo.id].length : 0,
+  }))
+
+  res.json(photosWithUnlockCount)
 })
 
 app.get("/api/photos/pending", (req, res) => {
@@ -2045,6 +2237,146 @@ app.delete("/api/navigation/photos/:id", async (req, res) => {
   } catch (error) {
     console.error("Error deleting navigation photo:", error)
     res.status(500).json({ error: "Помилка видалення фото" })
+  }
+})
+
+// ========== API для Telegram Stars ==========
+
+// Отримати баланс користувача
+app.get("/api/stars/balance/:userId", (req, res) => {
+  const { userId } = req.params
+  const balance = userStarsBalances[userId] || 0
+  res.json({ balance })
+})
+
+// Додати реакцію на фото
+app.post("/api/photos/:photoId/react", async (req, res) => {
+  try {
+    const { photoId } = req.params
+    const { userId, reaction } = req.body
+
+    if (!photoId || !userId || !reaction) {
+      return res.status(400).json({ error: "Missing required fields" })
+    }
+
+    if (!photoReactions[photoId]) {
+      photoReactions[photoId] = {}
+    }
+
+    photoReactions[photoId][userId] = reaction
+
+    await saveData()
+    res.json({ success: true })
+  } catch (error) {
+    console.error("Error adding reaction:", error)
+    res.status(500).json({ error: "Failed to add reaction" })
+  }
+})
+
+// Отримати реакції на фото
+app.get("/api/photos/:photoId/reactions", (req, res) => {
+  const { photoId } = req.params
+  const reactions = photoReactions[photoId] || {}
+
+  const counts = { "❤️": 0 }
+  Object.values(reactions).forEach((reaction) => {
+    if (counts[reaction] !== undefined) {
+      counts[reaction]++
+    }
+  })
+
+  res.json({ reactions: counts, userReaction: reactions[req.query.userId] || null })
+})
+
+// Створити інвойс для розблокування фото
+app.post("/api/photos/:photoId/createInvoice", async (req, res) => {
+  try {
+    const { photoId } = req.params
+    const { userId } = req.body
+
+    const photo = photosData.find((p) => p.id === photoId)
+    if (!photo) {
+      return res.status(404).json({ error: "Photo not found" })
+    }
+
+    // Перевірка, чи вже розблоковано
+    if (photoUnlocks[photoId] && photoUnlocks[photoId].includes(String(userId))) {
+      return res.json({ alreadyUnlocked: true })
+    }
+
+    if (!bot) {
+      return res.status(500).json({ error: "Telegram bot not configured" })
+    }
+
+    // Створюємо інвойс через Telegram Bot API
+    const prices = [{ label: "XTR", amount: 1 }]
+
+    // Відправляємо інвойс користувачу
+    const invoice = await bot.sendInvoice(
+      userId,
+      "Відкрити фото",
+      `Розблокуйте фото для перегляду`,
+      JSON.stringify({ type: "photo_unlock", photoId, userId }),
+      "",
+      "XTR",
+      prices,
+      {
+        reply_markup: {
+          inline_keyboard: [[{ text: "Оплатити 1 ⭐️", pay: true }]],
+        },
+      },
+    )
+
+    res.json({ success: true, invoiceMessageId: invoice.message_id })
+  } catch (error) {
+    console.error("Error creating invoice:", error)
+    res.status(500).json({ error: "Failed to create invoice" })
+  }
+})
+
+// Перевірити, чи фото розблоковано
+app.get("/api/photos/:photoId/unlocked", (req, res) => {
+  const { photoId } = req.params
+  const { userId } = req.query
+
+  const unlocked = photoUnlocks[photoId] && photoUnlocks[photoId].includes(String(userId))
+  res.json({ unlocked })
+})
+
+// Запит на вивід зірок
+app.post("/api/stars/withdraw", async (req, res) => {
+  try {
+    const { userId, amount } = req.body
+
+    if (!userId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" })
+    }
+
+    const balance = userStarsBalances[userId] || 0
+
+    if (amount < 50) {
+      return res.status(400).json({ error: "Мінімальна сума виводу - 50 зірок" })
+    }
+
+    if (balance < amount) {
+      return res.status(400).json({ error: "Недостатньо зірок на балансі" })
+    }
+
+    // Відправляємо повідомлення адміну для ручної обробки
+    if (bot && botUsers.length > 0) {
+      const adminUsers = botUsers.slice(0, 1)
+      for (const admin of adminUsers) {
+        await bot.sendMessage(
+          admin.chatId,
+          `💰 Запит на вивід зірок:\n\nКористувач ID: ${userId}\nСума: ${amount} ⭐️\nПоточний баланс: ${balance} ⭐️`,
+        )
+      }
+    }
+
+    res.json({ success: true, message: "Запит на вивід відправлено адміністратору" })
+  } catch (error) {
+    console.error("Error processing withdrawal:", error)
+    res.status(500).json({ error: "Failed to process withdrawal" })
   }
 })
 
