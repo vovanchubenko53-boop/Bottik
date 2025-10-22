@@ -441,6 +441,46 @@
             transform: scale(1.1);
         }
         
+        .photo-nav-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            color: #000;
+            transition: all 0.2s ease;
+            z-index: 10000;
+            user-select: none;
+        }
+        
+        .photo-nav-button:hover {
+            background: white;
+            transform: translateY(-50%) scale(1.1);
+        }
+        
+        .photo-nav-button:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+        
+        .photo-nav-button.hidden {
+            display: none;
+        }
+        
+        .photo-nav-prev {
+            left: 20px;
+        }
+        
+        .photo-nav-next {
+            right: 20px;
+        }
+        
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -787,11 +827,9 @@
                     <img src="https://placehold.co/600x300/a3e635/444?text=News" class="w-full h-36 object-cover rounded-t-xl" id="main-news-img">
                     <span class="absolute top-3 left-3 text-white text-xs font-medium" id="main-news-date">28.05.2025</span>
                     <span class="absolute bottom-3 right-3 text-black text-sm font-bold bg-[#C8FB51] px-4 py-1 rounded-md">Новини</span>
-                    <!-- Иконка чата в верхний правый угол с анимацией -->
-                    <!-- Видалено іконку чату в кутку блоку новин -->
-                    <!-- <div class="absolute top-3 right-3 bg-white rounded-full p-2 shadow-lg cursor-pointer chat-icon" onclick="event.stopPropagation(); window.open('https://t.me/u_hub_chat', '_blank')" title="Чат U-hub"> -->
-                        <!-- <i data-lucide="message-circle" class="w-5 h-5 text-blue-500"></i> -->
-                    <!-- </div> -->
+                    <div class="absolute top-3 right-3 bg-white rounded-full p-2 shadow-lg cursor-pointer chat-icon" onclick="event.stopPropagation(); if(window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.openTelegramLink('https://t.me/u_hub_chat'); } else { window.open('https://t.me/u_hub_chat', '_blank'); }" title="Чат U-hub">
+                        <i data-lucide="message-circle" class="w-5 h-5 text-blue-500"></i>
+                    </div>
                 </div>
                 <div class="p-4">
                     <p class="font-bold" id="main-news-title">Завантаження новин...</p>
@@ -1194,8 +1232,8 @@
                 </select>
             </div>
             
-            <div id="photos-gallery" class="grid grid-cols-2 gap-3">
-                <div class="col-span-2 text-center text-gray-500">Завантаження фото...</div>
+            <div id="photos-gallery" class="grid grid-cols-3 gap-3">
+                <div class="col-span-3 text-center text-gray-500">Завантаження фото...</div>
             </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-main')">На головну</div>
@@ -1472,7 +1510,9 @@
 
     <div id="photo-modal" class="photo-modal" onclick="closePhotoModal(event)">
         <div class="photo-modal-close" onclick="closePhotoModal()">✕</div>
-        <div class="photo-modal-content" onclick="event.stopPropagation()">
+        <div class="photo-nav-button photo-nav-prev hidden" id="photo-nav-prev" onclick="event.stopPropagation(); prevAlbumPhoto()">‹</div>
+        <div class="photo-nav-button photo-nav-next hidden" id="photo-nav-next" onclick="event.stopPropagation(); nextAlbumPhoto()">›</div>
+        <div class="photo-modal-content" id="photo-modal-content" onclick="event.stopPropagation()">
             <img id="modal-photo-img" src="/placeholder.svg" alt="Photo">
             <div class="photo-modal-info">
                 <h3 id="modal-photo-event" class="font-bold text-lg"></h3>

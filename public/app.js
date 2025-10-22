@@ -1587,6 +1587,17 @@ function openAlbumModal(photos) {
   const modal = document.getElementById("photo-modal")
   modal.classList.add("active")
   document.body.style.overflow = "hidden"
+  
+  const prevBtn = document.getElementById('photo-nav-prev')
+  const nextBtn = document.getElementById('photo-nav-next')
+  
+  if (photos.length > 1) {
+    prevBtn.classList.remove('hidden')
+    nextBtn.classList.remove('hidden')
+  } else {
+    prevBtn.classList.add('hidden')
+    nextBtn.classList.add('hidden')
+  }
 }
 
 function showAlbumPhoto(index) {
@@ -1627,6 +1638,38 @@ document.addEventListener("keydown", (e) => {
   }
 })
 
+// Додаємо touch swipe для навігації по альбому
+let touchStartX = 0
+let touchEndX = 0
+
+const photoModalContent = document.getElementById('photo-modal-content')
+if (photoModalContent) {
+  photoModalContent.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX
+  }, { passive: true })
+
+  photoModalContent.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX
+    handleSwipe()
+  }, { passive: true })
+}
+
+function handleSwipe() {
+  const modal = document.getElementById("photo-modal")
+  if (!modal.classList.contains("active") || currentAlbumPhotos.length <= 1) return
+  
+  const swipeThreshold = 50
+  const diff = touchStartX - touchEndX
+  
+  if (Math.abs(diff) > swipeThreshold) {
+    if (diff > 0) {
+      nextAlbumPhoto()
+    } else {
+      prevAlbumPhoto()
+    }
+  }
+}
+
 async function uploadEventPhoto(event) {
   event.preventDefault()
 
@@ -1658,29 +1701,38 @@ async function uploadEventPhoto(event) {
     const albumId = Date.now().toString()
 
     for (let i = 0; i < files.length; i++) {
-      const formData = new FormData()
-      formData.append("photo", files[i])
-      formData.append("eventId", eventId)
-      formData.append("description", i === 0 ? description : "")
-      formData.append("userId", telegramUser.id)
-      formData.append("firstName", telegramUser.first_name)
-      formData.append("albumId", albumId)
-      formData.append("albumIndex", i)
-      formData.append("albumTotal", files.length)
-      formData.append("hasBlur", hasBlur)
+      try {
+        const formData = new FormData()
+        formData.append("photo", files[i])
+        formData.append("eventId", eventId)
+        formData.append("description", i === 0 ? description : "")
+        formData.append("userId", telegramUser.id)
+        formData.append("firstName", telegramUser.first_name)
+        formData.append("albumId", albumId)
+        formData.append("albumIndex", i)
+        formData.append("albumTotal", files.length)
+        formData.append("hasBlur", hasBlur)
 
-      const response = await fetch(`${API_URL}/api/photos/upload`, {
-        method: "POST",
-        body: formData,
-      })
+        console.log(`[v0] 📤 Завантажуємо фото ${i + 1}/${files.length}, hasBlur: ${hasBlur}`)
 
-      if (!response.ok) {
-        throw new Error(`Помилка завантаження фото ${i + 1}`)
-      }
+        const response = await fetch(`${API_URL}/api/photos/upload`, {
+          method: "POST",
+          body: formData,
+        })
 
-      if (i === 0) {
-        const data = await response.json()
-        window.lastUploadResponse = data
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Невідома помилка' }))
+          throw new Error(errorData.error || `Помилка завантаження фото ${i + 1}`)
+        }
+
+        if (i === 0) {
+          const data = await response.json()
+          window.lastUploadResponse = data
+          console.log(`[v0] ✅ Перше фото завантажено успішно, hasBlur: ${data.photo?.hasBlur}`)
+        }
+      } catch (fileError) {
+        console.error(`[v0] ❌ Помилка завантаження фото ${i + 1}:`, fileError)
+        throw fileError
       }
     }
 
@@ -1718,7 +1770,7 @@ function displayPhotos(photos) {
   const gallery = document.getElementById("photos-gallery")
 
   if (photos.length === 0) {
-    gallery.innerHTML = '<div class="col-span-2 text-center text-gray-500">Фото не знайдено</div>'
+    gallery.innerHTML = '<div class="col-span-3 text-center text-gray-500">Фото не знайдено</div>'
     return
   }
 
@@ -1752,9 +1804,9 @@ function displayPhotos(photos) {
     const eventName = event ? event.title : "Подія видалена"
 
     html += `
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition col-span-2" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
-        <div class="relative">
-          <img src="${API_URL}${firstPhoto.url}" class="w-full h-48 object-cover" alt="${firstPhoto.description || eventName}">
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition col-span-3" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
+        <div class="relative aspect-square">
+          <img src="${API_URL}${firstPhoto.url}" class="w-full h-full object-cover" alt="${firstPhoto.description || eventName}">
           <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1">
             <i data-lucide="images" class="w-3 h-3"></i>
             ${albumPhotos.length}
@@ -1780,11 +1832,11 @@ function displayPhotos(photos) {
 
     html += `
       <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
-        <div class="relative photo-container-${photo.id}" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})' style="cursor: pointer;">
-          <img id="photo-${photo.id}" src="${API_URL}${photo.url}" class="w-full h-40 object-cover ${isOwnPhoto ? "" : "photo-blurred"}" alt="${photo.description || eventName}">
+        <div class="relative photo-container-${photo.id} aspect-square" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})' style="cursor: pointer;">
+          <img id="photo-${photo.id}" src="${API_URL}${photo.url}" class="w-full h-full object-cover ${isOwnPhoto || !photo.hasBlur ? "" : "photo-blurred"}" alt="${photo.description || eventName}">
           ${starsDisplay ? `<div class="absolute top-2 left-2 text-2xl">${starsDisplay}</div>` : ""}
           ${
-            isOwnPhoto
+            isOwnPhoto || !photo.hasBlur
               ? ""
               : `
           <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}')">

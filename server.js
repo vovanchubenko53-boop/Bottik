@@ -1317,12 +1317,14 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       const userWeekKey = `${userId}_${weekStart}`
       
       if (weeklyBlurPhotos[userWeekKey]) {
+        console.log("[v0] ⚠️ Користувач досяг ліміту блюр-фото на цей тиждень")
         return res.status(400).json({ 
           error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)" 
         })
       }
       
       weeklyBlurPhotos[userWeekKey] = new Date().toISOString()
+      console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, ключ: ${userWeekKey}`)
     }
 
     console.log("[v0] 📝 Дані фото:")
@@ -1479,8 +1481,11 @@ app.post("/api/photos/:id/moderate", async (req, res) => {
       photo.approvedAt = new Date().toISOString()
       if (description !== undefined) photo.description = description
       if (eventId !== undefined) photo.eventId = eventId
-      if (albumId !== undefined) photo.albumId = albumId // Оновлюємо albumId, якщо надано
-      res.json({ success: true, message: "Фото схвалено" })
+      if (albumId !== undefined) photo.albumId = albumId
+      
+      console.log(`[v0] ✅ Фото ${photo.id} одобрено, hasBlur: ${photo.hasBlur}`)
+      
+      res.json({ success: true, message: "Фото схвалено", hasBlur: photo.hasBlur })
     } else if (action === "reject") {
       photo.status = "rejected"
       photo.rejectedAt = new Date().toISOString()
