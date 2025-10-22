@@ -1,235 +1,51 @@
 # U-hub - Telegram Mini App для КНУ
 
-## Огляд проекту
-U-hub - це комплексний Telegram Mini App для студентів Київського національного університету імені Тараса Шевченка. Додаток надає функціонал для перегляду новин, управління розкладом занять, завантаження відео та організації студентських подій.
+### Overview
+U-hub is a comprehensive Telegram Mini App designed for students of Taras Shevchenko National University of Kyiv. It offers functionalities for viewing news, managing class schedules, uploading videos, organizing student events, and a photo gallery with a "Starfall Month" contest. The project aims to enhance student life by centralizing essential university information and fostering community engagement.
 
-## Останні зміни (15 жовтня 2025)
+### User Preferences
+I want to ensure that the project is developed with maintainability and scalability in mind. I prefer clear, concise code and well-documented architectural decisions. For communication, please provide detailed explanations of proposed changes or complex implementations before proceeding. I am open to iterative development and prefer to review major feature implementations or architectural shifts. I prioritize robust error handling and user experience, so please focus on these aspects during development.
 
-### Критичні виправлення івентів:
-1. **Виправлено створення івентів** - усунуто конфлікт імен функції `createEvent()` з нативним DOM API (перейменовано на `createNewEvent()`)
-2. **Додано обробку помилок** - користувач тепер бачить конкретні повідомлення про помилки при створенні івентів
-3. **Виправлено збереження даних** - додано автоматичне створення папки `data/` перед збереженням файлів
-4. **Виправлено персистентність статусу приєднання** - користувач більше не втрачає статус приєднання до івенту після виходу та повернення (виправлено порівняння типів userId: number vs string)
-5. **Модерація івентів** - івенти тепер коректно відправляються на модерацію через Telegram Bot
+### System Architecture
 
-### Попередні зміни (14 жовтня 2025):
-1. **Персистентність учасників подій** - статус приєднання користувача до події тепер зберігається у файл `eventParticipants.json` і не втрачається при перезапуску сервера
-2. **Збереження позицій зображень в адмін-панелі** - позиція зображень (object-position) тепер коректно зберігається в `adminSettings.json`, включаючи крайні значення 0% та 100%
-3. **Покращені анімації** - додані плавні переходи, hover ефекти, ripple ефект на кнопках та staggered fadeInUp анімації для карток
-4. **Виправлено центрування дати/часу** - дата та час тепер точно центровані по горизонталі
-5. **Skeleton loader для зображень** - додано preload функцію та skeleton loader для покращення завантаження зображень без показу тексту до фото
+#### UI/UX Decisions
+The application utilizes HTML5, Vanilla JavaScript, and Tailwind CSS for styling, ensuring a modern and responsive user interface. Lucide Icons are used for iconography, and the Telegram Web App SDK provides seamless integration with Telegram's ecosystem. Animations include smooth transitions, hover effects, ripple effects on buttons, and staggered fadeInUp animations for cards to enhance user experience. A skeleton loader is implemented for images to improve perceived loading performance.
 
-## Основні функції
+#### Technical Implementations
+The backend is built with Node.js 20 and Express.js. Key functionalities include:
+- **News Parsing**: Automatic parsing of news from official university websites and Telegram channels using Cheerio and Axios, with a caching mechanism for quick access.
+- **Schedule Management**: Parsing of Excel schedule files using ExcelJS.
+- **Event System**: Creation, joining, and management of events with integrated mini-chat functionality, participant tracking via Telegram User ID, and automatic event completion.
+- **Video & Photo Uploads**: Multer is used for file uploads, with a moderation system for videos that integrates with a Telegram Bot for approval/rejection.
+- **Admin Panel**: A password-protected interface (`/admin`) for managing hero images, broadcasting messages to users, and moderating uploaded content.
+- **Telegram Bot Integration**: `node-telegram-bot-api` is used to handle user interactions, send notifications, and facilitate video moderation through inline keyboard buttons.
 
-### 1. Новини (2 сторінки)
-- Автоматичний парсинг новин з 5-7 джерел:
-  - Офіційний сайт КНУ (international.knu.ua, knu.ua)
-  - Telegram канали: @iir_student_council, @spu_knu, @srs_knu, @electionsknu
-- Стрічка новин з можливістю перегляду повної інформації
-- Функція поширення новин у Telegram
+#### Feature Specifications
+- **News**: Aggregated news feed from multiple sources with full article viewing and sharing capabilities.
+- **Schedules**: Searchable schedules by specialty code or name, filtered by course, with weekly views and "My Schedule" persistence (localStorage).
+- **Video**: User-uploaded videos with moderation, potential TikTok integration, and user notifications.
+- **Events**: User-created events with joining/leaving functionality, integrated chat, photo gallery, and participant tracking.
+- **"Starfall Month" Contest**: Photo contest with blur option, Telegram Stars payouts for views, single like reaction, and author attribution.
+- **Admin Panel**: Centralized control for content moderation, image management, and mass communication.
 
-### 2. Розклади занять (4 сторінки)
-- Пошук розкладу за кодом спеціальності або назвою
-- Фільтр по курсу (1-4 курс)
-- Перегляд розкладу на тиждень (Пн-Пт)
-- Детальний перегляд розкладу дня з часом, предметами, викладачами та аудиторіями
-- Збереження "Мій розклад" (зберігається в localStorage)
-- Схеми переміщення по університету
+#### System Design Choices
+- **Frontend**: Single-page application approach using `index.html` for all main views and `app.js` for logic.
+- **Backend**: RESTful API design using Express.js.
+- **Data Storage**: JSON files (`events.json`, `videos.json`, `photos.json`, `botUsers.json`, `adminSettings.json`) are used for data persistence.
+- **Modularity**: Parsers are separated into dedicated modules (`newsParser.js`, `scheduleParser.js`).
+- **Caching**: News content is cached and updated periodically to reduce load times.
 
-### 3. Відео (1 сторінка)
-- Завантаження відео користувачами
-- Система модерації (схвалення/відхилення)
-- Інтеграція з TikTok каналом для публікації схвалених відео
-- Сповіщення користувачів про статус відео
+### External Dependencies
 
-### 4. Події (4 сторінки)
-- Створення подій з датою, часом, місцем та описом
-- Приєднання до подій з інтеграцією Telegram (аватари, імена користувачів)
-- Вихід з подій через кнопку поряд з "Чат"
-- Міні-чат для кожної події з відображенням аватарів та імен
-- Галерея фото подій
-- Автоматичне завершення подій після закінчення терміну дії
-- Трекінг учасників через Telegram User ID
-
-### 5. Адмін-панель
-- Доступ за паролем "1234" на /admin
-- Три основні розділи:
-  - **Зображення блоків**: Зміна hero images для Новин, Розкладів, Відео, Івентів
-  - **Розсилка**: Масова відправка повідомлень всім користувачам бота
-  - **Модерація відео**: Перегляд та модерація відео (схвалення/відхилення)
-- Збереження налаштувань в adminSettings.json
-
-## Технічний стек
-
-### Frontend
-- HTML5 + Vanilla JavaScript
-- Tailwind CSS для стилізації
-- Lucide Icons для іконок
-- Telegram Web App SDK
-
-### Backend
-- Node.js 20
-- Express.js (веб-сервер)
-- Cheerio (парсинг HTML)
-- Axios (HTTP запити)
-- ExcelJS (парсинг Excel файлів)
-- Multer (завантаження файлів)
-- node-telegram-bot-api (Telegram Bot API)
-
-## Структура проекту
-```
-/
-├── public/               # Frontend файли
-│   ├── index.html       # Всі 12 сторінок додатку
-│   └── app.js           # JavaScript логіка
-├── parsers/             # Модулі парсингу
-│   ├── newsParser.js    # Парсинг новин
-│   └── scheduleParser.js # Парсинг розкладу
-├── uploads/             # Завантажені файли
-│   ├── videos/          # Відео файли
-│   └── photos/          # Фото подій
-├── data/                # JSON бази даних
-│   ├── events.json      # Події
-│   ├── videos.json      # Відео
-│   ├── photos.json      # Фото
-│   ├── botUsers.json    # Користувачі Telegram бота
-│   └── adminSettings.json # Налаштування адмін-панелі
-├── server.js            # Головний сервер
-├── public/admin.html    # Адмін-панель
-└── package.json         # Залежності
-```
-
-## API Endpoints
-
-### Новини
-- `GET /api/news` - Отримати всі новини
-
-### Розклади
-- `GET /api/schedules/search?course=1&query=комунікації` - Пошук розкладу
-
-### Події
-- `GET /api/events` - Список всіх подій
-- `GET /api/events/:id` - Детальна інформація про подію
-- `POST /api/events` - Створити нову подію
-- `POST /api/events/:id/join` - Приєднатися до події (з userId, firstName, photoUrl)
-- `POST /api/events/:id/leave` - Вийти з події
-- `GET /api/events/:id/joined` - Перевірити чи користувач приєднаний
-- `GET /api/events/:id/messages` - Повідомлення чату події
-- `POST /api/events/:id/messages` - Надіслати повідомлення (з даними користувача)
-
-### Адмін-панель
-- `POST /api/admin/login` - Вхід в адмін-панель (пароль: 1234)
-- `GET /api/admin/settings` - Отримати налаштування
-- `POST /api/admin/settings` - Зберегти налаштування
-- `POST /api/admin/broadcast` - Розсилка повідомлень
-- `GET /api/admin/videos/pending` - Відео на модерації
-
-### Налаштування
-- `GET /api/settings/images` - Отримати hero images для блоків
-
-### Відео
-- `POST /api/videos/upload` - Завантажити відео
-- `GET /api/videos/pending` - Список відео на модерації
-- `POST /api/videos/:id/moderate` - Модерувати відео (схвалити/відхилити)
-
-### Фото
-- `POST /api/photos/upload` - Завантажити фото
-- `GET /api/photos` - Список всіх фото
-
-## Налаштування
-
-### Змінні середовища
-Створіть файл `.env` з наступними змінними:
-```
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-PORT=5000
-```
-
-### Telegram Bot
-1. Створіть бота через @BotFather в Telegram
-2. Отримайте токен бота
-3. Додайте токен у змінні середовища
-4. Налаштуйте Telegram Mini App в @BotFather
-
-## Запуск проекту
-```bash
-npm start
-```
-
-Сервер запуститься на порту 5000.
-
-## Оновлення новин
-Система автоматично оновлює кеш новин:
-- При старті сервера
-- Кожні 30 хвилин
-
-## Особливості реалізації
-
-### Парсинг новин
-- Підтримка HTML сайтів через Cheerio
-- Парсинг публічних Telegram каналів
-- Кешування для швидкого доступу
-- Обробка помилок та fallback контент
-
-### Система подій
-- Автоматичне закінчення подій за таймером
-- Міні-чат з Telegram інтеграцією (аватари, імена)
-- Підрахунок учасників через Telegram User ID
-- Можливість приєднання та виходу з подій
-- Статуси подій (активна/завершена)
-
-### Модерація відео
-- Завантаження відео до 100 МБ
-- Статуси: pending, approved, rejected
-- Автоматична відправка відео в Telegram бот для модерації
-- Інлайн-кнопки в боті для швидкої модерації
-- Сповіщення користувачів про рішення
-
-### Telegram Bot функціонал
-- Збереження користувачів при /start в botUsers.json
-- Відправка відео на модерацію з інлайн-кнопками
-- Обробка callback_query для модерації
-- Масова розсилка повідомлень через адмін-панель
-
-### Адмін-панель
-- Простий вхід за паролем (1234)
-- Зміна hero images для всіх блоків головної сторінки
-- Розсилка повідомлень всім користувачам бота
-- Модерація відео з попереднім переглядом
-
-## Розвиток проекту
-
-### Наступні кроки
-1. Інтеграція з реальною базою даних (PostgreSQL)
-2. Автоматична публікація відео в TikTok через API
-3. Push-сповіщення через Telegram Bot
-4. Розширена панель адміністратора
-5. Реєстрація користувачів та профілі
-6. Аналітика використання
-
-### Відомі обмеження
-- Використання in-memory сховища (дані втрачаються при рестарті)
-- Відсутність автентифікації користувачів
-- Tailwind CDN (для production треба встановити як залежність)
-- Обмежений функціонал TikTok (потребує API ключ)
-
-## Розгортання на Ubuntu 24.04
-
-Детальна інструкція по розгортанню на власному сервері знаходиться у файлі `DEPLOY_UBUNTU.md`.
-
-### Швидке розгортання
-1. Завантажити файли на сервер
-2. Запустити `sudo ./deploy-quick.sh`
-3. Налаштувати змінні оточення в `.env`
-4. Завантажити Excel розклади в `data/schedules/`
-
-### Конфігураційні файли
-- `ecosystem.config.js` - PM2 конфігурація для production
-- `nginx-uhub.conf` - Nginx reverse proxy конфігурація
-- `deploy-quick.sh` - Автоматичний скрипт розгортання
-
-## Дата створення
-13 жовтня 2025 року
-
-## Автор
-Розроблено для студентів КНУ імені Тараса Шевченка
+- **Telegram Web App SDK**: For seamless integration with the Telegram Mini App environment.
+- **Node.js 20**: Runtime environment for the backend.
+- **Express.js**: Web application framework for the backend.
+- **Cheerio**: Used for parsing HTML content from news sources.
+- **Axios**: HTTP client for making API requests, particularly for news parsing.
+- **ExcelJS**: For parsing and processing Excel files, specifically for academic schedules.
+- **Multer**: Middleware for handling `multipart/form-data`, primarily for file uploads (videos and photos).
+- **node-telegram-bot-api**: Official library for interacting with the Telegram Bot API.
+- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **Lucide Icons**: Icon library for the user interface.
+- **TikTok API (potential future integration)**: For publishing approved videos.
+- **PostgreSQL (future consideration)**: For robust database management.

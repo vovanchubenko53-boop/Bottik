@@ -1932,8 +1932,18 @@ function updateBlurStatus() {
 }
 
 async function checkBlurLimit() {
+  if (!telegramUser || !telegramUser.id) {
+    console.log("[v0] Користувач ще не ініціалізований, пропускаємо перевірку ліміту блюру")
+    return
+  }
+  
   try {
     const response = await fetch(`${API_URL}/api/photos/blur-limit/${telegramUser.id}`)
+    if (!response.ok) {
+      console.error("Error fetching blur limit:", response.status)
+      return
+    }
+    
     const data = await response.json()
     
     const toggle = document.getElementById("blur-toggle")
