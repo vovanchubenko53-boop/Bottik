@@ -1449,6 +1449,9 @@ app.get("/api/photos", (req, res) => {
     photos = photos.filter((p) => p.eventId === eventId)
   }
 
+  // Сортуємо фото за датою - нові зверху
+  photos.sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0))
+
   const photosWithUnlockCount = photos.map((photo) => ({
     ...photo,
     unlockCount: photoUnlocks[photo.id] ? photoUnlocks[photo.id].length : 0,
