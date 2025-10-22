@@ -3,6 +3,13 @@
 ### Overview
 U-hub is a comprehensive Telegram Mini App designed for students of Taras Shevchenko National University of Kyiv. It offers functionalities for viewing news, managing class schedules, uploading videos, organizing student events, and a photo gallery with a "Starfall Month" contest. The project aims to enhance student life by centralizing essential university information and fostering community engagement.
 
+### Recent Changes (October 22, 2025)
+- **Photo Gallery Layout**: Changed from 2-column to 3-column grid display with square aspect-ratio images for better visual consistency
+- **Album Navigation**: Added prev/next navigation buttons and touch swipe gesture support (50px threshold) for browsing album photos
+- **Blur Feature Fix**: Fixed critical bug where `hasBlur` flag was lost during photo moderation - now properly preserved when approving photos
+- **Upload Error Handling**: Enhanced error handling with per-file try/catch blocks, detailed logging, and user-friendly error messages
+- **Chat Icon**: Added animated chat icon with wiggle animation to the news block, linking to https://t.me/u_hub_chat using Telegram Web App SDK
+
 ### User Preferences
 I want to ensure that the project is developed with maintainability and scalability in mind. I prefer clear, concise code and well-documented architectural decisions. For communication, please provide detailed explanations of proposed changes or complex implementations before proceeding. I am open to iterative development and prefer to review major feature implementations or architectural shifts. I prioritize robust error handling and user experience, so please focus on these aspects during development.
 
