@@ -8,6 +8,18 @@ const path = require("path")
 const fs = require("fs").promises
 const ExcelJS = require("exceljs")
 const newsParser = require("./parsers/newsParser")
+
+// Helper to build compact callback_data (<=64 bytes)
+function buildCallbackData(kind, id, action) {
+  // kind: 'e' (event), 'v' (video), 'p' (photo)
+  // action: 'ap' (approve), 'rj' (reject)
+  try {
+    return JSON.stringify({ t: kind, i: String(id), a: action })
+  } catch (e) {
+    // Fallback minimal string if JSON fails
+    return `${kind}|${String(id)}|${action}`.slice(0, 64)
+  }
+}
 const scheduleParser = require("./parsers/scheduleParser")
 const TelegramBot = require("node-telegram-bot-api")
 const { exec } = require("child_process")
@@ -119,6 +131,10 @@ function getWeekStart() {
 }
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "5336123108"
+function getAdminChatIds() {
+  return [ADMIN_TELEGRAM_ID].filter(Boolean)
+}
 let bot = null
 
 if (BOT_TOKEN) {
@@ -299,19 +315,36 @@ if (BOT_TOKEN) {
         console.error("[v0] ❌ Ошибка сохранения пользователя при callback:", error.message)
       }
 
-      const data = JSON.parse(query.data)
+      let data
+      try {
+        data = JSON.parse(query.data)
+      } catch (e) {
+        // поддержка компактного формата {t:'p',i:'id',a:'ap'}
+        const parts = String(query.data).split("|")
+        if (parts.length === 3) {
+          data = { t: parts[0], i: parts[1], a: parts[2] }
+        } else {
+          data = {}
+        }
+      }
 
-      if (data.type === "video_mod") {
-        const video = videosData.find((v) => v.id === data.videoId)
+      const type = data.type || data.t
+      const action = data.action || data.a
+      const videoId = data.videoId || data.i
+      const eventId = data.eventId || data.i
+      const photoId = data.photoId || data.i
+
+      if (type === "video_mod" || type === 'v') {
+        const video = videosData.find((v) => v.id === videoId)
         if (video) {
-          if (data.action === "approve") {
+          if (action === "approve" || action === 'ap') {
             video.status = "approved"
             video.approvedAt = new Date().toISOString()
             bot.editMessageCaption(`✅ Відео схвалено`, {
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
             })
-          } else if (data.action === "reject") {
+          } else if (action === "reject" || action === 'rj') {
             video.status = "rejected"
             video.rejectedAt = new Date().toISOString()
             bot.editMessageCaption(`❌ Відео відхилено`, {
@@ -322,17 +355,17 @@ if (BOT_TOKEN) {
           await saveData()
         }
         bot.answerCallbackQuery(query.id)
-      } else if (data.type === "event_mod") {
-        const event = eventsData.find((e) => e.id === data.eventId)
+      } else if (type === "event_mod" || type === 'e') {
+        const event = eventsData.find((e) => e.id === eventId)
         if (event) {
-          if (data.action === "approve") {
+          if (action === "approve" || action === 'ap') {
             event.status = "approved"
             event.approvedAt = new Date().toISOString()
             bot.editMessageText(`✅ Івент схвалено`, {
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
             })
-          } else if (data.action === "reject") {
+          } else if (action === "reject" || action === 'rj') {
             event.status = "rejected"
             event.rejectedAt = new Date().toISOString()
             bot.editMessageText(`❌ Івент відхилено`, {
@@ -343,17 +376,17 @@ if (BOT_TOKEN) {
           await saveData()
         }
         bot.answerCallbackQuery(query.id)
-      } else if (data.type === "photo_mod") {
-        const photo = photosData.find((p) => p.id === data.photoId)
+      } else if (type === "photo_mod" || type === 'p') {
+        const photo = photosData.find((p) => p.id === photoId)
         if (photo) {
-          if (data.action === "approve") {
+          if (action === "approve" || action === 'ap') {
             photo.status = "approved"
             photo.approvedAt = new Date().toISOString()
             bot.editMessageCaption(`✅ Фото схвалено`, {
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
             })
-          } else if (data.action === "reject") {
+          } else if (action === "reject" || action === 'rj') {
             photo.status = "rejected"
             photo.rejectedAt = new Date().toISOString()
             bot.editMessageCaption(`❌ Фото відхилено`, {
@@ -770,12 +803,12 @@ app.post("/api/events", async (req, res) => {
     eventMessages[newEvent.id] = []
     await saveData()
 
-    if (bot && botUsers.length > 0) {
-      const adminUsers = botUsers.slice(0, 1)
-      for (const admin of adminUsers) {
+    if (bot) {
+      const adminUsers = getAdminChatIds()
+      for (const adminChatId of adminUsers) {
         try {
           await bot.sendMessage(
-            admin.chatId,
+            adminChatId,
             `🎉 Новий івент на модерацію:\n\n📝 Назва: ${newEvent.title}\n📅 Дата: ${newEvent.date}\n⏰ Час: ${newEvent.time}\n📍 Місце: ${newEvent.location}\n👤 Автор: ${newEvent.creatorUsername}\n\nОпис: ${newEvent.description}`,
             {
               reply_markup: {
@@ -783,11 +816,11 @@ app.post("/api/events", async (req, res) => {
                   [
                     {
                       text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({ type: "event_mod", eventId: newEvent.id, action: "approve" }),
+                      callback_data: buildCallbackData('e', newEvent.id, 'ap'),
                     },
                     {
                       text: "❌ Відхилити",
-                      callback_data: JSON.stringify({ type: "event_mod", eventId: newEvent.id, action: "reject" }),
+                      callback_data: buildCallbackData('e', newEvent.id, 'rj'),
                     },
                   ],
                 ],
@@ -1180,31 +1213,23 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
     await saveData()
     console.log("[v0] ✅ Данные сохранены успешно")
 
-    if (bot && botUsers.length > 0) {
+    if (bot) {
       console.log("[v0] 🤖 Отправляем уведомление в Telegram бот...")
-      console.log("[v0] 👥 Количество пользователей бота:", botUsers.length)
+      const adminUsers = getAdminChatIds()
+      console.log("[v0] 👤 Отправляем админам:", adminUsers)
 
-      const adminUsers = botUsers.slice(0, 1)
-      console.log("[v0] 👤 Отправляем админам:", adminUsers.length)
-
-      for (const admin of adminUsers) {
+      for (const adminChatId of adminUsers) {
         try {
-          console.log("[v0] 📤 Отправляем сообщение админу:", admin.chatId)
+          console.log("[v0] 📤 Отправляем сообщение админу:", adminChatId)
           await bot.sendMessage(
-            admin.chatId,
+            adminChatId,
             `🎥 Нове відео на модерацію:\n\n📝 Назва: ${videoData.originalName}\n📅 Дата: ${new Date(videoData.uploadedAt).toLocaleString("uk-UA")}\n💾 Розмір: ${(videoData.size / 1024 / 1024).toFixed(2)} MB`,
             {
               reply_markup: {
                 inline_keyboard: [
                   [
-                    {
-                      text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({ type: "video_mod", videoId: videoData.id, action: "approve" }),
-                    },
-                    {
-                      text: "❌ Відхилити",
-                      callback_data: JSON.stringify({ type: "video_mod", videoId: videoData.id, action: "reject" }),
-                    },
+                    { text: "✅ Підтвердити", callback_data: buildCallbackData('v', videoData.id, 'ap') },
+                    { text: "❌ Відхилити", callback_data: buildCallbackData('v', videoData.id, 'rj') },
                   ],
                 ],
               },
@@ -1216,10 +1241,6 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
           console.error("[v0] 📚 Stack:", error.stack)
         }
       }
-    } else {
-      console.log("[v0] ⚠️ Telegram бот не настроен или нет пользователей")
-      console.log("[v0] 🤖 Bot:", bot ? "инициализирован" : "не инициализирован")
-      console.log("[v0] 👥 Пользователей:", botUsers.length)
     }
 
     console.log("[v0] 📤 Отправляем успешный ответ клиенту...")
@@ -1315,16 +1336,31 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     if (blurEnabled) {
       const weekStart = getWeekStart()
       const userWeekKey = `${userId}_${weekStart}`
-      
+
       if (weeklyBlurPhotos[userWeekKey]) {
-        console.log("[v0] ⚠️ Користувач досяг ліміту блюр-фото на цей тиждень")
-        return res.status(400).json({ 
-          error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)" 
-        })
+        // Дозволяємо продовжити, якщо це той самий альбом із блюром від цього ж користувача
+        if (albumId) {
+          const sameAlbumBlur = photosData.find(
+            (p) => p.albumId === albumId && String(p.userId) === String(userId) && p.hasBlur,
+          )
+          if (!sameAlbumBlur) {
+            console.log("[v0] ⚠️ Ліміт блюр-фото: інший альбом/фото у цей тиждень")
+            return res.status(400).json({
+              error:
+                "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото/альбом з блюром на тиждень)",
+            })
+          }
+        } else {
+          console.log("[v0] ⚠️ Ліміт блюр-фото: вже було фото з блюром цього тижня")
+          return res.status(400).json({
+            error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)",
+          })
+        }
+      } else {
+        // Помічаємо використання ліміту на цей тиждень
+        weeklyBlurPhotos[userWeekKey] = albumId || new Date().toISOString()
+        console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, ключ: ${userWeekKey}, альбом: ${albumId || 'single'}`)
       }
-      
-      weeklyBlurPhotos[userWeekKey] = new Date().toISOString()
-      console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, ключ: ${userWeekKey}`)
     }
 
     console.log("[v0] 📝 Дані фото:")
@@ -1363,48 +1399,43 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     console.log("[v0] ✅ Данные сохранены")
 
     // Відправляємо повідомлення в Telegram тільки для першого фото альбому або окремого фото
-    if (bot && botUsers.length > 0 && (!albumIndex || albumIndex === "0")) {
+    if (bot && (!albumIndex || albumIndex === "0")) {
       console.log("[v0] 🤖 Отправляем уведомление в Telegram...")
-      const adminUsers = botUsers.slice(0, 1)
-      for (const admin of adminUsers) {
+      const adminUsers = getAdminChatIds()
+      for (const adminChatId of adminUsers) {
         try {
           const event = eventsData.find((e) => e.id === eventId)
           const eventName = event ? event.title : "Подія"
           const photoCount = albumTotal ? ` (${albumTotal} фото)` : ""
-          console.log("[v0] 📤 Отправляем фото адміну:", admin.chatId)
+          console.log("[v0] 📤 Отправляем фото адміну:", adminChatId)
 
-          await bot.sendPhoto(
-            admin.chatId,
-            `${process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : "http://localhost:5000"}${newPhoto.url}`,
-            {
+          // Определяем публичный базовый URL для отправки фото в Telegram (локальный URL не подойдет)
+          const baseUrlFromEnv = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || process.env.BASE_URL || null
+          const requestBaseUrl = `${req.protocol}://${req.get("host")}`
+          const publicBaseUrl = baseUrlFromEnv || (requestBaseUrl.startsWith("http://localhost") ? null : requestBaseUrl)
+
+          if (!publicBaseUrl) {
+            console.warn(
+              "[v0] ⚠️ PUBLIC_BASE_URL не задан и хост локальный. Пропускаем отправку фото админу, чтобы избежать 'wrong HTTP URL specified'",
+            )
+          } else {
+            await bot.sendPhoto(
+              adminChatId,
+              `${publicBaseUrl}${newPhoto.url}`,
+              {
               caption: `📸 Нове фото на модерацію${photoCount}:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || "без опису"}`,
               reply_markup: {
                 inline_keyboard: [
                   [
-                    {
-                      text: "✅ Підтвердити",
-                      callback_data: JSON.stringify({
-                        type: "photo_mod",
-                        photoId: newPhoto.id,
-                        action: "approve",
-                        albumId: albumId || null,
-                      }),
-                    },
-                    {
-                      text: "❌ Відхилити",
-                      callback_data: JSON.stringify({
-                        type: "photo_mod",
-                        photoId: newPhoto.id,
-                        action: "reject",
-                        albumId: albumId || null,
-                      }),
-                    },
+                    { text: "✅ Підтвердити", callback_data: buildCallbackData('p', newPhoto.id, 'ap') },
+                    { text: "❌ Відхилити", callback_data: buildCallbackData('p', newPhoto.id, 'rj') },
                   ],
                 ],
               },
-            },
-          )
-          console.log("[v0] ✅ Уведомление отправлено")
+              },
+            )
+            console.log("[v0] ✅ Уведомление отправлено (baseUrl=", publicBaseUrl, ")")
+          }
         } catch (error) {
           console.error("[v0] ❌ Ошибка отправки в Telegram:", error.message)
         }
@@ -2374,26 +2405,19 @@ app.post("/api/photos/:photoId/createInvoice", async (req, res) => {
       return res.status(500).json({ error: "Telegram bot not configured" })
     }
 
-    // Створюємо інвойс через Telegram Bot API
+    // Створюємо посилання на інвойс, щоб оплатити всередині Mini App
     const prices = [{ label: "XTR", amount: 1 }]
-
-    // Відправляємо інвойс користувачу
-    const invoice = await bot.sendInvoice(
-      userId,
+    const payload = JSON.stringify({ type: "photo_unlock", photoId, userId })
+    const invoiceLink = await bot.createInvoiceLink(
       "Відкрити фото",
       `Розблокуйте фото для перегляду`,
-      JSON.stringify({ type: "photo_unlock", photoId, userId }),
+      payload,
       "",
       "XTR",
       prices,
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: "Оплатити 1 ⭐️", pay: true }]],
-        },
-      },
     )
 
-    res.json({ success: true, invoiceMessageId: invoice.message_id })
+    res.json({ success: true, invoiceLink })
   } catch (error) {
     console.error("Error creating invoice:", error)
     res.status(500).json({ error: "Failed to create invoice" })

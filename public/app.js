@@ -998,12 +998,13 @@ async function loadChatMessages(silent = false) {
 
           let photosHTML = ""
           if (msg.photos && msg.photos.length > 0) {
+            const photos = msg.photos.map((url) => ({ url }))
             photosHTML = `
               <div class="grid ${msg.photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 mt-2">
                 ${msg.photos
                   .map(
-                    (photoUrl) => `
-                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick="openPhotoModal('${API_URL}${photoUrl}', '${msg.firstName}', '${currentEvent.title}')" alt="Фото">
+                    (photoUrl, idx) => `
+                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick='openAlbumFromChat(${JSON.stringify(photos).replace(/'/g, "&apos;")}, ${idx}, ${JSON.stringify({ firstName: msg.firstName, eventTitle: currentEvent.title }).replace(/'/g, "&apos;")})' alt="Фото">
                 `,
                   )
                   .join("")}
@@ -1039,12 +1040,13 @@ async function loadChatMessages(silent = false) {
 
           let photosHTML = ""
           if (msg.photos && msg.photos.length > 0) {
+            const photos = msg.photos.map((url) => ({ url }))
             photosHTML = `
               <div class="grid ${msg.photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 mt-2">
                 ${msg.photos
                   .map(
-                    (photoUrl) => `
-                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick="openPhotoModal('${API_URL}${photoUrl}', '${msg.firstName}', '${currentEvent.title}')" alt="Фото">
+                    (photoUrl, idx) => `
+                  <img src="${API_URL}${photoUrl}" class="w-full rounded-lg cursor-pointer" onclick='openAlbumFromChat(${JSON.stringify(photos).replace(/'/g, "&apos;")}, ${idx}, ${JSON.stringify({ firstName: msg.firstName, eventTitle: currentEvent.title }).replace(/'/g, "&apos;")})' alt="Фото">
                 `,
                   )
                   .join("")}
@@ -1606,12 +1608,58 @@ function showAlbumPhoto(index) {
   currentAlbumIndex = index
   const photo = currentAlbumPhotos[index]
   const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
-  const eventName = event ? event.title : "Подія видалена"
+  const eventName = event ? event.title : (photo.eventTitle || "Подія видалена")
 
-  document.getElementById("modal-photo-img").src = `${API_URL}${photo.url}`
+  const img = document.getElementById("modal-photo-img")
+  const frame = document.getElementById("modal-photo-frame")
+
+  img.src = `${API_URL}${photo.url}`
   document.getElementById("modal-photo-event").textContent = `${eventName} (${index + 1}/${currentAlbumPhotos.length})`
-  document.getElementById("modal-photo-description").textContent = photo.description || ""
-  document.getElementById("modal-photo-author").textContent = photo.firstName ? `Автор: ${photo.firstName}` : ""
+  const descEl = document.getElementById("modal-photo-description")
+  const authorEl = document.getElementById("modal-photo-author")
+  descEl.textContent = photo.description || ""
+  authorEl.textContent = photo.username
+    ? `Автор: @${photo.username}`
+    : (photo.firstName || photo.authorName) ? `Автор: @${(photo.firstName || photo.authorName)}` : ""
+
+  console.log(`[v0] MODAL show photo id=${photo.id} hasBlur=${photo.hasBlur}`)
+
+  // Якщо фото з галереї і воно заблюрене — показуємо накладку розблокування
+  const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
+  const shouldBlur = photo.hasBlur && !isOwnPhoto
+
+  // При кожному показі прибираємо минулий overlay
+  const existingOverlay = frame.querySelector('.photo-unlock-overlay')
+  if (existingOverlay) existingOverlay.remove()
+  img.classList.remove('photo-blurred')
+
+  if (shouldBlur) {
+    img.classList.add('photo-blurred')
+    const overlay = document.createElement('div')
+    overlay.className = 'photo-unlock-overlay'
+    overlay.innerHTML = `
+      <div class="text-2xl mb-2">🔒</div>
+      <div class="font-bold">Відкрити фото</div>
+      <div class="text-sm">1 ⭐</div>
+    `
+    overlay.onclick = (e) => {
+      e.stopPropagation()
+      console.log(`[v0] MODAL unlock click photo id=${photo.id}`)
+      unlockPhoto(String(photo.id)).then(async () => {
+        console.log(`[v0] MODAL unlock returned, checking status for id=${photo.id}`)
+        // Після оплати перевіряємо статус і прибираємо блюр
+        const unlocked = await checkPhotoUnlocked(String(photo.id))
+        if (unlocked) {
+          console.log(`[v0] MODAL unlocked success remove blur id=${photo.id}`)
+          img.classList.remove('photo-blurred')
+          overlay.remove()
+        } else {
+          console.log(`[v0] MODAL still locked id=${photo.id}`)
+        }
+      })
+    }
+    frame.appendChild(overlay)
+  }
 }
 
 function nextAlbumPhoto() {
@@ -1670,6 +1718,37 @@ function handleSwipe() {
   }
 }
 
+// Відкрити групу фото з чату як альбом і підтримати свайп/навігацію
+function openAlbumFromChat(photos, startIndex, meta) {
+  const enriched = photos.map((p) => ({
+    url: p.url,
+    description: '',
+    firstName: meta?.firstName || '',
+    authorName: meta?.firstName || '',
+    eventTitle: meta?.eventTitle || 'Чат події',
+    // чат-фото не мають блюру/ID, тож не блокуємо
+    hasBlur: false,
+  }))
+  currentAlbumPhotos = enriched
+  currentAlbumIndex = Math.min(Math.max(0, startIndex || 0), enriched.length - 1)
+
+  const modal = document.getElementById('photo-modal')
+  modal.classList.add('active')
+  document.body.style.overflow = 'hidden'
+
+  const prevBtn = document.getElementById('photo-nav-prev')
+  const nextBtn = document.getElementById('photo-nav-next')
+  if (enriched.length > 1) {
+    prevBtn.classList.remove('hidden')
+    nextBtn.classList.remove('hidden')
+  } else {
+    prevBtn.classList.add('hidden')
+    nextBtn.classList.add('hidden')
+  }
+
+  showAlbumPhoto(currentAlbumIndex)
+}
+
 async function uploadEventPhoto(event) {
   event.preventDefault()
 
@@ -1715,10 +1794,25 @@ async function uploadEventPhoto(event) {
 
         console.log(`[v0] 📤 Завантажуємо фото ${i + 1}/${files.length}, hasBlur: ${hasBlur}`)
 
-        const response = await fetch(`${API_URL}/api/photos/upload`, {
-          method: "POST",
-          body: formData,
-        })
+        let response
+        let attempt = 0
+        let lastError
+        while (attempt < 2) {
+          attempt++
+          try {
+            response = await fetch(`${API_URL}/api/photos/upload`, { method: "POST", body: formData })
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: 'Невідома помилка' }))
+              throw new Error(errorData.error || `Помилка завантаження фото ${i + 1}`)
+            }
+            break
+          } catch (err) {
+            lastError = err
+            console.warn(`[v0] ⚠️ Retry upload photo ${i + 1}, attempt ${attempt} error:`, err.message)
+            if (attempt >= 2) throw err
+            await new Promise((r) => setTimeout(r, 500))
+          }
+        }
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Невідома помилка' }))
@@ -1732,6 +1826,7 @@ async function uploadEventPhoto(event) {
         }
       } catch (fileError) {
         console.error(`[v0] ❌ Помилка завантаження фото ${i + 1}:`, fileError)
+        alert(fileError.message || `Помилка завантаження фото ${i + 1}`)
         throw fileError
       }
     }
@@ -1802,15 +1897,26 @@ function displayPhotos(photos) {
     const firstPhoto = albumPhotos[0]
     const event = allEventsForPhotos.find((e) => e.id === firstPhoto.eventId)
     const eventName = event ? event.title : "Подія видалена"
+    const isOwnAlbum = String(firstPhoto.userId) === String(telegramUser.id)
+    const albumHasBlur = albumPhotos.some((p) => p.hasBlur)
 
     html += `
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition col-span-3" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'>
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
         <div class="relative aspect-square">
           <img src="${API_URL}${firstPhoto.url}" class="w-full h-full object-cover" alt="${firstPhoto.description || eventName}">
           <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1">
             <i data-lucide="images" class="w-3 h-3"></i>
             ${albumPhotos.length}
           </div>
+          ${
+            !isOwnAlbum && albumHasBlur
+              ? `<div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${firstPhoto.id}', true)">
+                   <div class=\"text-2xl mb-1\">🔒</div>
+                   <div class=\"font-bold\">Відкрити фото</div>
+                   <div class=\"text-sm opacity-90\">1 ⭐/фото</div>
+                 </div>`
+              : `<div class=\"absolute inset-0\" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'></div>`
+          }
         </div>
         <div class="p-2">
           <p class="text-xs font-semibold text-gray-700">${eventName}</p>
@@ -1826,23 +1932,24 @@ function displayPhotos(photos) {
     const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
     const eventName = event ? event.title : "Подія видалена"
     const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
+    console.log(`[v0] GALLERY render photo id=${photo.id} hasBlur=${photo.hasBlur} isOwn=${isOwnPhoto}`)
 
     const earnedStarsCount = Math.floor((photo.unlockCount || 0) / 50)
     const starsDisplay = earnedStarsCount > 0 ? "⭐".repeat(Math.min(earnedStarsCount, 5)) : ""
 
     html += `
       <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
-        <div class="relative photo-container-${photo.id} aspect-square" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})' style="cursor: pointer;">
+        <div class="relative photo-container-${photo.id} aspect-square" onclick='openAlbumModal(${JSON.stringify([photo]).replace(/'/g, "&apos;")})' style="cursor: pointer;">
           <img id="photo-${photo.id}" src="${API_URL}${photo.url}" class="w-full h-full object-cover ${isOwnPhoto || !photo.hasBlur ? "" : "photo-blurred"}" alt="${photo.description || eventName}">
           ${starsDisplay ? `<div class="absolute top-2 left-2 text-2xl">${starsDisplay}</div>` : ""}
-          ${
+      ${
             isOwnPhoto || !photo.hasBlur
               ? ""
               : `
-          <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}')">
-            <div class="text-2xl mb-2">🔒</div>
+          <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}', true)">
+            <div class="text-2xl mb-1">🔒</div>
             <div class="font-bold">Відкрити фото</div>
-            <div class="text-sm">1 ⭐</div>
+            <div class="text-sm opacity-90">1 ⭐</div>
           </div>
           `
           }
@@ -1870,8 +1977,10 @@ function displayPhotos(photos) {
 
     const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
     if (!isOwnPhoto) {
+      console.log(`[v0] GALLERY check unlocked photo id=${photo.id}`)
       const unlocked = await checkPhotoUnlocked(photo.id)
       if (unlocked) {
+        console.log(`[v0] GALLERY unlocked=true remove blur id=${photo.id}`)
         const img = document.getElementById(`photo-${photo.id}`)
         const container = document.querySelector(`.photo-container-${photo.id}`)
         if (img) img.classList.remove("photo-blurred")
@@ -1879,6 +1988,8 @@ function displayPhotos(photos) {
           const overlay = container.querySelector(".photo-unlock-overlay")
           if (overlay) overlay.remove()
         }
+      } else {
+        console.log(`[v0] GALLERY unlocked=false keep blur id=${photo.id}`)
       }
     }
   })
@@ -2355,7 +2466,7 @@ async function checkPhotoUnlocked(photoId) {
 }
 
 // Розблокувати фото через Telegram Stars
-async function unlockPhoto(photoId) {
+async function unlockPhoto(photoId, openInApp = false) {
   try {
     const response = await fetch(`${API_URL}/api/photos/${photoId}/createInvoice`, {
       method: "POST",
@@ -2373,8 +2484,42 @@ async function unlockPhoto(photoId) {
         const overlay = img.nextElementSibling
         if (overlay) overlay.remove()
       }
-    } else if (data.success) {
-      alert("Інвойс відправлено в Telegram бота. Перевірте повідомлення від бота для оплати.")
+    } else if (data.success || data.invoiceLink) {
+      const link = data.invoiceLink
+      if (openInApp && window.Telegram && window.Telegram.WebApp && link) {
+        // Якщо доступно, використовуємо openInvoice, інакше openLink
+        const tg = window.Telegram.WebApp
+        const open = tg.openInvoice ? () => tg.openInvoice(link) : () => tg.openLink(link)
+        try {
+          const res = await open()
+          // деякі клієнти повертають проміс зі статусом
+          console.log("[v0] openInvoice/openLink result:", res)
+        } catch (e) {
+          console.warn("[v0] openInvoice/openLink error:", e)
+        }
+        // Після відкриття інвойсу запускаємо коротке опитування статусу (до 30с)
+        const start = Date.now()
+        const poll = async () => {
+          const unlocked = await checkPhotoUnlocked(photoId)
+          if (unlocked) {
+            const img = document.getElementById(`photo-${photoId}`)
+            if (img) {
+              img.classList.remove("photo-blurred")
+              const overlay = img.nextElementSibling
+              if (overlay) overlay.remove()
+            }
+            return
+          }
+          if (Date.now() - start < 30000) {
+            setTimeout(poll, 2000)
+          }
+        }
+        setTimeout(poll, 1500)
+      } else if (link) {
+        window.open(link, "_blank")
+      } else {
+        alert("Інвойс створено. Перевірте повідомлення від бота для оплати.")
+      }
     }
   } catch (error) {
     console.error("Error creating invoice:", error)
