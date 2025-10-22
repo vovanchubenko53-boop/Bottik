@@ -986,7 +986,7 @@ async function loadChatMessages(silent = false) {
         const wasAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50
 
         newMessages.forEach((msg) => {
-          const isOwn = msg.userId === telegramUser.id
+          const isOwn = String(msg.userId) === String(telegramUser.id)
           const avatar =
             msg.photoUrl ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
@@ -1031,7 +1031,7 @@ async function loadChatMessages(silent = false) {
     } else {
       chatMessages.innerHTML = messages
         .map((msg) => {
-          const isOwn = msg.userId === telegramUser.id
+          const isOwn = String(msg.userId) === String(telegramUser.id)
           const avatar =
             msg.photoUrl ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.firstName || "U")}&background=random`
@@ -1675,6 +1675,12 @@ async function uploadEventPhoto(event) {
       if (!response.ok) {
         throw new Error(`Помилка завантаження фото ${i + 1}`)
       }
+
+      // Зберігаємо дані про зароблені зірки (тільки для першого фото в альбомі)
+      if (i === 0) {
+        const data = await response.json()
+        window.lastUploadResponse = data
+      }
     }
 
     button.classList.remove("onclic")
@@ -1682,7 +1688,15 @@ async function uploadEventPhoto(event) {
 
     setTimeout(() => {
       button.classList.remove("validate")
-      alert(`${files.length} фото відправлено на модерацію`)
+
+      let message = `${files.length} фото відправлено на модерацію`
+      if (window.lastUploadResponse && window.lastUploadResponse.earnedStars > 0) {
+        message += `\n\n🌟 Ви заробили ${window.lastUploadResponse.earnedStars} зірок за першу публікацію сьогодні!`
+      } else if (window.lastUploadResponse && window.lastUploadResponse.dailyLimitReached) {
+        message += `\n\n⚠️ Ви вже отримали зірки за сьогодні. Публікуйте знову завтра!`
+      }
+
+      alert(message)
 
       fileInput.value = ""
       document.getElementById("upload-photo-description").value = ""
@@ -1690,6 +1704,7 @@ async function uploadEventPhoto(event) {
       document.getElementById("photo-file-label").textContent = "📷 Обрати фото (до 10)"
 
       goToPage("page-event-photos")
+      updateHeaderStarsBalance()
     }, 1500)
   } catch (error) {
     console.error("Error uploading photos:", error)
@@ -1747,6 +1762,7 @@ function displayPhotos(photos) {
         <div class="p-2">
           <p class="text-xs font-semibold text-gray-700">${eventName}</p>
           ${firstPhoto.description ? `<p class="text-xs text-gray-500 mt-1">${firstPhoto.description}</p>` : ""}
+          <p class="text-xs text-gray-600 mt-1">@${firstPhoto.firstName || "Користувач"}</p>
         </div>
       </div>
     `
@@ -1756,13 +1772,33 @@ function displayPhotos(photos) {
   singlePhotos.forEach((photo) => {
     const event = allEventsForPhotos.find((e) => e.id === photo.eventId)
     const eventName = event ? event.title : "Подія видалена"
+    const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
+
+    const earnedStarsCount = Math.floor((photo.unlockCount || 0) / 50)
+    const starsDisplay = earnedStarsCount > 0 ? "⭐".repeat(Math.min(earnedStarsCount, 5)) : ""
 
     html += `
-      <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})'>
-        <img src="${API_URL}${photo.url}" class="w-full h-40 object-cover" alt="${photo.description || eventName}">
+      <div class="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
+        <div class="relative photo-container-${photo.id}" onclick='openPhotoModal(${JSON.stringify(photo).replace(/'/g, "&apos;")})' style="cursor: pointer;">
+          <img id="photo-${photo.id}" src="${API_URL}${photo.url}" class="w-full h-40 object-cover ${isOwnPhoto ? "" : "photo-blurred"}" alt="${photo.description || eventName}">
+          ${starsDisplay ? `<div class="absolute top-2 left-2 text-2xl">${starsDisplay}</div>` : ""}
+          ${
+            isOwnPhoto
+              ? ""
+              : `
+          <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}')">
+            <div class="text-2xl mb-2">🔒</div>
+            <div class="font-bold">Відкрити фото</div>
+            <div class="text-sm">1 ⭐</div>
+          </div>
+          `
+          }
+        </div>
         <div class="p-2">
           <p class="text-xs font-semibold text-gray-700">${eventName}</p>
           ${photo.description ? `<p class="text-xs text-gray-500 mt-1">${photo.description}</p>` : ""}
+          <p class="text-xs text-gray-600 mt-1">@${photo.firstName || "Користувач"}</p>
+          <div class="photo-reactions" id="reactions-${photo.id}"></div>
         </div>
       </div>
     `
@@ -1774,6 +1810,25 @@ function displayPhotos(photos) {
   if (lucide) {
     lucide.createIcons()
   }
+
+  // Завантажуємо реакції для кожного фото та перевіряємо статус розблокування
+  photos.forEach(async (photo) => {
+    loadPhotoReactions(photo.id)
+
+    const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
+    if (!isOwnPhoto) {
+      const unlocked = await checkPhotoUnlocked(photo.id)
+      if (unlocked) {
+        const img = document.getElementById(`photo-${photo.id}`)
+        const container = document.querySelector(`.photo-container-${photo.id}`)
+        if (img) img.classList.remove("photo-blurred")
+        if (container) {
+          const overlay = container.querySelector(".photo-unlock-overlay")
+          if (overlay) overlay.remove()
+        }
+      }
+    }
+  })
 }
 
 async function loadEventPhotos() {
@@ -1791,6 +1846,12 @@ async function loadEventPhotos() {
     }
 
     displayPhotos(allPhotos)
+
+    // Оновлюємо баланс зірок в шапці
+    updateHeaderStarsBalance()
+
+    // Показуємо модальне вікно акції при першому відвідуванні
+    showPromoModalIfNeeded()
   } catch (error) {
     console.error("Error loading photos:", error)
     document.getElementById("photos-gallery").innerHTML =
@@ -1809,16 +1870,18 @@ function filterPhotosByEvent() {
   }
 }
 
-function openPhotoModal(photoUrl, author, eventTitle) {
+function openPhotoModal(photo, eventTitle) {
+  // changed parameter name to photo
   const modal = document.getElementById("photo-modal")
   const img = document.getElementById("modal-photo-img")
   const eventEl = document.getElementById("modal-photo-event")
   const authorEl = document.getElementById("modal-photo-author")
+  const descriptionEl = document.getElementById("modal-photo-description")
 
-  img.src = photoUrl
+  img.src = `${API_URL}${photo.url}`
   eventEl.textContent = eventTitle
-  authorEl.textContent = `Автор: ${author}`
-  document.getElementById("modal-photo-description").textContent = ""
+  authorEl.textContent = `Автор: ${photo.firstName || "Користувач"}`
+  descriptionEl.textContent = photo.description || ""
 
   modal.classList.add("active")
   document.body.style.overflow = "hidden"
@@ -2066,17 +2129,199 @@ async function loadApprovedVideos() {
   }
 }
 
-// function openPhotoModal(photoUrl, author, eventTitle) { // Redeclared function
-//   const modal = document.getElementById("photo-modal")
-//   const img = document.getElementById("modal-photo-img")
-//   const eventEl = document.getElementById("modal-photo-event")
-//   const authorEl = document.getElementById("modal-photo-author")
+// ========== Telegram Stars System ==========
 
-//   img.src = photoUrl
-//   eventEl.textContent = eventTitle
-//   authorEl.textContent = `Автор: ${author}`
-//   document.getElementById("modal-photo-description").textContent = ""
+// Показати модальне вікно акції при першому відкритті галереї
+function showPromoModalIfNeeded() {
+  const hasSeenPromo = localStorage.getItem("hasSeenStarsPromo")
+  if (!hasSeenPromo) {
+    document.getElementById("promoModal").style.display = "flex"
+    localStorage.setItem("hasSeenStarsPromo", "true")
+  }
+}
 
-//   modal.classList.add("active")
-//   document.body.style.overflow = "hidden"
-// }
+function closePromoModal() {
+  document.getElementById("promoModal").style.display = "none"
+}
+
+// Показати профіль користувача з балансом
+async function showStarsProfile() {
+  try {
+    const response = await fetch(`${API_URL}/api/stars/balance/${telegramUser.id}`)
+    const data = await response.json()
+
+    document.getElementById("profileStarsCount").textContent = data.balance
+    document.getElementById("starsProfileModal").style.display = "flex"
+  } catch (error) {
+    console.error("Error loading stars balance:", error)
+  }
+}
+
+function closeStarsProfileModal() {
+  document.getElementById("starsProfileModal").style.display = "none"
+}
+
+// Запит на вивід зірок
+async function requestWithdraw() {
+  const amount = Number.parseInt(document.getElementById("withdrawAmount").value)
+
+  if (!amount || amount < 50) {
+    alert("Мінімальна сума виводу - 50 зірок")
+    return
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/stars/withdraw`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: telegramUser.id,
+        amount: amount,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (data.success) {
+      alert("Запит на вивід відправлено! Адміністратор розгляне його найближчим часом.")
+      closeStarsProfileModal()
+    } else {
+      alert(data.error || "Помилка обробки запиту")
+    }
+  } catch (error) {
+    console.error("Error requesting withdraw:", error)
+    alert("Помилка відправки запиту")
+  }
+}
+
+// Додати реакцію на фото
+async function addPhotoReaction(photoId, reaction) {
+  try {
+    await fetch(`${API_URL}/api/photos/${photoId}/react`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: telegramUser.id,
+        reaction: reaction,
+      }),
+    })
+
+    // Оновлюємо відображення реакцій
+    loadPhotoReactions(photoId)
+  } catch (error) {
+    console.error("Error adding reaction:", error)
+  }
+}
+
+// Завантажити реакції на фото
+async function loadPhotoReactions(photoId) {
+  try {
+    const response = await fetch(`${API_URL}/api/photos/${photoId}/reactions?userId=${telegramUser.id}`)
+    const data = await response.json()
+
+    const container = document.getElementById(`reactions-${photoId}`)
+    if (!container) return
+
+    const reactions = ["❤️"]
+    container.innerHTML = reactions
+      .map((emoji) => {
+        const count = data.reactions[emoji] || 0
+        const isActive = data.userReaction === emoji
+        return `
+        <button class="reaction-button ${isActive ? "active" : ""}" 
+                onclick="addPhotoReaction('${photoId}', '${emoji}')">
+          ${emoji} ${count > 0 ? count : ""}
+        </button>
+      `
+      })
+      .join("")
+  } catch (error) {
+    console.error("Error loading reactions:", error)
+  }
+}
+
+// Перевірити, чи фото розблоковано
+async function checkPhotoUnlocked(photoId) {
+  try {
+    const response = await fetch(`${API_URL}/api/photos/${photoId}/unlocked?userId=${telegramUser.id}`)
+    const data = await response.json()
+    return data.unlocked
+  } catch (error) {
+    console.error("Error checking unlock status:", error)
+    return false
+  }
+}
+
+// Розблокувати фото через Telegram Stars
+async function unlockPhoto(photoId) {
+  try {
+    const response = await fetch(`${API_URL}/api/photos/${photoId}/createInvoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: telegramUser.id }),
+    })
+
+    const data = await response.json()
+
+    if (data.alreadyUnlocked) {
+      // Фото вже розблоковано, просто показуємо його
+      const img = document.getElementById(`photo-${photoId}`)
+      if (img) {
+        img.classList.remove("photo-blurred")
+        const overlay = img.nextElementSibling
+        if (overlay) overlay.remove()
+      }
+    } else if (data.success) {
+      alert("Інвойс відправлено в Telegram бота. Перевірте повідомлення від бота для оплати.")
+    }
+  } catch (error) {
+    console.error("Error creating invoice:", error)
+    alert("Помилка створення інвойсу")
+  }
+}
+
+// Оновити баланс зірок в шапці галереї
+async function updateHeaderStarsBalance() {
+  try {
+    const response = await fetch(`${API_URL}/api/stars/balance/${telegramUser.id}`)
+    const data = await response.json()
+
+    const balanceEl = document.getElementById("headerStarsBalance")
+    if (balanceEl) {
+      balanceEl.textContent = data.balance
+    }
+  } catch (error) {
+    console.error("Error updating header stars balance:", error)
+  }
+}
+
+async function loadPhotos() {
+  try {
+    const response = await fetch(`${API_URL}/api/photos`)
+    allPhotos = await response.json()
+
+    allPhotos.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
+
+    const eventsResponse = await fetch(`${API_URL}/api/events`)
+    allEventsForPhotos = await eventsResponse.json()
+
+    const filter = document.getElementById("photo-event-filter")
+    if (filter) {
+      filter.innerHTML =
+        '<option value="">Всі івенти</option>' +
+        allEventsForPhotos.map((event) => `<option value="${event.id}">${event.title}</option>`).join("")
+    }
+
+    displayPhotos(allPhotos)
+
+    // Оновлюємо баланс зірок в шапці
+    updateHeaderStarsBalance()
+
+    // Показуємо модальне вікно акції при першому відвідуванні
+    showPromoModalIfNeeded()
+  } catch (error) {
+    console.error("Error loading photos:", error)
+    document.getElementById("photos-gallery").innerHTML =
+      '<div class="col-span-2 text-center text-red-500">Помилка завантаження фото</div>'
+  }
+}

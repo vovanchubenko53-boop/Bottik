@@ -654,6 +654,115 @@
             width: 24px;
             border-radius: 4px;
         }
+
+        /* Telegram Stars System */
+        .photo-blurred {
+            filter: blur(20px);
+            -webkit-filter: blur(20px);
+            transition: filter 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .photo-unlock-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        .photo-reactions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .reaction-button {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 16px;
+            background: #f0f0f0;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .reaction-button:hover {
+            background: #e8e8e8;
+        }
+
+        .reaction-button.active {
+            background: #007AFF;
+            color: white;
+            border-color: #007AFF;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .stars-balance {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .promo-badge {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            margin: 1rem 0;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.02);
+            }
+        }
         
     </style>
 </head>
@@ -1047,7 +1156,7 @@
                     <label class="text-sm text-gray-600">Термін дії події (годин):</label>
                     <input type="number" id="event-duration" value="24" class="w-full bg-white border border-gray-300 rounded-lg p-3 mt-1">
                 </div>
-                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg tiktok-button" onclick="createNewEvent()">Створити</button>
+                <button class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg tiktok-button" onclick="createNewEvent(event)">Створити</button>
             </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-events-list')">Назад</div>
@@ -1063,10 +1172,16 @@
         <main class="flex-grow p-4 space-y-4">
             <div class="flex justify-between items-center">
                 <h1 class="text-xl font-bold">Фотогалерея</h1>
-                <button class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2" onclick="goToPage('page-upload-photo')">
-                    <i data-lucide="plus" class="w-5 h-5"></i>
-                    Додати фото
-                </button>
+                <div class="flex gap-2">
+                    <button class="bg-purple-500 text-white px-3 py-2 rounded-lg font-semibold flex items-center gap-1" onclick="showStarsProfile()">
+                        <span id="headerStarsBalance">0</span>
+                        <span>⭐</span>
+                    </button>
+                    <button class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2" onclick="goToPage('page-upload-photo')">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                        Додати фото
+                    </button>
+                </div>
             </div>
             
             <div class="bg-white rounded-xl shadow-sm p-3">
@@ -1358,6 +1473,86 @@
             <img id="profile-avatar" src="/placeholder.svg" alt="Avatar" class="user-profile-avatar">
             <h2 id="profile-name" class="text-2xl font-bold mb-2">Користувач</h2>
             <p id="profile-joined" class="text-gray-600 text-sm"></p>
+        </div>
+    </div>
+
+    <!-- Модальне вікно акції "Місяць зорепаду" -->
+    <div id="promoModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold mb-3 text-center">🌟 Місяць зорепаду!</h2>
+            <div class="promo-badge">
+                Отримуй зірки Telegram за кожне фото!
+            </div>
+            <!-- Оновлено текст пунктів згідно з вимогами -->
+            <ul class="text-sm text-gray-700 mb-4 space-y-2 text-left">
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">⭐</span>
+                    <span>50 зірок Telegram за кожне фото</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">🏆</span>
+                    <span>Зірки Telegram отримують перші 50 фото, які набрали найбільшу к-сть лайків за місяць.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">📅</span>
+                    <span>Починаємо 30 жовтня. Підсумки-30 листопада</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">📊</span>
+                    <span>Буде рейтинг переможців. Публікація в чаті <a href="https://t.me/u_hub_chat/58" target="_blank" class="text-blue-500 underline">"Місяць зорепаду"</a></span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">🎁</span>
+                    <span>Бонус-перші 3 місця в рейтингу отримають подарунки Telegram🎁.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">♾️</span>
+                    <span>Кількість фото від 1-го користувача необмежена ♾️</span>
+                </li>
+                <!-- Додано останній пункт з "coming soon" виділений кольором -->
+                <li class="flex items-start gap-2">
+                    <span class="flex-shrink-0">❤️</span>
+                    <span>Отримуй зірки коли інші відкривають твої фото — <span class="text-purple-600 font-bold">coming soon...</span></span>
+                </li>
+            </ul>
+            <button onclick="closePromoModal()" 
+                    class="w-full bg-blue-500 text-white py-3 rounded-lg font-medium">
+                Зрозуміло!
+            </button>
+        </div>
+    </div>
+
+    <!-- Модальне вікно профілю користувача -->
+    <div id="starsProfileModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold mb-4 text-center">⭐ Мій баланс</h2>
+            
+            <div class="text-center mb-4">
+                <div class="stars-balance mb-2">
+                    <span id="profileStarsCount">0</span>
+                    <span>⭐</span>
+                </div>
+                <p class="text-sm text-gray-600">Ваш баланс зірок</p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Сума для виводу (мінімум 50 ⭐)</label>
+                <input type="number" 
+                       id="withdrawAmount" 
+                       min="50" 
+                       placeholder="50"
+                       class="w-full p-2 border rounded-lg">
+            </div>
+
+            <button onclick="requestWithdraw()" 
+                    class="w-full bg-green-500 text-white py-3 rounded-lg font-medium mb-2">
+                Запит на вивід
+            </button>
+
+            <button onclick="closeStarsProfileModal()" 
+                    class="w-full bg-gray-300 text-gray-700 py-3 rounded-lg font-medium">
+                Закрити
+            </button>
         </div>
     </div>
 
