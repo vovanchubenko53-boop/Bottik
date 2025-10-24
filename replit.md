@@ -3,7 +3,16 @@
 ### Overview
 U-hub is a comprehensive Telegram Mini App designed for students of Taras Shevchenko National University of Kyiv. It offers functionalities for viewing news, managing class schedules, uploading videos, organizing student events, and a photo gallery with a "Starfall Month" contest. The project aims to enhance student life by centralizing essential university information and fostering community engagement.
 
-### Recent Changes (October 22, 2025)
+### Recent Changes (October 24, 2025)
+- **Schedule UX Enhancement**: Implemented horizontal scrolling for language groups - each time slot now displays 5 groups in an individual horizontal scroller with indicator dots
+- **Blurred Photo Redesign**: Removed lock icon, added grainy animated blur effect (Telegram-style), changed text to "Відкрити за 1 ⭐", updated balance button color to #c084fc
+- **Owner Notifications**: Photo owners now receive Telegram notifications when someone unlocks their blurred photos for payment
+- **Withdrawal System**: Added semi-automatic withdrawal system with 50 stars minimum, admin panel for request management (approve/reject), username display, and transaction history
+- **Daily Promo Modal**: Promotional modal now appears once per day (using date-based localStorage) when users open the photo gallery
+- **Simplified Reactions**: Limited photo reactions to heart only (❤️), removed all other reaction types
+- **Monthly Contest System**: Implemented "Місяць Зорепаду" contest system tracking top 50 photos by like count each month
+
+### Previous Updates (October 22, 2025)
 - **Photo Gallery Layout**: Changed from 2-column to 3-column grid display with square aspect-ratio images for better visual consistency
 - **Album Navigation**: Added prev/next navigation buttons and touch swipe gesture support (50px threshold) for browsing album photos
 - **Blur Feature Fix**: Fixed critical bug where `hasBlur` flag was lost during photo moderation - now properly preserved when approving photos
@@ -38,7 +47,7 @@ The backend is built with Node.js 20 and Express.js. Key functionalities include
 #### System Design Choices
 - **Frontend**: Single-page application approach using `index.html` for all main views and `app.js` for logic.
 - **Backend**: RESTful API design using Express.js.
-- **Data Storage**: JSON files (`events.json`, `videos.json`, `photos.json`, `botUsers.json`, `adminSettings.json`) are used for data persistence.
+- **Data Storage**: JSON files (`events.json`, `videos.json`, `photos.json`, `botUsers.json`, `adminSettings.json`, `starsBalances.json`, `photoReactions.json`, `photoUnlocks.json`, `withdrawalRequests.json`) are used for data persistence.
 - **Modularity**: Parsers are separated into dedicated modules (`newsParser.js`, `scheduleParser.js`).
 - **Caching**: News content is cached and updated periodically to reduce load times.
 
