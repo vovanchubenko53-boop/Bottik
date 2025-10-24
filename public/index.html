@@ -675,7 +675,11 @@
 
         /* Стили для скролла каждого временного слота отдельно */
         .schedule-time-slot {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
+            background: white;
+            border-radius: 12px;
+            padding: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
 
         .time-slot-groups-container {
@@ -684,8 +688,9 @@
             scroll-snap-type: x mandatory;
             scrollbar-width: none;
             -ms-overflow-style: none;
-            gap: 1rem;
-            padding: 0.5rem 0;
+            gap: 0;
+            padding: 0;
+            scroll-behavior: smooth;
         }
 
         .time-slot-groups-container::-webkit-scrollbar {
@@ -696,6 +701,7 @@
             flex: 0 0 100%;
             scroll-snap-align: start;
             min-width: 100%;
+            scroll-snap-stop: always;
         }
 
         .time-slot-indicator {
@@ -703,6 +709,11 @@
             justify-content: center;
             gap: 0.5rem;
             margin-top: 0.75rem;
+            cursor: pointer;
+        }
+        
+        .schedule-group-dot {
+            cursor: pointer;
         }
 
         /* Telegram Stars System */

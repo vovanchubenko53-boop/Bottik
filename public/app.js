@@ -407,24 +407,41 @@ function viewScheduleDay(day) {
     const container = document.getElementById("schedule-groups-container")
     container.innerHTML = ""
 
-    // Создаем контейнер для всех пар
-    const schedulesHTML = Object.keys(groupedByTime).map((time) => {
+    // Функція для сортування часу
+    const sortTimeSlots = (times) => {
+      return times.sort((a, b) => {
+        const getMinutes = (timeStr) => {
+          const match = timeStr.match(/^(\d+):(\d+)/)
+          if (match) {
+            return parseInt(match[1]) * 60 + parseInt(match[2])
+          }
+          return 0
+        }
+        return getMinutes(a) - getMinutes(b)
+      })
+    }
+
+    // Сортуємо часові слоти
+    const sortedTimes = sortTimeSlots(Object.keys(groupedByTime))
+
+    // Создаем контейнер для всех пар (вертикально по времени)
+    const schedulesHTML = sortedTimes.map((time) => {
       const groups = groupedByTime[time]
       const hasMultipleGroups = groups.length > 1
       const timeSlotId = `time-slot-${time.replace(/[:\-\s]/g, '')}`
 
       if (hasMultipleGroups) {
-        // Для каждого временного слота с несколькими группами создаем свой скроллер
+        // Для каждого временного слота с несколькими группами создаем свой скроллер (горизонтальный)
         return `
-          <div class="schedule-time-slot mb-6">
+          <div class="schedule-time-slot">
             <div class="time-slot-groups-container" id="${timeSlotId}" data-time="${time}">
               ${groups.map((cls, groupIdx) => `
                 <div class="time-slot-group">
-                  <div class="border-l-4 border-blue-500 pl-3">
-                    <div class="font-bold">${cls.time}</div>
-                    <div class="text-gray-700">${cls.subject}</div>
-                    <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
-                    <div class="text-xs text-blue-500 mt-1">Група ${groupIdx + 1}</div>
+                  <div class="border-l-4 border-blue-500 pl-3 pr-3">
+                    <div class="font-bold text-base mb-1">${cls.time}</div>
+                    <div class="text-gray-800 font-medium mb-1">${cls.subject}</div>
+                    <div class="text-sm text-gray-600">${cls.teacher || ""}</div>
+                    ${cls.room ? `<div class="text-sm text-gray-600">каб. ${cls.room}</div>` : ''}
                   </div>
                 </div>
               `).join('')}
@@ -440,11 +457,12 @@ function viewScheduleDay(day) {
         // Одна группа - показываем без скроллера
         const cls = groups[0]
         return `
-          <div class="schedule-time-slot mb-6">
-            <div class="border-l-4 border-blue-500 pl-3">
-              <div class="font-bold">${cls.time}</div>
-              <div class="text-gray-700">${cls.subject}</div>
-              <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
+          <div class="schedule-time-slot">
+            <div class="border-l-4 border-blue-500 pl-3 pr-3 py-2">
+              <div class="font-bold text-base mb-1">${cls.time}</div>
+              <div class="text-gray-800 font-medium mb-1">${cls.subject}</div>
+              <div class="text-sm text-gray-600">${cls.teacher || ""}</div>
+              ${cls.room ? `<div class="text-sm text-gray-600">каб. ${cls.room}</div>` : ''}
             </div>
           </div>
         `
@@ -454,7 +472,7 @@ function viewScheduleDay(day) {
     container.innerHTML = schedulesHTML
 
     // Добавляем обработчики для каждого скроллера
-    Object.keys(groupedByTime).forEach((time) => {
+    sortedTimes.forEach((time) => {
       const groups = groupedByTime[time]
       if (groups.length > 1) {
         const timeSlotId = `time-slot-${time.replace(/[:\-\s]/g, '')}`
