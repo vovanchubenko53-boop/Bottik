@@ -631,25 +631,11 @@
             background: #F5F5F5;
         }
 
-        /* Добавляем стили для горизонтального скролла групп в расписании */
+        /* Основний контейнер - вертикальний (пари йдуть зверху вниз по часу) */
         .schedule-groups-container {
             display: flex;
-            overflow-x: auto;
-            scroll-snap-type: x mandatory;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-            gap: 1rem;
-            padding: 0.5rem 0;
-        }
-        
-        .schedule-groups-container::-webkit-scrollbar {
-            display: none;
-        }
-        
-        .schedule-group {
-            flex: 0 0 100%;
-            scroll-snap-align: start;
-            min-width: 100%;
+            flex-direction: column;
+            gap: 0;
         }
         
         .schedule-group-indicator {
