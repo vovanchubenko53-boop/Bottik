@@ -1935,6 +1935,7 @@ function displayPhotos(photos) {
           <p class="text-xs font-semibold text-gray-700">${eventName}</p>
           ${firstPhoto.description ? `<p class="text-xs text-gray-500 mt-1">${firstPhoto.description}</p>` : ""}
           <p class="text-xs text-gray-600 mt-1">@${firstPhoto.firstName || "Користувач"}</p>
+          <div class="photo-reactions" id="reactions-${firstPhoto.id}"></div>
         </div>
       </div>
     `
@@ -1981,6 +1982,12 @@ function displayPhotos(photos) {
   if (lucide) {
     lucide.createIcons()
   }
+
+  // Завантажуємо реакції для альбомів (перше фото кожного альбому)
+  Object.keys(albums).forEach((albumId) => {
+    const firstPhoto = albums[albumId][0]
+    loadPhotoReactions(firstPhoto.id)
+  })
 
   // Завантажуємо реакції для кожного фото та перевіряємо статус розблокування
   photos.forEach(async (photo) => {
