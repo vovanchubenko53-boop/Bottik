@@ -704,7 +704,7 @@
 
         /* Telegram Stars System - Анімований зернистий блюр */
         .photo-blurred {
-            filter: blur(40px) saturate(0.5) brightness(0.85);
+            filter: blur(40px) saturate(0.5) brightness(0.85) url(#grainyBlur);
             -webkit-filter: blur(40px) saturate(0.5) brightness(0.85);
             transition: filter 0.4s ease;
             cursor: pointer;
@@ -715,89 +715,59 @@
         .photo-blurred::before {
             content: "";
             position: absolute;
-            top: -50%;
-            left: -50%;
-            right: -50%;
-            bottom: -50%;
-            background-image: 
-                radial-gradient(circle at 20% 30%, white 1px, transparent 1px),
-                radial-gradient(circle at 60% 70%, white 1.5px, transparent 1.5px),
-                radial-gradient(circle at 80% 20%, white 1px, transparent 1px),
-                radial-gradient(circle at 40% 80%, white 2px, transparent 2px),
-                radial-gradient(circle at 90% 60%, white 1px, transparent 1px),
-                radial-gradient(circle at 10% 90%, white 1.5px, transparent 1.5px),
-                radial-gradient(circle at 70% 40%, white 1px, transparent 1px),
-                radial-gradient(circle at 30% 50%, white 1.5px, transparent 1.5px);
-            background-size: 200% 200%, 250% 250%, 180% 180%, 220% 220%, 
-                           240% 240%, 200% 200%, 260% 260%, 190% 190%;
-            background-position: 0% 0%, 100% 100%, 50% 50%, 20% 80%,
-                               80% 20%, 40% 60%, 60% 40%, 10% 90%;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.4'/%3E%3C/svg%3E");
+            background-size: 180px 180px;
+            opacity: 0.85;
             pointer-events: none;
-            opacity: 0.7;
-            animation: floatingDots 25s ease-in-out infinite;
+            animation: grain 0.6s steps(8) infinite, grainMove 12s ease-in-out infinite;
+            mix-blend-mode: overlay;
         }
 
         .photo-blurred::after {
             content: "";
             position: absolute;
-            top: -50%;
-            left: -50%;
-            right: -50%;
-            bottom: -50%;
-            background-image: 
-                radial-gradient(circle at 35% 25%, white 1px, transparent 1px),
-                radial-gradient(circle at 75% 75%, white 1.5px, transparent 1.5px),
-                radial-gradient(circle at 15% 65%, white 1px, transparent 1px),
-                radial-gradient(circle at 55% 15%, white 2px, transparent 2px),
-                radial-gradient(circle at 85% 85%, white 1px, transparent 1px),
-                radial-gradient(circle at 25% 95%, white 1.5px, transparent 1.5px),
-                radial-gradient(circle at 95% 45%, white 1px, transparent 1px),
-                radial-gradient(circle at 45% 55%, white 1.5px, transparent 1.5px);
-            background-size: 220% 220%, 280% 280%, 200% 200%, 240% 240%, 
-                           260% 260%, 210% 210%, 270% 270%, 195% 195%;
-            background-position: 100% 0%, 0% 100%, 80% 20%, 30% 70%,
-                               70% 30%, 50% 90%, 90% 50%, 20% 10%;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter2'%3E%3CfeTurbulence type='turbulence' baseFrequency='4.2' numOctaves='4' seed='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter2)' opacity='0.35'/%3E%3C/svg%3E");
+            background-size: 150px 150px;
+            opacity: 0.75;
             pointer-events: none;
-            opacity: 0.6;
-            animation: floatingDots2 30s ease-in-out infinite;
+            animation: grain2 0.8s steps(6) infinite, grainMove2 15s ease-in-out infinite;
+            mix-blend-mode: soft-light;
         }
 
-        @keyframes floatingDots {
-            0%, 100% { 
-                transform: translate(0, 0) rotate(0deg);
-                opacity: 0.7;
-            }
-            25% { 
-                transform: translate(-10%, -15%) rotate(90deg);
-                opacity: 0.8;
-            }
-            50% { 
-                transform: translate(5%, 10%) rotate(180deg);
-                opacity: 0.6;
-            }
-            75% { 
-                transform: translate(-15%, 8%) rotate(270deg);
-                opacity: 0.9;
-            }
+        @keyframes grain {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -10%); }
+            20% { transform: translate(-15%, 5%); }
+            30% { transform: translate(7%, -25%); }
+            40% { transform: translate(-5%, 25%); }
+            50% { transform: translate(-15%, 10%); }
+            60% { transform: translate(15%, 0%); }
+            70% { transform: translate(0%, 15%); }
+            80% { transform: translate(3%, -10%); }
+            90% { transform: translate(-10%, 5%); }
         }
 
-        @keyframes floatingDots2 {
-            0%, 100% { 
-                transform: translate(0, 0) rotate(0deg);
-                opacity: 0.6;
-            }
-            30% { 
-                transform: translate(12%, -8%) rotate(-90deg);
-                opacity: 0.7;
-            }
-            60% { 
-                transform: translate(-8%, 12%) rotate(-180deg);
-                opacity: 0.5;
-            }
-            90% { 
-                transform: translate(10%, -10%) rotate(-270deg);
-                opacity: 0.8;
-            }
+        @keyframes grain2 {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            12% { transform: translate(8%, -5%) rotate(5deg); }
+            25% { transform: translate(-10%, 10%) rotate(-8deg); }
+            37% { transform: translate(12%, -8%) rotate(12deg); }
+            50% { transform: translate(-7%, 15%) rotate(-5deg); }
+            62% { transform: translate(10%, -12%) rotate(8deg); }
+            75% { transform: translate(-15%, 5%) rotate(-10deg); }
+            87% { transform: translate(5%, -15%) rotate(6deg); }
+        }
+
+        @keyframes grainMove {
+            0%, 100% { opacity: 0.85; }
+            50% { opacity: 0.65; }
+        }
+
+        @keyframes grainMove2 {
+            0%, 100% { opacity: 0.75; }
+            50% { opacity: 0.55; }
         }
 
         .photo-unlock-overlay {

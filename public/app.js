@@ -2428,8 +2428,8 @@ async function requestWithdraw() {
   }
 }
 
-// Додати реакцію на фото
-async function addPhotoReaction(photoId, reaction) {
+// Додати або видалити реакцію на фото (toggle)
+async function togglePhotoReaction(photoId, reaction) {
   try {
     await fetch(`${API_URL}/api/photos/${photoId}/react`, {
       method: "POST",
@@ -2443,8 +2443,13 @@ async function addPhotoReaction(photoId, reaction) {
     // Оновлюємо відображення реакцій
     loadPhotoReactions(photoId)
   } catch (error) {
-    console.error("Error adding reaction:", error)
+    console.error("Error toggling reaction:", error)
   }
+}
+
+// Залишаємо старе ім'я для сумісності
+async function addPhotoReaction(photoId, reaction) {
+  return togglePhotoReaction(photoId, reaction)
 }
 
 // Завантажити реакції на фото
@@ -2463,7 +2468,8 @@ async function loadPhotoReactions(photoId) {
         const isActive = data.userReaction === emoji
         return `
         <button class="reaction-button ${isActive ? "active" : ""}" 
-                onclick="addPhotoReaction('${photoId}', '${emoji}')">
+                onclick="togglePhotoReaction('${photoId}', '${emoji}')"
+                title="${isActive ? 'Прибрати лайк' : 'Поставити лайк'}">
           ${emoji} ${count > 0 ? count : ""}
         </button>
       `

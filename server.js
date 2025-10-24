@@ -2373,7 +2373,7 @@ app.get("/api/stars/balance/:userId", (req, res) => {
   res.json({ balance })
 })
 
-// Додати реакцію на фото
+// Додати або видалити реакцію на фото (toggle)
 app.post("/api/photos/:photoId/react", async (req, res) => {
   try {
     const { photoId } = req.params
@@ -2387,13 +2387,20 @@ app.post("/api/photos/:photoId/react", async (req, res) => {
       photoReactions[photoId] = {}
     }
 
-    photoReactions[photoId][userId] = reaction
+    // Toggle логіка: якщо користувач вже поставив цю реакцію, видаляємо її
+    if (photoReactions[photoId][userId] === reaction) {
+      delete photoReactions[photoId][userId]
+      console.log(`[v0] ❌ Користувач ${userId} прибрав реакцію ${reaction} з фото ${photoId}`)
+    } else {
+      photoReactions[photoId][userId] = reaction
+      console.log(`[v0] ✅ Користувач ${userId} поставив реакцію ${reaction} на фото ${photoId}`)
+    }
 
     await saveData()
     res.json({ success: true })
   } catch (error) {
-    console.error("Error adding reaction:", error)
-    res.status(500).json({ error: "Failed to add reaction" })
+    console.error("Error toggling reaction:", error)
+    res.status(500).json({ error: "Failed to toggle reaction" })
   }
 })
 
