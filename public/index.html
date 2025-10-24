@@ -673,13 +673,71 @@
             border-radius: 4px;
         }
 
+        /* Стили для скролла каждого временного слота отдельно */
+        .schedule-time-slot {
+            margin-bottom: 1.5rem;
+        }
+
+        .time-slot-groups-container {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            gap: 1rem;
+            padding: 0.5rem 0;
+        }
+
+        .time-slot-groups-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .time-slot-group {
+            flex: 0 0 100%;
+            scroll-snap-align: start;
+            min-width: 100%;
+        }
+
+        .time-slot-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
         /* Telegram Stars System */
         .photo-blurred {
-            filter: blur(32px) saturate(0.6) brightness(0.9);
-            -webkit-filter: blur(32px) saturate(0.6) brightness(0.9);
-            transition: filter 0.3s ease;
+            filter: blur(40px) saturate(0.5) brightness(0.85);
+            -webkit-filter: blur(40px) saturate(0.5) brightness(0.85);
+            transition: filter 0.4s ease;
             cursor: pointer;
             position: relative;
+        }
+
+        .photo-blurred::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+            pointer-events: none;
+            opacity: 0.6;
+            animation: grain 0.8s steps(10) infinite;
+        }
+
+        @keyframes grain {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -10%); }
+            20% { transform: translate(-15%, 5%); }
+            30% { transform: translate(7%, -25%); }
+            40% { transform: translate(-5%, 25%); }
+            50% { transform: translate(-15%, 10%); }
+            60% { transform: translate(15%, 0%); }
+            70% { transform: translate(0%, 15%); }
+            80% { transform: translate(3%, 10%); }
+            90% { transform: translate(-10%, 10%); }
         }
 
         .photo-unlock-overlay {
@@ -688,7 +746,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.72);
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.5) 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -696,7 +754,8 @@
             color: white;
             cursor: pointer;
             border-radius: 8px;
-            backdrop-filter: blur(3px) saturate(0.8);
+            backdrop-filter: blur(8px) saturate(0.7);
+            -webkit-backdrop-filter: blur(8px) saturate(0.7);
         }
 
         .photo-reactions {
@@ -1193,7 +1252,7 @@
             <div class="flex justify-between items-center">
                 <h1 class="text-xl font-bold">Фотогалерея</h1>
                 <div class="flex gap-2">
-                    <button class="bg-purple-500 text-white px-3 py-2 rounded-lg font-semibold flex items-center gap-1" onclick="showStarsProfile()">
+                    <button class="bg-[#c084fc] text-white px-3 py-2 rounded-lg font-semibold flex items-center gap-1" onclick="showStarsProfile()">
                         <span id="headerStarsBalance">0</span>
                         <span>⭐</span>
                     </button>

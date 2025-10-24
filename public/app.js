@@ -82,6 +82,7 @@ function goToPage(pageId, event) {
     loadEvents()
   } else if (pageId === "page-event-photos") {
     loadEventPhotos()
+    showPromoModalIfNeeded()
   } else if (pageId === "page-upload-photo") {
     loadUploadPhotoEvents()
   } else if (pageId === "page-event-chat") {
@@ -398,115 +399,113 @@ function viewScheduleDay(day) {
     const groupedByTime = {}
     classes.forEach((cls) => {
       if (!groupedByTime[cls.time]) {
-        groupedByTime.time = []
+        groupedByTime[cls.time] = []
       }
       groupedByTime[cls.time].push(cls)
     })
 
-    // Определяем максимальное количество групп
-    totalGroups = Math.max(...Object.values(groupedByTime).map((g) => g.length))
-    currentGroupIndex = 0
-
     const container = document.getElementById("schedule-groups-container")
-    const indicator = document.getElementById("schedule-group-indicator")
+    container.innerHTML = ""
 
-    if (totalGroups > 1) {
-      // Создаем контейнеры для каждой группы
-      container.innerHTML = ""
+    // Создаем контейнер для всех пар
+    const schedulesHTML = Object.keys(groupedByTime).map((time) => {
+      const groups = groupedByTime[time]
+      const hasMultipleGroups = groups.length > 1
+      const timeSlotId = `time-slot-${time.replace(/[:\-\s]/g, '')}`
 
-      for (let groupIdx = 0; groupIdx < totalGroups; groupIdx++) {
-        const groupDiv = document.createElement("div")
-        groupDiv.className = "schedule-group"
-
-        const classesHTML = Object.keys(groupedByTime)
-          .map((time) => {
-            const group = groupedByTime[time]
-            const cls = group[groupIdx] || group[0] // Если группы нет, показываем первую
-
-            return `
-            <div class="border-l-4 border-blue-500 pl-3">
-                <div class="font-bold">${cls.time}</div>
-                <div class="text-gray-700">${cls.subject}</div>
-                <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
-                ${totalGroups > 1 ? `<div class="text-xs text-blue-500 mt-1">Група ${groupIdx + 1}</div>` : ""}
+      if (hasMultipleGroups) {
+        // Для каждого временного слота с несколькими группами создаем свой скроллер
+        return `
+          <div class="schedule-time-slot mb-6">
+            <div class="time-slot-groups-container" id="${timeSlotId}" data-time="${time}">
+              ${groups.map((cls, groupIdx) => `
+                <div class="time-slot-group">
+                  <div class="border-l-4 border-blue-500 pl-3">
+                    <div class="font-bold">${cls.time}</div>
+                    <div class="text-gray-700">${cls.subject}</div>
+                    <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
+                    <div class="text-xs text-blue-500 mt-1">Група ${groupIdx + 1}</div>
+                  </div>
+                </div>
+              `).join('')}
             </div>
-          `
-          })
-          .join("")
-
-        groupDiv.innerHTML = `<div class="space-y-4">${classesHTML}</div>`
-        container.appendChild(groupDiv)
-      }
-
-      // Создаем индикаторы
-      indicator.innerHTML = Array.from(
-        { length: totalGroups },
-        (_, i) => `<div class="schedule-group-dot ${i === 0 ? "active" : ""}" data-group="${i}"></div>`,
-      ).join("")
-
-      // Добавляем обработчик скролла
-      container.addEventListener("scroll", handleScheduleScroll)
-
-      // Добавляем клик по индикаторам
-      indicator.querySelectorAll(".schedule-group-dot").forEach((dot, idx) => {
-        dot.addEventListener("click", () => scrollToGroup(idx))
-      })
-    } else {
-      // Одна группа - показываем как обычно
-      container.innerHTML = `
-        <div class="schedule-group">
-          <div class="space-y-4">
-            ${classes
-              .map(
-                (cls) => `
-              <div class="border-l-4 border-blue-500 pl-3">
-                  <div class="font-bold">${cls.time}</div>
-                  <div class="text-gray-700">${cls.subject}</div>
-                  <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
-              </div>
-            `,
-              )
-              .join("")}
+            <div class="time-slot-indicator" id="${timeSlotId}-indicator">
+              ${groups.map((_, i) => `
+                <div class="schedule-group-dot ${i === 0 ? "active" : ""}" data-group="${i}" data-container="${timeSlotId}"></div>
+              `).join('')}
+            </div>
           </div>
-        </div>
-      `
-      indicator.innerHTML = ""
-    }
+        `
+      } else {
+        // Одна группа - показываем без скроллера
+        const cls = groups[0]
+        return `
+          <div class="schedule-time-slot mb-6">
+            <div class="border-l-4 border-blue-500 pl-3">
+              <div class="font-bold">${cls.time}</div>
+              <div class="text-gray-700">${cls.subject}</div>
+              <div class="text-sm text-gray-500">${cls.teacher || ""} ${cls.room ? "• " + cls.room : ""}</div>
+            </div>
+          </div>
+        `
+      }
+    }).join('')
+
+    container.innerHTML = schedulesHTML
+
+    // Добавляем обработчики для каждого скроллера
+    Object.keys(groupedByTime).forEach((time) => {
+      const groups = groupedByTime[time]
+      if (groups.length > 1) {
+        const timeSlotId = `time-slot-${time.replace(/[:\-\s]/g, '')}`
+        const scrollContainer = document.getElementById(timeSlotId)
+        
+        if (scrollContainer) {
+          scrollContainer.addEventListener("scroll", () => handleTimeSlotScroll(timeSlotId))
+          
+          // Добавляем клик по индикаторам
+          const indicators = document.querySelectorAll(`#${timeSlotId}-indicator .schedule-group-dot`)
+          indicators.forEach((dot, idx) => {
+            dot.addEventListener("click", () => scrollToTimeSlotGroup(timeSlotId, idx))
+          })
+        }
+      }
+    })
   } else {
-    document.getElementById("schedule-groups-container").innerHTML =
-      '<div class="schedule-group"><div class="text-gray-500 text-center">Занять немає</div></div>'
-    document.getElementById("schedule-group-indicator").innerHTML = ""
+    const container = document.getElementById("schedule-groups-container")
+    container.innerHTML = '<div class="text-gray-500 text-center">Занять немає</div>'
   }
 
   goToPage("page-schedule-detail")
 }
 
-function handleScheduleScroll() {
-  const container = document.getElementById("schedule-groups-container")
+function handleTimeSlotScroll(containerId) {
+  const container = document.getElementById(containerId)
+  if (!container) return
+  
   const scrollLeft = container.scrollLeft
   const width = container.offsetWidth
   const newIndex = Math.round(scrollLeft / width)
 
-  if (newIndex !== currentGroupIndex) {
-    currentGroupIndex = newIndex
-    updateGroupIndicators()
-  }
+  updateTimeSlotIndicators(containerId, newIndex)
 }
 
-function scrollToGroup(index) {
-  const container = document.getElementById("schedule-groups-container")
+function scrollToTimeSlotGroup(containerId, index) {
+  const container = document.getElementById(containerId)
+  if (!container) return
+  
   const width = container.offsetWidth
   container.scrollTo({
     left: width * index,
     behavior: "smooth",
   })
-  currentGroupIndex = index
-  updateGroupIndicators()
+  updateTimeSlotIndicators(containerId, index)
 }
 
-function updateGroupIndicators() {
-  document.querySelectorAll(".schedule-group-dot").forEach((dot, idx) => {
-    if (idx === currentGroupIndex) {
+function updateTimeSlotIndicators(containerId, activeIndex) {
+  const indicators = document.querySelectorAll(`#${containerId}-indicator .schedule-group-dot`)
+  indicators.forEach((dot, idx) => {
+    if (idx === activeIndex) {
       dot.classList.add("active")
     } else {
       dot.classList.remove("active")
@@ -1638,9 +1637,7 @@ function showAlbumPhoto(index) {
     const overlay = document.createElement('div')
     overlay.className = 'photo-unlock-overlay'
     overlay.innerHTML = `
-      <div class="text-2xl mb-2">🔒</div>
-      <div class="font-bold">Відкрити фото</div>
-      <div class="text-sm">1 ⭐</div>
+      <div class="font-bold text-lg mb-1">Відкрити за 1 ⭐</div>
     `
     overlay.onclick = (e) => {
       e.stopPropagation()
@@ -1911,9 +1908,7 @@ function displayPhotos(photos) {
           ${
             !isOwnAlbum && albumHasBlur
               ? `<div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${firstPhoto.id}', true)">
-                   <div class=\"text-2xl mb-1\">🔒</div>
-                   <div class=\"font-bold\">Відкрити фото</div>
-                   <div class=\"text-sm opacity-90\">1 ⭐/фото</div>
+                   <div class=\"font-bold text-base\">Відкрити за 1 ⭐</div>
                  </div>`
               : `<div class=\"absolute inset-0\" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'></div>`
           }
@@ -1947,9 +1942,7 @@ function displayPhotos(photos) {
               ? ""
               : `
           <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}', true)">
-            <div class="text-2xl mb-1">🔒</div>
-            <div class="font-bold">Відкрити фото</div>
-            <div class="text-sm opacity-90">1 ⭐</div>
+            <div class="font-bold text-base">Відкрити за 1 ⭐</div>
           </div>
           `
           }
@@ -2344,12 +2337,14 @@ async function loadApprovedVideos() {
 
 // ========== Telegram Stars System ==========
 
-// Показати модальне вікно акції при першому відкритті галереї
+// Показати модальне вікно акції 1 раз на день
 function showPromoModalIfNeeded() {
-  const hasSeenPromo = localStorage.getItem("hasSeenStarsPromo")
-  if (!hasSeenPromo) {
+  const today = new Date().toISOString().split('T')[0]
+  const lastShown = localStorage.getItem("lastPromoShown")
+  
+  if (lastShown !== today) {
     document.getElementById("promoModal").style.display = "flex"
-    localStorage.setItem("hasSeenStarsPromo", "true")
+    localStorage.setItem("lastPromoShown", today)
   }
 }
 
@@ -2389,6 +2384,7 @@ async function requestWithdraw() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId: telegramUser.id,
+        username: telegramUser.username || telegramUser.first_name || 'unknown',
         amount: amount,
       }),
     })

@@ -104,6 +104,7 @@ let photoUnlocks = {}
 let dailyPhotoUploads = {}
 let weeklyBlurPhotos = {}
 let photoEarnings = {}
+let withdrawalRequests = {}
 let adminSettings = {
   heroImages: {
     news: "https://placehold.co/600x300/a3e635/444?text=News",
@@ -275,6 +276,22 @@ if (BOT_TOKEN) {
 
           // Оновлюємо лічильник відкриттів фото
           photo.unlockCount = (photo.unlockCount || 0) + 1
+
+          // Відправляємо уведомление владельцу фото о каждом открытии
+          if (String(authorId) !== String(userId) && bot) {
+            try {
+              await bot.sendMessage(
+                authorId,
+                `📸 Ваше фото відкрили за 1 ⭐\n\n` +
+                  `💰 Вам нараховано 1 зірку\n` +
+                  `⭐ Поточний баланс: ${userStarsBalances[authorId]} зірок\n\n` +
+                  `Всього відкриттів цього фото: ${photo.unlockCount}`
+              )
+              console.log(`[v0] 📬 Відправлено уведомление автору ${authorId} про відкриття фото`)
+            } catch (error) {
+              console.error(`[v0] ❌ Помилка відправки уведомления автору:`, error)
+            }
+          }
 
           if (photo.unlockCount % 50 === 0) {
             const starsToTransfer = 50
@@ -517,6 +534,15 @@ async function initializeData() {
       console.log("[v0] ⚠️ Файл заработков не найден, создан новый объект")
     }
 
+    try {
+      const withdrawalRequestsFile = await fs.readFile(path.join(dataPath, "withdrawalRequests.json"), "utf-8")
+      withdrawalRequests = JSON.parse(withdrawalRequestsFile)
+      console.log("[v0] ✅ Запросы на вывод загружены")
+    } catch (e) {
+      withdrawalRequests = {}
+      console.log("[v0] ⚠️ Файл запросов на вывод не найден, создан новый объект")
+    }
+
     eventsData.forEach((event) => {
       if (!eventParticipants[event.id]) {
         eventParticipants[event.id] = []
@@ -559,6 +585,7 @@ async function saveData() {
       fs.writeFile(path.join(dataPath, "dailyPhotoUploads.json"), JSON.stringify(dailyPhotoUploads, null, 2)),
       fs.writeFile(path.join(dataPath, "weeklyBlurPhotos.json"), JSON.stringify(weeklyBlurPhotos, null, 2)),
       fs.writeFile(path.join(dataPath, "photoEarnings.json"), JSON.stringify(photoEarnings, null, 2)),
+      fs.writeFile(path.join(dataPath, "withdrawalRequests.json"), JSON.stringify(withdrawalRequests, null, 2)),
     ])
 
     console.log("Data saved successfully")
@@ -2446,7 +2473,7 @@ app.get("/api/photos/blur-limit/:userId", (req, res) => {
 // Запит на вивід зірок
 app.post("/api/stars/withdraw", async (req, res) => {
   try {
-    const { userId, amount } = req.body
+    const { userId, amount, username } = req.body
 
     if (!userId || !amount) {
       return res.status(400).json({ error: "Missing required fields" })
@@ -2462,14 +2489,37 @@ app.post("/api/stars/withdraw", async (req, res) => {
       return res.status(400).json({ error: "Недостатньо зірок на балансі" })
     }
 
+    // Создаем запрос на вывод
+    const requestId = `WR-${Date.now()}`
+    withdrawalRequests[requestId] = {
+      id: requestId,
+      userId: String(userId),
+      username: username || 'unknown',
+      amount: amount,
+      balance: balance,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      processedAt: null,
+      rejectionReason: null
+    }
+
+    await saveData()
+
     // Відправляємо повідомлення адміну для ручної обробки
-    if (bot && botUsers.length > 0) {
-      const adminUsers = botUsers.slice(0, 1)
-      for (const admin of adminUsers) {
+    if (bot) {
+      try {
         await bot.sendMessage(
-          admin.chatId,
-          `💰 Запит на вивід зірок:\n\nКористувач ID: ${userId}\nСума: ${amount} ⭐️\nПоточний баланс: ${balance} ⭐️`,
+          ADMIN_TELEGRAM_ID,
+          `💰 Новий запит на вивід зірок:\n\n` +
+          `ID запиту: ${requestId}\n` +
+          `Користувач: @${username || userId}\n` +
+          `User ID: ${userId}\n` +
+          `Сума: ${amount} ⭐\n` +
+          `Поточний баланс: ${balance} ⭐\n\n` +
+          `Перейдіть в адмін панель для обробки запиту`
         )
+      } catch (error) {
+        console.error("[v0] ❌ Помилка відправки повідомлення адміну:", error)
       }
     }
 
@@ -2477,6 +2527,119 @@ app.post("/api/stars/withdraw", async (req, res) => {
   } catch (error) {
     console.error("Error processing withdrawal:", error)
     res.status(500).json({ error: "Failed to process withdrawal" })
+  }
+})
+
+// Получить все запросы на вывод (админ)
+app.get("/api/admin/withdrawal-requests", (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  const requests = Object.values(withdrawalRequests).sort((a, b) => {
+    return new Date(b.createdAt) - new Date(a.createdAt)
+  })
+
+  res.json(requests)
+})
+
+// Одобрить запрос на вывод (админ)
+app.post("/api/admin/withdrawal-requests/:id/approve", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const { id } = req.params
+    const request = withdrawalRequests[id]
+
+    if (!request) {
+      return res.status(404).json({ error: "Запит не знайдено" })
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: "Запит вже оброблено" })
+    }
+
+    // Снимаем звезды с баланса
+    userStarsBalances[request.userId] = (userStarsBalances[request.userId] || 0) - request.amount
+
+    // Обновляем статус запроса
+    request.status = 'approved'
+    request.processedAt = new Date().toISOString()
+
+    await saveData()
+
+    // Уведомляем пользователя
+    if (bot) {
+      try {
+        await bot.sendMessage(
+          request.userId,
+          `✅ Ваш запит на вивід схвалено!\n\n` +
+          `Сума: ${request.amount} ⭐\n` +
+          `Новий баланс: ${userStarsBalances[request.userId]} ⭐\n\n` +
+          `Зірки будуть переведені найближчим часом.`
+        )
+      } catch (error) {
+        console.error("[v0] ❌ Помилка відправки повідомлення користувачу:", error)
+      }
+    }
+
+    res.json({ success: true, request })
+  } catch (error) {
+    console.error("Error approving withdrawal:", error)
+    res.status(500).json({ error: "Помилка обробки запиту" })
+  }
+})
+
+// Отклонить запрос на вывод (админ)
+app.post("/api/admin/withdrawal-requests/:id/reject", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const { id } = req.params
+    const { reason } = req.body
+    const request = withdrawalRequests[id]
+
+    if (!request) {
+      return res.status(404).json({ error: "Запит не знайдено" })
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: "Запит вже оброблено" })
+    }
+
+    // Обновляем статус запроса
+    request.status = 'rejected'
+    request.processedAt = new Date().toISOString()
+    request.rejectionReason = reason || 'Причина не вказана'
+
+    await saveData()
+
+    // Звёзды остаются на балансе, уведомляем пользователя
+    if (bot) {
+      try {
+        await bot.sendMessage(
+          request.userId,
+          `❌ Ваш запит на вивід відхилено\n\n` +
+          `Сума: ${request.amount} ⭐\n` +
+          `Причина: ${request.rejectionReason}\n\n` +
+          `Зірки залишилися на вашому балансі: ${userStarsBalances[request.userId] || 0} ⭐`
+        )
+      } catch (error) {
+        console.error("[v0] ❌ Помилка відправки повідомлення користувачу:", error)
+      }
+    }
+
+    res.json({ success: true, request })
+  } catch (error) {
+    console.error("Error rejecting withdrawal:", error)
+    res.status(500).json({ error: "Помилка обробки запиту" })
   }
 })
 
