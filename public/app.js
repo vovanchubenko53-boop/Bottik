@@ -240,7 +240,6 @@ function getCategoryEmoji(category) {
     music: "🎶",
     scholarships: "🎓",
     tech: "🔬",
-    energy: "⚡",
     beauty: "💄",
     knu: "🎓",
   }
@@ -257,6 +256,9 @@ function displayFilteredNews() {
       // Используем поле category, которое добавляется при парсинге
       return item.category === currentCategory
     })
+  } else {
+    // Ограничиваем ленту "Все" до 30 новостей
+    filteredNews = allNewsCache.slice(0, 30)
   }
 
   if (filteredNews.length === 0) {
@@ -2514,34 +2516,54 @@ async function unlockPhoto(photoId, openInApp = false) {
     } else if (data.success || data.invoiceLink) {
       const link = data.invoiceLink
       if (openInApp && window.Telegram && window.Telegram.WebApp && link) {
-        // Якщо доступно, використовуємо openInvoice, інакше openLink
         const tg = window.Telegram.WebApp
-        const open = tg.openInvoice ? () => tg.openInvoice(link) : () => tg.openLink(link)
-        try {
-          const res = await open()
-          // деякі клієнти повертають проміс зі статусом
-          console.log("[v0] openInvoice/openLink result:", res)
-        } catch (e) {
-          console.warn("[v0] openInvoice/openLink error:", e)
-        }
-        // Після відкриття інвойсу запускаємо коротке опитування статусу (до 30с)
-        const start = Date.now()
-        const poll = async () => {
-          const unlocked = await checkPhotoUnlocked(photoId)
-          if (unlocked) {
-            const img = document.getElementById(`photo-${photoId}`)
-            if (img) {
-              img.classList.remove("photo-blurred")
-              const overlay = img.nextElementSibling
-              if (overlay) overlay.remove()
+        
+        if (tg.openInvoice) {
+          // Використовуємо openInvoice з callback функцією
+          tg.openInvoice(link, async (status) => {
+            console.log("[v0] Invoice payment status:", status)
+            
+            if (status === "paid") {
+              // Оплата успішна - перевіряємо статус і прибираємо блюр
+              const unlocked = await checkPhotoUnlocked(photoId)
+              if (unlocked) {
+                const img = document.getElementById(`photo-${photoId}`)
+                if (img) {
+                  img.classList.remove("photo-blurred")
+                  const overlay = img.nextElementSibling
+                  if (overlay) overlay.remove()
+                }
+                // Оновлюємо баланс після успішної оплати
+                updateHeaderStarsBalance()
+              }
+            } else if (status === "cancelled") {
+              console.log("[v0] Payment cancelled by user")
+            } else if (status === "failed") {
+              console.error("[v0] Payment failed")
+              alert("Помилка оплати. Спробуйте ще раз.")
             }
-            return
+          })
+        } else {
+          // Fallback: використовуємо openLink і polling
+          tg.openLink(link)
+          const start = Date.now()
+          const poll = async () => {
+            const unlocked = await checkPhotoUnlocked(photoId)
+            if (unlocked) {
+              const img = document.getElementById(`photo-${photoId}`)
+              if (img) {
+                img.classList.remove("photo-blurred")
+                const overlay = img.nextElementSibling
+                if (overlay) overlay.remove()
+              }
+              return
+            }
+            if (Date.now() - start < 30000) {
+              setTimeout(poll, 2000)
+            }
           }
-          if (Date.now() - start < 30000) {
-            setTimeout(poll, 2000)
-          }
+          setTimeout(poll, 1500)
         }
-        setTimeout(poll, 1500)
       } else if (link) {
         window.open(link, "_blank")
       } else {

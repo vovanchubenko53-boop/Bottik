@@ -12,13 +12,11 @@ const TELEGRAM_CHANNELS = [
   // Музика
   { name: "Нумо їхати!", username: "numogo", category: "music" },
   { name: "NUAM", username: "NewUAM", category: "music" },
-  { name: "ПОТОП", username: "potopvydav", category: "music" },
   { name: "Slay Music", username: "slaymsc", category: "music" },
   { name: "Liroom", username: "liroom", category: "music" },
   { name: "Bezodnya Music🎧", username: "bezodnyamusic", category: "music" },
 
   // Новини Києва
-  { name: "Киевский Движ", username: "k_dvizh", category: "kyiv" },
   { name: "🟢Київ Новини | Live 24/7", username: "kyiv_novyny_24", category: "kyiv" },
 
   // Студлайф
@@ -41,22 +39,18 @@ const TELEGRAM_CHANNELS = [
 
   // Наука, Технології, AI
   { name: "AI Best Tools", username: "AI_Best_Tools", category: "tech" },
-  { name: "News Techs", username: "news_techs", category: "tech" },
   { name: "Science", username: "science", category: "tech" },
   { name: "USF Official", username: "usfofficial", category: "tech" },
   { name: "ITC UA", username: "itcua", category: "tech" },
 
   // IELTS
-  { name: "Ingliz Tili UZ", username: "Ingliztiliuz", category: "scholarships" },
+  { name: "Ingliz Tili UZ", username: "Ingliztiliuzz", category: "scholarships" },
   { name: "English Made Easy", username: "Englishmade_easy", category: "scholarships" },
 
   // Бьюті
   { name: "UA Eva", username: "uaeva", category: "beauty" },
   { name: "Fashion Department KP", username: "fashiondepartment_kp", category: "beauty" },
 
-  // Електроенергія
-  // Додайте сюда канали про электроенергію, якщо потрібно
-  { name: "Energy Channel", username: "energy_channel", category: "energy" },
 ]
 
 const NEWS_SOURCES = [
