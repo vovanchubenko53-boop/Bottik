@@ -4,6 +4,19 @@
 U-hub is a comprehensive Telegram Mini App designed for students of Taras Shevchenko National University of Kyiv. It offers functionalities for viewing news, managing class schedules, uploading videos, organizing student events, and a photo gallery with a "Starfall Month" contest. The project aims to enhance student life by centralizing essential university information and fostering community engagement.
 
 ### Recent Changes (October 27, 2025)
+- **News Category Restructuring**: Improved news categorization system for better content organization
+  - Split broad "scholarships" category into three focused categories: "studlife", "exchanges", and "ielts"
+  - "Erasmus+ Projects" now correctly parses to "exchanges" category
+  - Added new filter buttons for Студлайф, Обмін/Стипендії, and IELTS with appropriate emoji mappings
+  - Category emojis: 📚 Студлайф, 🌍 Обмін/Стипендії, 🎓 IELTS
+- **Dynamic Channel Loading**: Implemented dynamic channel list generation
+  - Created /api/channels endpoint returning all channels with categories from TELEGRAM_CHANNELS array
+  - Replaced hardcoded HTML channel list with JavaScript-generated content via loadTelegramChannels()
+  - Channels now automatically categorized and rendered with proper grouping
+  - Updated cache busting version (?v=20251027) to ensure latest client code loads
+- **Photo Modal UI Fix**: Improved accessibility on mobile devices
+  - Repositioned close button from top:60px to top:16px for better reachability on devices with notches
+  - Enhanced button visibility with higher z-index and shadow effects
 - **Complete SQLite Migration**: Successfully migrated entire application from JSON file storage to SQLite database
   - Removed all legacy JSON functions (initializeData, saveData, loadBotUsers, saveEventParticipants, etc.)
   - Replaced 106 uses of global JSON variables with async db.js functions
