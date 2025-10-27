@@ -206,60 +206,6 @@ if (BOT_TOKEN) {
     })
 
     bot.on("message", async (msg) => {
-      // Обробка успішних платежів
-      if (msg.successful_payment) {
-        console.log("[v0] ✅ Успішний платіж:", msg.successful_payment)
-
-        try {
-          const payload = JSON.parse(msg.successful_payment.invoice_payload)
-
-          if (payload.type === "photo_unlock") {
-            const { photoId, userId } = payload
-            const photo = await getPhotoById(photoId)
-
-            if (photo) {
-              // Розблокування фото
-              const alreadyUnlocked = await checkPhotoUnlocked(photoId, userId)
-              if (!alreadyUnlocked) {
-                await insertPhotoUnlock(photoId, userId)
-              }
-
-              // Збільшуємо лічильники
-              await incrementPhotoUnlockCount(photoId)
-              await incrementPhotoPaidUnlocks(photoId)
-
-              // Increment photo earnings
-              const authorId = String(photo.user_id)
-              await incrementPhotoEarning(photoId, 1)
-              
-              const earnings = await getPhotoEarning(photoId)
-              const earnedCount = earnings ? earnings.earned : 1
-
-              // Автоматична виплата кожні 50 відкриттів
-              if (earnedCount >= 50 && earnedCount % 50 === 0) {
-                await incrementUserStarsBalance(authorId, 50)
-                await updatePhotoEarning(photoId, earnedCount, earnedCount)
-
-                // Відправляємо повідомлення автору
-                try {
-                  await bot.sendMessage(
-                    photo.user_id,
-                    `🎉 Вітаємо!\n\nВаше фото набрало ${earnedCount} платних переглядів!\n\n💰 Вам нараховано 50 Telegram Stars ⭐\n\nПродовжуйте публікувати якісні фото!`
-                  )
-                } catch (notifyError) {
-                  console.error("[v0] ❌ Помилка відправки повідомлення автору:", notifyError)
-                }
-              }
-
-              await bot.sendMessage(msg.chat.id, "✅ Фото розблоковано! Ви можете переглянути його в галереї.")
-            }
-          }
-        } catch (error) {
-          console.error("[v0] ❌ Помилка обробки платежу:", error)
-        }
-        return
-      }
-
       if (msg.text && msg.text.startsWith("/")) return // Пропускаем команды, они обрабатываются отдельно
 
       const chatId = msg.chat.id
