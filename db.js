@@ -1,8 +1,8 @@
 const sqlite3 = require("sqlite3").verbose()
 const path = require("path")
 
-// Создаем базу данных в папке data
-const dbPath = path.join(__dirname, "data", "botUsers.db")
+// Создаем базу данных в корневой директории
+const dbPath = path.join(__dirname, "uhub.db")
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("[v0] ❌ Ошибка подключения к базе данных:", err.message)
@@ -339,6 +339,23 @@ db.serialize(() => {
     (err) => {
       if (err) console.error("[v0] ❌ Ошибка создания таблицы user_schedules:", err.message)
       else console.log("[v0] ✅ Таблица user_schedules готова")
+    },
+  )
+
+  // Таблица ограничений пользователей для конкретных событий (event-based)
+  db.run(
+    `
+    CREATE TABLE IF NOT EXISTS event_user_restrictions (
+      event_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      restriction_data TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (event_id, user_id)
+    )
+  `,
+    (err) => {
+      if (err) console.error("[v0] ❌ Ошибка создания таблицы event_user_restrictions:", err.message)
+      else console.log("[v0] ✅ Таблица event_user_restrictions готова")
     },
   )
 })
@@ -1306,6 +1323,29 @@ function getAllEvents() {
       },
     )
   })
+}
+
+function getAllEventsWithStatus(status = null) {
+  return new Promise((resolve, reject) => {
+    const query = status 
+      ? `SELECT * FROM events WHERE status = ? ORDER BY created_at DESC`
+      : `SELECT * FROM events ORDER BY created_at DESC`
+    const params = status ? [status] : []
+
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        console.error("[v0] ❌ Ошибка получения событий:", err.message)
+        reject(err)
+      } else {
+        console.log("[v0] ✅ Загружено событий:", rows.length)
+        resolve(rows)
+      }
+    })
+  })
+}
+
+function getAllPendingEvents() {
+  return getAllEventsWithStatus('pending')
 }
 
 function getEventById(eventId) {
@@ -2721,6 +2761,118 @@ function deleteUserSchedule(userId) {
   })
 }
 
+// ===== 18. EVENT USER RESTRICTIONS (event-based) =====
+
+function getEventUserRestriction(eventId, userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM event_user_restrictions
+      WHERE event_id = ? AND user_id = ?
+    `,
+      [eventId, userId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения ограничения пользователя:", err.message)
+          reject(err)
+        } else {
+          if (row) {
+            // Parse JSON restriction_data
+            try {
+              resolve({
+                ...row,
+                restriction: JSON.parse(row.restriction_data)
+              })
+            } catch (parseErr) {
+              console.error("[v0] ❌ Ошибка парсинга restriction_data:", parseErr.message)
+              resolve(row)
+            }
+          } else {
+            resolve(null)
+          }
+        }
+      },
+    )
+  })
+}
+
+function insertEventUserRestriction(eventId, userId, restriction) {
+  return new Promise((resolve, reject) => {
+    const restrictionJson = JSON.stringify(restriction)
+    db.run(
+      `
+      INSERT OR REPLACE INTO event_user_restrictions (event_id, user_id, restriction_data, updated_at)
+      VALUES (?, ?, ?, ?)
+    `,
+      [eventId, userId, restrictionJson, new Date().toISOString()],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка сохранения ограничения пользователя:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Ограничение пользователя сохранено:", eventId, userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function deleteEventUserRestriction(eventId, userId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM event_user_restrictions
+      WHERE event_id = ? AND user_id = ?
+    `,
+      [eventId, userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления ограничения пользователя:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Ограничение пользователя удалено:", eventId, userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function getAllEventUserRestrictions(eventId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM event_user_restrictions
+      WHERE event_id = ?
+    `,
+      [eventId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения всех ограничений события:", err.message)
+          reject(err)
+        } else {
+          // Parse restriction_data for each row
+          const parsed = rows.map(row => {
+            try {
+              return {
+                eventId: row.event_id,
+                userId: row.user_id,
+                restriction: JSON.parse(row.restriction_data),
+                updatedAt: row.updated_at
+              }
+            } catch (parseErr) {
+              console.error("[v0] ❌ Ошибка парсинга restriction_data:", parseErr.message)
+              return row
+            }
+          })
+          resolve(parsed)
+        }
+      },
+    )
+  })
+}
+
 module.exports = {
   db,
   saveUser,
@@ -2750,6 +2902,8 @@ module.exports = {
   migrateAllData,
   // CRUD функции для Events
   getAllEvents,
+  getAllEventsWithStatus,
+  getAllPendingEvents,
   getEventById,
   updateEvent,
   updateEventStatus,
@@ -2827,4 +2981,9 @@ module.exports = {
   // CRUD функции для User Schedules
   getUserSchedule,
   deleteUserSchedule,
+  // CRUD функции для Event User Restrictions (event-based)
+  getEventUserRestriction,
+  insertEventUserRestriction,
+  deleteEventUserRestriction,
+  getAllEventUserRestrictions,
 }

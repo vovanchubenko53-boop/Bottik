@@ -31,6 +31,8 @@ const {
   getUserCount,
   migrateFromJSON,
   getAllEvents,
+  getAllEventsWithStatus,
+  getAllPendingEvents,
   getEventById,
   insertEvent,
   updateEventStatus,
@@ -95,6 +97,12 @@ const {
   deleteNavigationPhoto,
   getAllAdminSettings,
   updateAdminSetting,
+  getEventUserRestriction,
+  insertEventUserRestriction,
+  deleteEventUserRestriction,
+  getUserSchedule,
+  insertUserSchedule,
+  deleteUserSchedule,
 } = require("./db")
 
 const app = express()
@@ -159,36 +167,7 @@ const uploadVideoWithThumbnail = multer({
 ])
 
 let newsCache = []
-let eventsData = []
-let schedulesData = []
-let videosData = []
-let photosData = []
-let eventMessages = {}
-let eventParticipants = {}
-let botUsers = []
-let userRestrictions = {}
-let navigationPhotos = []
-let userStarsBalances = {}
-let photoReactions = {}
-let photoUnlocks = {}
-let dailyPhotoUploads = {}
-let weeklyBlurPhotos = {}
-let photoEarnings = {}
-let withdrawalRequests = {}
-let adminSettings = {
-  heroImages: {
-    news: "https://placehold.co/600x300/a3e635/444?text=News",
-    schedule: "https://placehold.co/600x300/60a5fa/FFF?text=Schedule",
-    video: "https://placehold.co/600x300/f87171/FFF?text=Video",
-    events: "https://placehold.co/600x300/c084fc/FFF?text=Events",
-  },
-  imagePositions: {
-    news: { x: 50, y: 50 },
-    schedule: { x: 50, y: 50 },
-    video: { x: 50, y: 50 },
-    events: { x: 50, y: 50 },
-  },
-}
+
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234"
 
 function getWeekStart() {
@@ -219,18 +198,6 @@ if (BOT_TOKEN) {
 
       try {
         await saveUser(chatId, user.first_name, user.last_name, user.username)
-
-        // Также сохраняем в JSON для обратной совместимости
-        if (!botUsers.find((u) => u.chatId === chatId)) {
-          botUsers.push({
-            chatId,
-            firstName: user.first_name,
-            username: user.username,
-            joinedAt: new Date().toISOString(),
-          })
-          saveBotUsers()
-        }
-
         bot.sendMessage(chatId, "Вітаємо в U-hub Bot! Тут ви отримаєте сповіщення про відео та події.")
       } catch (error) {
         console.error("[v0] ❌ Ошибка сохранения пользователя:", error.message)
@@ -491,237 +458,6 @@ if (BOT_TOKEN) {
     })
   } catch (error) {
     console.error("Error initializing Telegram bot:", error.message)
-  }
-}
-
-async function initializeData() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-
-    try {
-      const eventsFile = await fs.readFile(path.join(dataPath, "events.json"), "utf-8")
-      eventsData = JSON.parse(eventsFile)
-    } catch (e) {
-      eventsData = []
-    }
-
-    try {
-      const videosFile = await fs.readFile(path.join(dataPath, "videos.json"), "utf-8")
-      videosData = JSON.parse(videosFile)
-    } catch (e) {
-      videosData = []
-    }
-
-    try {
-      const photosFile = await fs.readFile(path.join(dataPath, "photos.json"), "utf-8")
-      photosData = JSON.parse(photosFile)
-    } catch (e) {
-      photosData = []
-    }
-
-    await loadBotUsers()
-
-    if (botUsers.length > 0) {
-      try {
-        await migrateFromJSON(botUsers)
-      } catch (error) {
-        console.error("[v0] ❌ Ошибка миграции пользователей:", error.message)
-      }
-    }
-
-    await loadUserRestrictions()
-    await loadEventParticipants()
-
-    try {
-      const messagesFile = await fs.readFile(path.join(dataPath, "eventMessages.json"), "utf-8")
-      eventMessages = JSON.parse(messagesFile)
-      console.log("[v0] ✅ Сообщения событий загружены")
-    } catch (e) {
-      eventMessages = {}
-      console.log("[v0] ⚠️ Файл сообщений не найден, создан новый объект")
-    }
-
-    try {
-      const photoReactionsFile = await fs.readFile(path.join(dataPath, "photoReactions.json"), "utf-8")
-      photoReactions = JSON.parse(photoReactionsFile)
-      console.log("[v0] ✅ Реакции на фото загружены")
-    } catch (e) {
-      photoReactions = {}
-      console.log("[v0] ⚠️ Файл реакций не найден, создан новый объект")
-    }
-
-    try {
-      const photoUnlocksFile = await fs.readFile(path.join(dataPath, "photoUnlocks.json"), "utf-8")
-      photoUnlocks = JSON.parse(photoUnlocksFile)
-      console.log("[v0] ✅ Разблокировки фото загружены")
-    } catch (e) {
-      photoUnlocks = {}
-      console.log("[v0] ⚠️ Файл разблокировок не найден, создан новый объект")
-    }
-
-    try {
-      const dailyPhotoUploadsFile = await fs.readFile(path.join(dataPath, "dailyPhotoUploads.json"), "utf-8")
-      dailyPhotoUploads = JSON.parse(dailyPhotoUploadsFile)
-      console.log("[v0] ✅ Ежедневные загрузки фото загружены")
-    } catch (e) {
-      dailyPhotoUploads = {}
-      console.log("[v0] ⚠️ Файл ежедневных загрузок не найден, создан новый объект")
-    }
-
-    try {
-      const weeklyBlurPhotosFile = await fs.readFile(path.join(dataPath, "weeklyBlurPhotos.json"), "utf-8")
-      weeklyBlurPhotos = JSON.parse(weeklyBlurPhotosFile)
-      console.log("[v0] ✅ Еженедельные блюр-фото загружены")
-    } catch (e) {
-      weeklyBlurPhotos = {}
-      console.log("[v0] ⚠️ Файл еженедельных блюр-фото не найден, создан новый объект")
-    }
-
-    try {
-      const photoEarningsFile = await fs.readFile(path.join(dataPath, "photoEarnings.json"), "utf-8")
-      photoEarnings = JSON.parse(photoEarningsFile)
-      console.log("[v0] ✅ Заработки по фото загружены")
-    } catch (e) {
-      photoEarnings = {}
-      console.log("[v0] ⚠️ Файл заработков не найден, создан новый объект")
-    }
-
-    eventsData.forEach((event) => {
-      if (!eventParticipants[event.id]) {
-        eventParticipants[event.id] = []
-      }
-      event.participants = eventParticipants[event.id].length
-      if (!eventMessages[event.id]) {
-        eventMessages[event.id] = []
-      }
-      // Инициализация unlockCount для существующих фото
-      photosData.forEach((photo) => {
-        if (photo.id === event.id && !photo.unlockCount) {
-          photo.unlockCount = 0
-        }
-      })
-    })
-    console.log("Data loaded successfully")
-  } catch (error) {
-    console.error("Error initializing data:", error)
-  }
-}
-
-async function saveData() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    await fs.mkdir(dataPath, { recursive: true })
-
-    await Promise.all([
-      fs.writeFile(path.join(dataPath, "events.json"), JSON.stringify(eventsData, null, 2)),
-      fs.writeFile(path.join(dataPath, "videos.json"), JSON.stringify(videosData, null, 2)),
-      fs.writeFile(path.join(dataPath, "photos.json"), JSON.stringify(photosData, null, 2)),
-      fs.writeFile(path.join(dataPath, "eventMessages.json"), JSON.stringify(eventMessages, null, 2)),
-      fs.writeFile(path.join(dataPath, "eventParticipants.json"), JSON.stringify(eventParticipants, null, 2)),
-      fs.writeFile(path.join(dataPath, "userRestrictions.json"), JSON.stringify(userRestrictions, null, 2)),
-      fs.writeFile(path.join(dataPath, "photoReactions.json"), JSON.stringify(photoReactions, null, 2)),
-      fs.writeFile(path.join(dataPath, "photoUnlocks.json"), JSON.stringify(photoUnlocks, null, 2)),
-      fs.writeFile(path.join(dataPath, "dailyPhotoUploads.json"), JSON.stringify(dailyPhotoUploads, null, 2)),
-      fs.writeFile(path.join(dataPath, "weeklyBlurPhotos.json"), JSON.stringify(weeklyBlurPhotos, null, 2)),
-      fs.writeFile(path.join(dataPath, "photoEarnings.json"), JSON.stringify(photoEarnings, null, 2)),
-    ])
-
-    console.log("Data saved successfully")
-  } catch (error) {
-    console.error("Error saving data:", error)
-  }
-}
-
-async function saveBotUsers() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    await fs.mkdir(dataPath, { recursive: true })
-    await fs.writeFile(path.join(dataPath, "botUsers.json"), JSON.stringify(botUsers, null, 2))
-  } catch (error) {
-    console.error("Error saving bot users:", error)
-  }
-}
-
-async function loadBotUsers() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    const botUsersFile = await fs.readFile(path.join(dataPath, "botUsers.json"), "utf-8")
-    botUsers = JSON.parse(botUsersFile)
-  } catch (e) {
-    botUsers = []
-  }
-}
-
-async function saveUserRestrictions() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    await fs.mkdir(dataPath, { recursive: true })
-    await fs.writeFile(path.join(dataPath, "userRestrictions.json"), JSON.stringify(userRestrictions, null, 2))
-  } catch (error) {
-    console.error("Error saving user restrictions:", error)
-  }
-}
-
-async function loadUserRestrictions() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    const restrictionsFile = await fs.readFile(path.join(dataPath, "userRestrictions.json"), "utf-8")
-    userRestrictions = JSON.parse(restrictionsFile)
-  } catch (e) {
-    userRestrictions = {}
-  }
-}
-
-async function saveAdminSettings() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    await fs.mkdir(dataPath, { recursive: true })
-    await fs.writeFile(path.join(dataPath, "adminSettings.json"), JSON.stringify(adminSettings, null, 2))
-  } catch (error) {
-    console.error("Error saving admin settings:", error)
-  }
-}
-
-async function loadAdminSettings() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    const settingsFile = await fs.readFile(path.join(dataPath, "adminSettings.json"), "utf-8")
-    adminSettings = JSON.parse(settingsFile)
-  } catch (e) {
-    adminSettings = {
-      heroImages: {
-        news: "https://placehold.co/600x300/a3e635/444?text=News",
-        schedule: "https://placehold.co/600x300/60a5fa/FFF?text=Schedule",
-        video: "https://placehold.co/600x300/f87171/FFF?text=Video",
-        events: "https://placehold.co/600x300/c084fc/FFF?text=Events",
-      },
-      imagePositions: {
-        news: { x: 50, y: 50 },
-        schedule: { x: 50, y: 50 },
-        video: { x: 50, y: 50 },
-        events: { x: 50, y: 50 },
-      },
-    }
-  }
-}
-
-async function saveEventParticipants() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    await fs.mkdir(dataPath, { recursive: true })
-    await fs.writeFile(path.join(dataPath, "eventParticipants.json"), JSON.stringify(eventParticipants, null, 2))
-  } catch (error) {
-    console.error("Error saving event participants:", error)
-  }
-}
-
-async function loadEventParticipants() {
-  try {
-    const dataPath = path.join(__dirname, "data")
-    const participantsFile = await fs.readFile(path.join(dataPath, "eventParticipants.json"), "utf-8")
-    eventParticipants = JSON.parse(participantsFile)
-  } catch (e) {
-    eventParticipants = {}
   }
 }
 
@@ -1033,9 +769,9 @@ app.post("/api/events/:id/messages", async (req, res) => {
     const { message, userId, firstName, photoUrl } = req.body
     const eventId = req.params.id
 
-    const restrictionKey = `${eventId}_${userId}`
-    if (userRestrictions[restrictionKey]) {
-      const restriction = userRestrictions[restrictionKey]
+    const restrictionData = await getEventUserRestriction(eventId, userId)
+    if (restrictionData) {
+      const restriction = restrictionData.restriction
       if (restriction.blocked) {
         console.log("[v0] ❌ Пользователь заблокирован")
         return res.status(403).json({ error: "Ви заблоковані в цьому івенті" })
@@ -1859,9 +1595,9 @@ app.post("/api/admin/broadcast", async (req, res) => {
         users = await getAllUsers()
         console.log("[v0] 👥 Загружено пользователей из SQLite:", users.length)
       } catch (error) {
-        console.error("[v0] ❌ Ошибка загрузки из SQLite, используем JSON:", error.message)
-        users = botUsers // Fallback на JSON
-        console.log("[v0] 👥 Используем пользователей из JSON:", users.length)
+        console.error("[v0] ❌ Ошибка загрузки из SQLite:", error.message)
+        users = []
+        console.log("[v0] ⚠️ Нет пользователей для рассылки")
       }
 
       if (users.length === 0) {
@@ -1966,14 +1702,19 @@ app.get("/api/admin/videos/pending", async (req, res) => {
   }
 })
 
-app.get("/api/admin/events/pending", (req, res) => {
+app.get("/api/admin/events/pending", async (req, res) => {
   const { token } = req.query
   if (token !== "admin-authenticated") {
     return res.status(401).json({ error: "Не авторизовано" })
   }
 
-  const pendingEvents = eventsData.filter((e) => e.status === "pending")
-  res.json(pendingEvents)
+  try {
+    const pendingEvents = await getAllPendingEvents()
+    res.json(pendingEvents)
+  } catch (error) {
+    console.error("Error fetching pending events:", error)
+    res.status(500).json({ error: "Failed to fetch pending events" })
+  }
 })
 
 app.delete("/api/admin/events/:id", async (req, res) => {
@@ -2029,13 +1770,19 @@ app.post("/api/admin/events/:id/moderate", async (req, res) => {
   }
 })
 
-app.get("/api/admin/events/all", (req, res) => {
+app.get("/api/admin/events/all", async (req, res) => {
   const { token } = req.query
   if (token !== "admin-authenticated") {
     return res.status(401).json({ error: "Не авторизовано" })
   }
 
-  res.json(eventsData)
+  try {
+    const allEvents = await getAllEventsWithStatus()
+    res.json(allEvents)
+  } catch (error) {
+    console.error("Error fetching all events:", error)
+    res.status(500).json({ error: "Failed to fetch events" })
+  }
 })
 
 app.get("/api/admin/events/:id/participants", async (req, res) => {
@@ -2048,15 +1795,15 @@ app.get("/api/admin/events/:id/participants", async (req, res) => {
     const eventId = req.params.id
     const participants = await getEventParticipants(eventId)
 
-    const participantsWithRestrictions = participants.map((p) => {
-      const restrictionKey = `${eventId}_${p.user_id}`
+    const participantsWithRestrictions = await Promise.all(participants.map(async (p) => {
+      const restrictionData = await getEventUserRestriction(eventId, p.user_id)
       return {
         userId: p.user_id,
         firstName: p.first_name,
         joinedAt: p.joined_at,
-        restrictions: userRestrictions[restrictionKey] || null,
+        restrictions: restrictionData ? restrictionData.restriction : null,
       }
-    })
+    }))
 
     res.json(participantsWithRestrictions)
   } catch (error) {
@@ -2074,40 +1821,44 @@ app.post("/api/admin/events/:id/restrict-user", async (req, res) => {
   try {
     const eventId = req.params.id
     const { userId, action, duration } = req.body
-    const restrictionKey = `${eventId}_${userId}`
+
+    const existingRestrictionData = await getEventUserRestriction(eventId, userId)
+    const existingRestriction = existingRestrictionData ? existingRestrictionData.restriction : {}
 
     if (action === "block") {
-      userRestrictions[restrictionKey] = {
+      await insertEventUserRestriction(eventId, userId, {
+        ...existingRestriction,
         blocked: true,
         blockedAt: new Date().toISOString(),
-      }
+      })
     } else if (action === "mute") {
       const muteUntil = duration ? new Date(Date.now() + duration * 60 * 1000).toISOString() : null
-      userRestrictions[restrictionKey] = {
+      await insertEventUserRestriction(eventId, userId, {
+        ...existingRestriction,
         muted: true,
         mutedAt: new Date().toISOString(),
         muteUntil,
-      }
+      })
     } else if (action === "unblock") {
-      if (userRestrictions[restrictionKey]) {
-        delete userRestrictions[restrictionKey].blocked
-        delete userRestrictions[restrictionKey].blockedAt
-        if (Object.keys(userRestrictions[restrictionKey]).length === 0) {
-          delete userRestrictions[restrictionKey]
+      if (existingRestrictionData) {
+        const { blocked, blockedAt, ...rest } = existingRestriction
+        if (Object.keys(rest).length === 0) {
+          await deleteEventUserRestriction(eventId, userId)
+        } else {
+          await insertEventUserRestriction(eventId, userId, rest)
         }
       }
     } else if (action === "unmute") {
-      if (userRestrictions[restrictionKey]) {
-        delete userRestrictions[restrictionKey].muted
-        delete userRestrictions[restrictionKey].mutedAt
-        delete userRestrictions[restrictionKey].muteUntil
-        if (Object.keys(userRestrictions[restrictionKey]).length === 0) {
-          delete userRestrictions[restrictionKey]
+      if (existingRestrictionData) {
+        const { muted, mutedAt, muteUntil, ...rest } = existingRestriction
+        if (Object.keys(rest).length === 0) {
+          await deleteEventUserRestriction(eventId, userId)
+        } else {
+          await insertEventUserRestriction(eventId, userId, rest)
         }
       }
     }
 
-    await saveUserRestrictions()
     res.json({ success: true })
   } catch (error) {
     console.error("Error restricting user:", error)
@@ -2347,14 +2098,30 @@ app.delete("/api/admin/schedules/:id", async (req, res) => {
   }
 })
 
-app.get("/api/schedules/user/:userId", (req, res) => {
-  const userId = req.params.userId
-  const userSchedule = schedulesData.find((s) => s.userId === userId)
+app.get("/api/schedules/user/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId
+    const userScheduleData = await getUserSchedule(userId)
 
-  if (userSchedule) {
-    res.json(userSchedule)
-  } else {
-    res.json(null)
+    if (userScheduleData) {
+      const schedule = await getScheduleById(userScheduleData.schedule_id)
+      if (schedule) {
+        res.json({
+          id: schedule.id,
+          name: schedule.name,
+          schedule: typeof schedule.schedule_data === 'string' ? JSON.parse(schedule.schedule_data) : schedule.schedule_data,
+          uploadedAt: schedule.created_at,
+          userId: userId
+        })
+      } else {
+        res.json(null)
+      }
+    } else {
+      res.json(null)
+    }
+  } catch (error) {
+    console.error("Error fetching user schedule:", error)
+    res.status(500).json({ error: "Failed to fetch user schedule" })
   }
 })
 
@@ -2363,20 +2130,23 @@ app.post("/api/schedules/user/:userId/set", async (req, res) => {
     const userId = req.params.userId
     const { scheduleId } = req.body
 
-    const schedule = schedulesData.find((s) => s.id === scheduleId)
+    const schedule = await getScheduleById(scheduleId)
     if (!schedule) {
       return res.status(404).json({ error: "Розклад не знайдено" })
     }
 
-    const userScheduleIndex = schedulesData.findIndex((s) => s.userId === userId)
-    if (userScheduleIndex !== -1) {
-      schedulesData[userScheduleIndex] = { ...schedule, userId }
-    } else {
-      schedulesData.push({ ...schedule, userId, id: Date.now().toString() })
-    }
-
-    await saveData()
-    res.json({ success: true, schedule: schedulesData.find((s) => s.userId === userId) })
+    await insertUserSchedule(userId, scheduleId)
+    
+    res.json({ 
+      success: true, 
+      schedule: {
+        id: schedule.id,
+        name: schedule.name,
+        schedule: typeof schedule.schedule_data === 'string' ? JSON.parse(schedule.schedule_data) : schedule.schedule_data,
+        uploadedAt: schedule.created_at,
+        userId: userId
+      }
+    })
   } catch (error) {
     console.error("Error setting user schedule:", error)
     res.status(500).json({ error: "Помилка встановлення розкладу" })
@@ -2386,13 +2156,7 @@ app.post("/api/schedules/user/:userId/set", async (req, res) => {
 app.delete("/api/schedules/user/:userId", async (req, res) => {
   try {
     const userId = req.params.userId
-    const userScheduleIndex = schedulesData.findIndex((s) => s.userId === userId)
-
-    if (userScheduleIndex !== -1) {
-      schedulesData.splice(userScheduleIndex, 1)
-      await saveData()
-    }
-
+    await deleteUserSchedule(userId)
     res.json({ success: true })
   } catch (error) {
     console.error("Error removing user schedule:", error)
@@ -2400,7 +2164,7 @@ app.delete("/api/schedules/user/:userId", async (req, res) => {
   }
 })
 
-// Новый эндпоинт для очистки базы данных
+// Эндпоинт для очистки базы данных (сейчас не используется, так как используется SQLite)
 app.post("/api/admin/clean-database", async (req, res) => {
   const { password, type } = req.body
 
@@ -2408,33 +2172,12 @@ app.post("/api/admin/clean-database", async (req, res) => {
     return res.status(403).json({ error: "Invalid password" })
   }
 
-  try {
-    if (type === "events") {
-      eventsData = []
-      eventMessages = {}
-      eventParticipants = {}
-    } else if (type === "videos") {
-      videosData = []
-    } else if (type === "photos") {
-      photosData = []
-    } else if (type === "schedules") {
-      schedulesData = []
-    } else if (type === "all") {
-      eventsData = []
-      videosData = []
-      photosData = []
-      schedulesData = []
-      eventMessages = {}
-      eventParticipants = {}
-      navigationPhotos = [] // Додано очищення фото навігації
-    }
-
-    await saveData()
-    res.json({ success: true, message: "Database cleaned successfully" })
-  } catch (error) {
-    console.error("Error cleaning database:", error)
-    res.status(500).json({ error: "Failed to clean database" })
-  }
+  // Этот endpoint больше не выполняет очистку, так как теперь используется SQLite
+  // Для очистки базы данных используйте SQL команды напрямую или миграционные инструменты
+  res.json({ 
+    success: false, 
+    message: "Database cleanup is disabled. Please use migration tools or SQL commands directly for database management." 
+  })
 })
 
 app.post("/api/admin/events", async (req, res) => {
@@ -2487,9 +2230,9 @@ app.post("/api/events/:id/messages/photos", uploadPhoto.array("photos", 10), asy
 
     console.log("[v0] 📷 Кількість фото:", photos.length)
 
-    const restrictionKey = `${eventId}_${userId}`
-    if (userRestrictions[restrictionKey]) {
-      const restriction = userRestrictions[restrictionKey]
+    const restrictionData = await getEventUserRestriction(eventId, userId)
+    if (restrictionData) {
+      const restriction = restrictionData.restriction
       if (restriction.blocked) {
         return res.status(403).json({ error: "Ви заблоковані в цьому івенті" })
       }
@@ -2979,14 +2722,12 @@ app.get("/admin", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"))
 })
 
-initializeData().then(() => {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`U-hub server running on port ${PORT}`)
-    console.log(`Access the app at: http://0.0.0.0:${PORT}`)
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`U-hub server running on port ${PORT}`)
+  console.log(`Access the app at: http://0.0.0.0:${PORT}`)
 
-    updateNewsCache()
-    setInterval(updateNewsCache, 30 * 60 * 1000)
-  })
+  updateNewsCache()
+  setInterval(updateNewsCache, 30 * 60 * 1000)
 })
 
 module.exports = app
