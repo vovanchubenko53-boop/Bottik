@@ -9,6 +9,12 @@ U-hub is a comprehensive Telegram Mini App designed for students of Taras Shevch
   - Replaced 106 uses of global JSON variables with async db.js functions
   - Database: uhub.db with 19 tables (bot_users, events, videos, photos, stars_balances, withdrawal_requests, etc.)
   - Retained only newsCache (for caching), bot (Telegram instance), and environment constants
+- **Database Bug Fixes**: Fixed critical data display issues
+  - Fixed getUserStarsBalance to return numeric balance instead of object (eliminated "[object Object]" display bug)
+  - Added missing event fields (date, time, expires_at, creator_username) to events table with proper migration
+  - Fixed admin panel balances endpoint with snake_case to camelCase mapping for frontend compatibility
+  - Added null safety check in loadNavigationPhotos to prevent runtime errors
+  - Removed all JSON fallback code ensuring pure SQLite usage throughout application
 - **Critical Stars Payment Bug Fixed**: Eliminated duplicate successful_payment handler that was causing double Stars credits
   - Now uses single bot.on("successful_payment") handler with correct logic
   - 1 star credited per photo unlock + 50 star bonus every 50 unlocks
