@@ -42,10 +42,14 @@ db.serialize(() => {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
+      date TEXT,
+      time TEXT,
       start_date TEXT,
       end_date TEXT,
+      expires_at TEXT,
       location TEXT,
       organizer TEXT,
+      creator_username TEXT,
       status TEXT DEFAULT 'pending',
       approved_at TEXT,
       rejected_at TEXT,
@@ -55,7 +59,31 @@ db.serialize(() => {
   `,
     (err) => {
       if (err) console.error("[v0] ❌ Ошибка создания таблицы events:", err.message)
-      else console.log("[v0] ✅ Таблица events готова")
+      else {
+        console.log("[v0] ✅ Таблица events готова")
+        
+        // Добавляем новые колонки если их нет (для существующих БД)
+        db.run(`ALTER TABLE events ADD COLUMN date TEXT`, (err) => {
+          if (err && !err.message.includes("duplicate column")) {
+            console.error("[v0] ❌ Ошибка добавления колонки date:", err.message)
+          }
+        })
+        db.run(`ALTER TABLE events ADD COLUMN time TEXT`, (err) => {
+          if (err && !err.message.includes("duplicate column")) {
+            console.error("[v0] ❌ Ошибка добавления колонки time:", err.message)
+          }
+        })
+        db.run(`ALTER TABLE events ADD COLUMN expires_at TEXT`, (err) => {
+          if (err && !err.message.includes("duplicate column")) {
+            console.error("[v0] ❌ Ошибка добавления колонки expires_at:", err.message)
+          }
+        })
+        db.run(`ALTER TABLE events ADD COLUMN creator_username TEXT`, (err) => {
+          if (err && !err.message.includes("duplicate column")) {
+            console.error("[v0] ❌ Ошибка добавления колонки creator_username:", err.message)
+          }
+        })
+      }
     },
   )
 
@@ -534,23 +562,28 @@ function insertEvent(event) {
     db.run(
       `
       INSERT OR REPLACE INTO events (
-        id, title, description, start_date, end_date, location, organizer,
-        status, approved_at, rejected_at, created_at, participants_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, title, description, date, time, start_date, end_date, expires_at,
+        location, organizer, creator_username, status, approved_at, rejected_at, 
+        created_at, participants_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [
         event.id,
         event.title,
         event.description || null,
-        event.startDate || null,
-        event.endDate || null,
+        event.date || null,
+        event.time || null,
+        event.startDate || event.start_date || null,
+        event.endDate || event.end_date || null,
+        event.expiresAt || event.expires_at || null,
         event.location || null,
         event.organizer || null,
+        event.creatorUsername || event.creator_username || null,
         event.status || "pending",
-        event.approvedAt || null,
-        event.rejectedAt || null,
-        event.createdAt || new Date().toISOString(),
-        event.participantsCount || 0,
+        event.approvedAt || event.approved_at || null,
+        event.rejectedAt || event.rejected_at || null,
+        event.createdAt || event.created_at || new Date().toISOString(),
+        event.participantsCount || event.participants_count || 0,
       ],
       function (err) {
         if (err) reject(err)
@@ -2048,7 +2081,7 @@ function getUserStarsBalance(userId) {
   return new Promise((resolve, reject) => {
     db.get(
       `
-      SELECT * FROM user_stars_balances
+      SELECT balance FROM user_stars_balances
       WHERE user_id = ?
     `,
       [userId],
@@ -2057,7 +2090,7 @@ function getUserStarsBalance(userId) {
           console.error("[v0] ❌ Ошибка получения баланса:", err.message)
           reject(err)
         } else {
-          resolve(row || { user_id: userId, balance: 0 })
+          resolve(row ? row.balance : 0)
         }
       },
     )

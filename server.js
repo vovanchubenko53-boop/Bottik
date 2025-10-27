@@ -1480,7 +1480,7 @@ app.get("/api/admin/bot-users-count", async (req, res) => {
     res.json({ count })
   } catch (error) {
     console.error("[v0] ❌ Ошибка получения количества пользователей:", error.message)
-    res.json({ count: botUsers.length }) // Fallback на JSON
+    res.json({ count: 0 })
   }
 })
 
@@ -1840,7 +1840,13 @@ app.get("/api/admin/balances", async (req, res) => {
 
   try {
     const balances = await getAllBalances()
-    res.json(balances)
+    // Convert snake_case to camelCase for frontend
+    const balancesWithCamelCase = balances.map(b => ({
+      userId: b.user_id,
+      balance: b.balance,
+      updatedAt: b.updated_at
+    }))
+    res.json(balancesWithCamelCase)
   } catch (error) {
     console.error("Error fetching balances:", error)
     res.status(500).json({ error: "Failed to fetch balances" })
