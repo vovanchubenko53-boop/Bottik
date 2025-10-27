@@ -8,109 +8,600 @@
     <meta http-equiv="Expires" content="0">
     <title>U-hub Admin Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body {
-            font-family: 'Roboto', sans-serif;
+            font-family: 'Inter', sans-serif;
         }
-        .tab-content {
-            display: none;
+        
+        .sidebar {
+            transition: transform 0.3s ease;
         }
-        .tab-content.active {
-            display: block;
+        
+        .sidebar-item {
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(4px);
+        }
+        
+        .sidebar-item.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        }
+        
+        .card {
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .toast {
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
         }
         
         @media (max-width: 768px) {
-            .max-w-7xl {
-                padding-left: 0.5rem;
-                padding-right: 0.5rem;
+            .sidebar {
+                transform: translateX(-100%);
+                position: fixed;
+                z-index: 50;
             }
             
-            .tab-btn {
-                font-size: 0.875rem;
-                padding: 0.75rem 0.75rem;
+            .sidebar.mobile-open {
+                transform: translateX(0);
             }
             
-            h1, h2 {
-                font-size: 1.25rem;
-            }
-            
-            h3 {
-                font-size: 1.125rem;
-            }
-            
-            input, textarea, button {
-                font-size: 14px;
-            }
-            
-            .flex.gap-2 {
-                gap: 0.5rem;
-            }
-            
-            .p-6 {
-                padding: 1rem;
-            }
-            
-            .space-y-6 > * + * {
-                margin-top: 1rem;
+            .main-content {
+                margin-left: 0 !important;
             }
         }
         
-        .tab-btn {
-            transition: all 0.2s ease;
-            white-space: nowrap;
+        .batch-checkbox {
+            cursor: pointer;
         }
         
-        video {
+        video, img {
             max-width: 100%;
             height: auto;
         }
+        
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        
+        .modal {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div id="login-screen" class="min-h-screen flex items-center justify-center">
-        <div class="bg-white p-8 rounded-lg shadow-md w-96">
-            <h1 class="text-2xl font-bold mb-6 text-center">Адмін-панель U-hub</h1>
-            <input type="password" id="password-input" placeholder="Введіть пароль" class="w-full border border-gray-300 rounded-lg p-3 mb-4">
-            <button onclick="login()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Увійти</button>
-            <p id="login-error" class="text-red-500 text-sm mt-2 hidden">Невірний пароль</p>
+<body class="bg-gray-50">
+    <!-- Login Screen -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center gradient-bg">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-96 transform transition-all">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">U-hub Admin</h1>
+                <p class="text-gray-600 text-sm mt-2">Увійдіть для продовження</p>
+            </div>
+            <input type="password" id="password-input" placeholder="Введіть пароль" 
+                class="w-full border border-gray-300 rounded-lg p-3 mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+            <button onclick="login()" 
+                class="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition">
+                Увійти
+            </button>
+            <p id="login-error" class="text-red-500 text-sm mt-3 hidden text-center">
+                <i data-lucide="alert-circle" class="w-4 h-4 inline"></i> Невірний пароль
+            </p>
         </div>
     </div>
 
-    <div id="admin-panel" class="hidden">
-        <nav class="bg-white shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 py-4">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-2xl font-bold">U-hub Admin</h1>
-                    <button onclick="logout()" class="text-red-500 hover:text-red-700">Вийти</button>
-                </div>
-            </div>
-        </nav>
-
-        <div class="max-w-7xl mx-auto px-4 py-6">
-            <div class="bg-white rounded-lg shadow-sm mb-6">
-                <div class="flex border-b overflow-x-auto">
-                    <button onclick="switchTab('images')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-blue-500 border-b-2 border-blue-500">Зображення</button>
-                    <button onclick="switchTab('schedules')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Розклади</button>
-                    <button onclick="switchTab('events')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Події</button>
-                    <button onclick="switchTab('broadcast')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Розсилка</button>
-                    <button onclick="switchTab('videos')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Відео</button>
-                    <button onclick="switchTab('photos')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Фото</button>
-                    <button onclick="switchTab('cleanup')" class="tab-btn flex-shrink-0 py-3 px-4 font-semibold text-gray-500">Очистка</button>
+    <!-- Admin Panel -->
+    <div id="admin-panel" class="hidden min-h-screen">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar fixed left-0 top-0 h-screen w-64 bg-gray-900 text-white overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-8">
+                    <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <i data-lucide="zap" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-lg">U-hub</h2>
+                        <p class="text-xs text-gray-400">Admin Panel</p>
+                    </div>
                 </div>
                 
-                <div id="tab-images" class="tab-content active p-6">
-                    <h2 class="text-xl font-bold mb-4">Зміна зображень блоків</h2>
-                    <div class="space-y-6">
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Блок "Новини"</label>
-                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+                <nav class="space-y-2">
+                    <a onclick="navigateTo('dashboard')" class="sidebar-item active flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a onclick="navigateTo('users')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                        <span>Користувачі</span>
+                    </a>
+                    <a onclick="navigateTo('stars')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="star" class="w-5 h-5"></i>
+                        <span>Stars & Баланси</span>
+                    </a>
+                    <a onclick="navigateTo('events')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="calendar" class="w-5 h-5"></i>
+                        <span>Події</span>
+                    </a>
+                    <a onclick="navigateTo('videos')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="video" class="w-5 h-5"></i>
+                        <span>Відео</span>
+                    </a>
+                    <a onclick="navigateTo('photos')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="image" class="w-5 h-5"></i>
+                        <span>Фото</span>
+                    </a>
+                    <a onclick="navigateTo('images')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="file-image" class="w-5 h-5"></i>
+                        <span>Hero Images</span>
+                    </a>
+                    <a onclick="navigateTo('schedules')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="calendar-days" class="w-5 h-5"></i>
+                        <span>Розклади</span>
+                    </a>
+                    <a onclick="navigateTo('broadcast')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                        <span>Розсилка</span>
+                    </a>
+                    <a onclick="navigateTo('cleanup')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        <span>Очистка</span>
+                    </a>
+                </nav>
+                
+                <div class="mt-8 pt-6 border-t border-gray-700">
+                    <button onclick="logout()" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-500/20 text-red-400 transition">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                        <span>Вийти</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Mobile Menu Button -->
+        <button id="mobile-menu-btn" onclick="toggleMobileMenu()" 
+            class="md:hidden fixed top-4 left-4 z-50 bg-gray-900 text-white p-3 rounded-lg shadow-lg">
+            <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+
+        <!-- Main Content -->
+        <main class="main-content md:ml-64 p-4 md:p-8">
+            <!-- Top Bar -->
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 id="page-title" class="text-3xl font-bold text-gray-800">Dashboard</h1>
+                    <p class="text-gray-600 mt-1" id="page-subtitle">Огляд системи</p>
+                </div>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div id="section-dashboard" class="section">
+                <!-- Statistics Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card card p-6 rounded-xl shadow-lg border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm font-medium">Користувачі</p>
+                                <p class="text-3xl font-bold text-gray-800 mt-2" id="stat-users">-</p>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="users" class="w-6 h-6 text-blue-500"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card p-6 rounded-xl shadow-lg border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm font-medium">Події</p>
+                                <p class="text-3xl font-bold text-gray-800 mt-2" id="stat-events">-</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="calendar" class="w-6 h-6 text-green-500"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card p-6 rounded-xl shadow-lg border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm font-medium">Відео</p>
+                                <p class="text-3xl font-bold text-gray-800 mt-2" id="stat-videos">-</p>
+                            </div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="video" class="w-6 h-6 text-purple-500"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card p-6 rounded-xl shadow-lg border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-600 text-sm font-medium">Фото</p>
+                                <p class="text-3xl font-bold text-gray-800 mt-2" id="stat-photos">-</p>
+                            </div>
+                            <div class="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="image" class="w-6 h-6 text-pink-500"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions & Pending Items -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-orange-500"></i>
+                            На модерації
+                        </h3>
+                        <div class="space-y-3" id="pending-items-dashboard">
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="video" class="w-5 h-5 text-purple-500"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-800">Відео</p>
+                                        <p class="text-sm text-gray-600"><span id="pending-videos-count">0</span> на модерації</p>
+                                    </div>
+                                </div>
+                                <button onclick="navigateTo('videos')" class="text-blue-500 hover:text-blue-600 font-medium text-sm">
+                                    Переглянути →
+                                </button>
+                            </div>
+                            
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="image" class="w-5 h-5 text-pink-500"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-800">Фото</p>
+                                        <p class="text-sm text-gray-600"><span id="pending-photos-count">0</span> на модерації</p>
+                                    </div>
+                                </div>
+                                <button onclick="navigateTo('photos')" class="text-blue-500 hover:text-blue-600 font-medium text-sm">
+                                    Переглянути →
+                                </button>
+                            </div>
+                            
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="calendar" class="w-5 h-5 text-green-500"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-800">Події</p>
+                                        <p class="text-sm text-gray-600"><span id="pending-events-count">0</span> на модерації</p>
+                                    </div>
+                                </div>
+                                <button onclick="navigateTo('events')" class="text-blue-500 hover:text-blue-600 font-medium text-sm">
+                                    Переглянути →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="activity" class="w-5 h-5 text-blue-500"></i>
+                            Активність
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span class="text-gray-600">Схвалені події</span>
+                                    <span class="font-medium text-gray-800"><span id="approved-events-count">0</span></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-green-500 h-2 rounded-full progress-bar" id="approved-events-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span class="text-gray-600">Схвалені відео</span>
+                                    <span class="font-medium text-gray-800"><span id="approved-videos-count">0</span></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-purple-500 h-2 rounded-full progress-bar" id="approved-videos-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span class="text-gray-600">Схвалені фото</span>
+                                    <span class="font-medium text-gray-800"><span id="approved-photos-count">0</span></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-pink-500 h-2 rounded-full progress-bar" id="approved-photos-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Section -->
+            <div id="section-users" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800">Користувачі</h3>
+                        <div class="flex gap-3">
+                            <input type="text" id="users-search" placeholder="Пошук..." 
+                                class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" 
+                                oninput="filterUsers()">
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-gray-200">
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">ID</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ім'я</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Username</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Баланс ⭐</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr>
+                                    <td colspan="4" class="text-center py-8 text-gray-500">
+                                        <div class="spinner mx-auto"></div>
+                                        <p class="mt-2">Завантаження...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stars & Balances Section -->
+            <div id="section-stars" class="section hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="stat-card card p-6 rounded-xl shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="star" class="w-6 h-6 text-yellow-500"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-600 text-sm">Всього Stars</p>
+                                <p class="text-2xl font-bold text-gray-800" id="total-stars">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card p-6 rounded-xl shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="trending-up" class="w-6 h-6 text-green-500"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-600 text-sm">Виплачено</p>
+                                <p class="text-2xl font-bold text-gray-800" id="total-withdrawn">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card p-6 rounded-xl shadow-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="clock" class="w-6 h-6 text-orange-500"></i>
+                            </div>
+                            <div>
+                                <p class="text-gray-600 text-sm">На розгляді</p>
+                                <p class="text-2xl font-bold text-gray-800" id="pending-withdrawals">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Баланси користувачів</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b border-gray-200">
+                                        <th class="text-left py-3 px-4 text-sm font-semibold text-gray-700">Користувач</th>
+                                        <th class="text-right py-3 px-4 text-sm font-semibold text-gray-700">Баланс</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="balances-table-body">
+                                    <tr>
+                                        <td colspan="2" class="text-center py-8 text-gray-500">
+                                            <div class="spinner mx-auto"></div>
+                                            <p class="mt-2">Завантаження...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Запити на виплату</h3>
+                        <div id="withdrawal-requests-list" class="space-y-3">
+                            <div class="text-center py-8 text-gray-500">
+                                <div class="spinner mx-auto"></div>
+                                <p class="mt-2">Завантаження...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events Section -->
+            <div id="section-events" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Створити новий івент</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="admin-event-title" placeholder="Назва івенту" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="admin-event-location" placeholder="Місце проведення" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <input type="date" id="admin-event-date" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <input type="time" id="admin-event-time" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <textarea id="admin-event-description" placeholder="Опис івенту" rows="3" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 md:col-span-2"></textarea>
+                        <input type="number" id="admin-event-duration" placeholder="Тривалість (годин)" value="24" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <button onclick="createAdminEvent()" 
+                            class="bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="plus" class="w-5 h-5"></i>
+                            Створити івент
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">Події на модерації</h3>
+                        <span class="bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-sm font-medium" id="pending-events-badge">0</span>
+                    </div>
+                    <div id="pending-events-list" class="space-y-4">
+                        <div class="text-center py-8 text-gray-500">
+                            <div class="spinner mx-auto"></div>
+                            <p class="mt-2">Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg" id="all-events-section">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Всі події</h3>
+                    <div id="all-events-list" class="space-y-4">
+                        <div class="text-center py-8 text-gray-500">
+                            <div class="spinner mx-auto"></div>
+                            <p class="mt-2">Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="event-participants-section" class="hidden bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">Учасники події: <span id="current-event-name" class="text-blue-500"></span></h3>
+                        <button onclick="closeParticipants()" 
+                            class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition flex items-center gap-2">
+                            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                            Назад
+                        </button>
+                    </div>
+                    <div id="event-participants-list" class="space-y-3">
+                        <div class="text-center py-8 text-gray-500">
+                            <div class="spinner mx-auto"></div>
+                            <p class="mt-2">Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Videos Section -->
+            <div id="section-videos" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800">Відео на модерації</h3>
+                        <div class="flex gap-3">
+                            <span class="bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-sm font-medium" id="videos-pending-badge">0</span>
+                            <button onclick="batchApproveVideos()" 
+                                class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition flex items-center gap-2 text-sm">
+                                <i data-lucide="check-check" class="w-4 h-4"></i>
+                                Схвалити обрані
+                            </button>
+                        </div>
+                    </div>
+                    <div id="videos-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="col-span-full text-center py-8 text-gray-500">
+                            <div class="spinner mx-auto"></div>
+                            <p class="mt-2">Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Photos Section -->
+            <div id="section-photos" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800">Фото на модерації</h3>
+                        <div class="flex gap-3">
+                            <span class="bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-sm font-medium" id="photos-pending-badge">0</span>
+                            <button onclick="batchApprovePhotos()" 
+                                class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition flex items-center gap-2 text-sm">
+                                <i data-lucide="check-check" class="w-4 h-4"></i>
+                                Схвалити обрані
+                            </button>
+                        </div>
+                    </div>
+                    <div id="photos-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="col-span-full text-center py-8 text-gray-500">
+                            <div class="spinner mx-auto"></div>
+                            <p class="mt-2">Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hero Images Section -->
+            <div id="section-images" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Зміна зображень блоків</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-800 mb-3">Блок "Новини"</h4>
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center gap-2 transition">
+                                <i data-lucide="upload" class="w-5 h-5"></i>
+                                <span>Завантажити файл</span>
                                 <input type="file" id="file-news" accept="image/*" class="hidden" onchange="handleFileSelect('news')">
-                                <span class="text-sm">📁 Завантажити файл</span>
                             </label>
-                            <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden mt-2">
-                            <div class="mt-2 space-y-2">
+                            <img id="preview-news" class="w-full h-32 object-cover rounded-lg hidden mt-3">
+                            <div class="mt-3 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-news-val">50%</span></label>
                                     <input type="range" id="pos-x-news" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('news')">
@@ -121,14 +612,16 @@
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Блок "Розклади"</label>
-                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-800 mb-3">Блок "Розклади"</h4>
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center gap-2 transition">
+                                <i data-lucide="upload" class="w-5 h-5"></i>
+                                <span>Завантажити файл</span>
                                 <input type="file" id="file-schedule" accept="image/*" class="hidden" onchange="handleFileSelect('schedule')">
-                                <span class="text-sm">📁 Завантажити файл</span>
                             </label>
-                            <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden mt-2">
-                            <div class="mt-2 space-y-2">
+                            <img id="preview-schedule" class="w-full h-32 object-cover rounded-lg hidden mt-3">
+                            <div class="mt-3 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-schedule-val">50%</span></label>
                                     <input type="range" id="pos-x-schedule" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('schedule')">
@@ -139,14 +632,16 @@
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Блок "Відео"</label>
-                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-800 mb-3">Блок "Відео"</h4>
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center gap-2 transition">
+                                <i data-lucide="upload" class="w-5 h-5"></i>
+                                <span>Завантажити файл</span>
                                 <input type="file" id="file-video" accept="image/*" class="hidden" onchange="handleFileSelect('video')">
-                                <span class="text-sm">📁 Завантажити файл</span>
                             </label>
-                            <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden mt-2">
-                            <div class="mt-2 space-y-2">
+                            <img id="preview-video" class="w-full h-32 object-cover rounded-lg hidden mt-3">
+                            <div class="mt-3 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-video-val">50%</span></label>
                                     <input type="range" id="pos-x-video" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('video')">
@@ -157,14 +652,16 @@
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Блок "Івенти"</label>
-                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center w-full">
+
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-800 mb-3">Блок "Івенти"</h4>
+                            <label class="bg-blue-500 text-white rounded-lg px-4 py-3 cursor-pointer hover:bg-blue-600 flex items-center justify-center gap-2 transition">
+                                <i data-lucide="upload" class="w-5 h-5"></i>
+                                <span>Завантажити файл</span>
                                 <input type="file" id="file-events" accept="image/*" class="hidden" onchange="handleFileSelect('events')">
-                                <span class="text-sm">📁 Завантажити файл</span>
                             </label>
-                            <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden mt-2">
-                            <div class="mt-2 space-y-2">
+                            <img id="preview-events" class="w-full h-32 object-cover rounded-lg hidden mt-3">
+                            <div class="mt-3 space-y-2">
                                 <div>
                                     <label class="text-xs text-gray-600">Позиція по горизонталі: <span id="pos-x-events-val">50%</span></label>
                                     <input type="range" id="pos-x-events" min="0" max="100" value="50" class="w-full" oninput="updateImagePosition('events')">
@@ -175,158 +672,181 @@
                                 </div>
                             </div>
                         </div>
-                        <button onclick="saveImages()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Зберегти зміни</button>
-                        <div id="images-status" class="hidden mt-2 p-3 rounded-lg"></div>
                     </div>
+                    <button onclick="saveImages()" 
+                        class="w-full mt-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-center gap-2">
+                        <i data-lucide="save" class="w-5 h-5"></i>
+                        Зберегти зміни
+                    </button>
                 </div>
+            </div>
 
-                <div id="tab-schedules" class="tab-content p-6">
-                    <h2 class="text-xl font-bold mb-4">Управління розкладами</h2>
+            <!-- Schedules Section -->
+            <div id="section-schedules" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Управління розкладами</h3>
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                        <p class="text-sm text-blue-800">📋 Завантажте Excel файл з розкладом. Формат файлу:</p>
-                        <ul class="text-sm text-blue-700 ml-4 mt-2">
-                            <li>• Стовпці: Час, Понеділок, Вівторок, Середа, Четвер, П'ятниця</li>
-                            <li>• Кожна клітинка: Предмет / Викладач / Аудиторія</li>
-                            <li>• <strong>Для мовних груп:</strong> Якщо в одній клітинці кілька предметів (розділені переносом рядка), вони будуть показані як окремі групи з можливістю горизонтального скроллінгу</li>
+                        <p class="text-sm text-blue-800 flex items-center gap-2">
+                            <i data-lucide="info" class="w-4 h-4"></i>
+                            <strong>Формат файлу:</strong>
+                        </p>
+                        <ul class="text-sm text-blue-700 ml-6 mt-2 list-disc">
+                            <li>Стовпці: Час, Понеділок, Вівторок, Середа, Четвер, П'ятниця</li>
+                            <li>Кожна клітинка: Предмет / Викладач / Аудиторія</li>
+                            <li>Для мовних груп: кілька предметів розділені переносом рядка</li>
                         </ul>
                     </div>
                     
-                    <!-- Додано секцію для завантаження схем навігації (тільки для адміністраторів) -->
-                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                        <h3 class="text-lg font-semibold mb-3">🗺️ Схеми навігації по Уніку</h3>
-                        <p class="text-sm text-gray-700 mb-3">Завантажте фото схем корпусів для студентів</p>
-                        <div class="space-y-2">
-                            <input type="file" id="navigation-scheme-input" accept="image/*" multiple class="w-full border border-gray-300 rounded-lg p-3">
-                            <button onclick="uploadNavigationSchemes()" class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Завантажити схеми</button>
-                            <div id="navigation-schemes-status" class="hidden mt-2 p-3 rounded-lg"></div>
-                        </div>
-                        <div class="mt-4">
-                            <h4 class="text-sm font-semibold mb-2">Завантажені схеми:</h4>
-                            <div id="navigation-schemes-list" class="grid grid-cols-3 gap-2">
-                                <p class="col-span-3 text-gray-500 text-center text-sm">Завантаження...</p>
-                            </div>
-                        </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="schedule-name" placeholder="Назва розкладу (наприклад: 1 курс ІПЗ)" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <input type="file" id="schedule-file" accept=".xlsx,.xls" 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
                     </div>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Назва розкладу (група/курс):</label>
-                            <input type="text" id="schedule-name" placeholder="наприклад: 1 курс ІПЗ" class="w-full border border-gray-300 rounded-lg p-3">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Завантажити Excel файл:</label>
-                            <input type="file" id="schedule-file" accept=".xlsx,.xls" class="w-full border border-gray-300 rounded-lg p-3">
-                        </div>
-                        <button onclick="uploadSchedule()" class="w-full bg-blue-500 text-white font-semibold py-3 rounded-lg hover:bg-blue-600">Завантажити розклад</button>
-                        <div id="schedule-status" class="hidden mt-2 p-3 rounded-lg"></div>
+                    <button onclick="uploadSchedule()" 
+                        class="w-full mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-center gap-2">
+                        <i data-lucide="upload" class="w-5 h-5"></i>
+                        Завантажити розклад
+                    </button>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="map" class="w-5 h-5 text-green-500"></i>
+                        Схеми навігації по Уніку
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-4">Завантажте фото схем корпусів для студентів</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <input type="file" id="navigation-scheme-input" accept="image/*" multiple 
+                            class="border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500">
+                        <button onclick="uploadNavigationSchemes()" 
+                            class="bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="upload" class="w-5 h-5"></i>
+                            Завантажити схеми
+                        </button>
                     </div>
-                    <div class="mt-8">
-                        <h3 class="text-lg font-bold mb-3">Завантажені розклади:</h3>
-                        <div id="schedules-list" class="space-y-2">
-                            <p class="text-gray-500 text-center">Завантаження...</p>
-                        </div>
+                    <div id="navigation-schemes-list" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="col-span-full text-center py-4 text-gray-500 text-sm">Завантаження...</div>
                     </div>
                 </div>
 
-                <div id="tab-broadcast" class="tab-content p-6">
-                    <h2 class="text-xl font-bold mb-4">Розсилка повідомлень</h2>
-                    <p class="text-sm text-gray-600 mb-4">Користувачів в базі: <span id="users-count">0</span></p>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Завантажені розклади</h3>
+                    <div id="schedules-list" class="space-y-3">
+                        <div class="text-center py-8 text-gray-500">
+                            <div class="spinner mx-auto"></div>
+                            <p class="mt-2">Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Broadcast Section -->
+            <div id="section-broadcast" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Розсилка повідомлень</h3>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <p class="text-sm text-blue-800">
+                            <i data-lucide="users" class="w-4 h-4 inline"></i>
+                            Користувачів в базі: <span id="users-count" class="font-bold">0</span>
+                        </p>
+                    </div>
                     
-                    <!-- добавил поле для загрузки фото к рассылке -->
                     <div class="mb-4">
-                        <label class="block text-sm font-medium mb-2">Фото (до 10 штук):</label>
-                        <input type="file" id="broadcast-photos" accept="image/*" multiple class="w-full border border-gray-300 rounded-lg p-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Фото (до 10 штук):</label>
+                        <input type="file" id="broadcast-photos" accept="image/*" multiple 
+                            class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
                         <p class="text-xs text-gray-500 mt-1">Можна завантажити до 10 фото</p>
                         <div id="broadcast-photos-preview" class="grid grid-cols-5 gap-2 mt-2"></div>
                     </div>
                     
-                    <textarea id="broadcast-message" placeholder="Введіть повідомлення для розсилки..." class="w-full border border-gray-300 rounded-lg p-3 mb-4 h-32"></textarea>
-                    <button onclick="sendBroadcast()" class="w-full bg-green-500 text-white font-semibold py-3 rounded-lg hover:bg-green-600">Відправити розсилку</button>
-                    <div id="broadcast-status" class="hidden mt-4 p-3 rounded-lg"></div>
-                </div>
-
-                <div id="tab-events" class="tab-content p-6">
-                    <h2 class="text-xl font-bold mb-4">Управління подіями</h2>
-                    
-                    <!-- Добавляем форму создания нового события -->
-                    <div class="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h3 class="text-lg font-semibold mb-3">Створити новий івент</h3>
-                        <div class="space-y-3">
-                            <input type="text" id="admin-event-title" placeholder="Назва івенту" class="w-full border border-gray-300 rounded-lg p-2">
-                            <div class="grid grid-cols-2 gap-2">
-                                <input type="date" id="admin-event-date" class="w-full border border-gray-300 rounded-lg p-2">
-                                <input type="time" id="admin-event-time" class="w-full border border-gray-300 rounded-lg p-2">
-                            </div>
-                            <input type="text" id="admin-event-location" placeholder="Місце проведення" class="w-full border border-gray-300 rounded-lg p-2">
-                            <textarea id="admin-event-description" placeholder="Опис івенту" rows="3" class="w-full border border-gray-300 rounded-lg p-2"></textarea>
-                            <input type="number" id="admin-event-duration" placeholder="Тривалість (годин)" value="24" class="w-full border border-gray-300 rounded-lg p-2">
-                            <button onclick="createAdminEvent()" class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Створити івент</button>
-                        </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Повідомлення:</label>
+                        <textarea id="broadcast-message" placeholder="Введіть повідомлення для розсилки..." 
+                            class="w-full border border-gray-300 rounded-lg p-3 h-32 focus:ring-2 focus:ring-blue-500"></textarea>
                     </div>
                     
-                    <div class="mb-6">
-                        <h3 class="text-lg font-semibold mb-3">Події на модерації</h3>
-                        <div id="pending-events-list" class="space-y-4">
-                            <p class="text-gray-500 text-center">Завантаження...</p>
-                        </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Аудиторія:</label>
+                        <select id="broadcast-audience" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                            <option value="all">Всі користувачі</option>
+                            <option value="active">Тільки активні</option>
+                        </select>
                     </div>
                     
-                    <div class="mb-6">
-                        <h3 class="text-lg font-semibold mb-3">Всі події</h3>
-                        <div id="all-events-list" class="space-y-4">
-                            <p class="text-gray-500 text-center">Завантаження...</p>
+                    <button onclick="sendBroadcast()" 
+                        class="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition flex items-center justify-center gap-2">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                        Відправити розсилку
+                    </button>
+                    
+                    <div id="broadcast-progress" class="hidden mt-4">
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-green-500 h-3 rounded-full progress-bar transition-all" id="broadcast-progress-bar" style="width: 0%"></div>
                         </div>
+                        <p class="text-sm text-gray-600 mt-2 text-center">
+                            Відправлено: <span id="broadcast-sent">0</span> / <span id="broadcast-total">0</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cleanup Section -->
+            <div id="section-cleanup" class="section hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Очистка бази даних</h3>
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <h4 class="text-lg font-semibold text-red-800 mb-2 flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                            Увага!
+                        </h4>
+                        <p class="text-red-700">Ці дії не можна скасувати. Будьте обережні!</p>
                     </div>
                     
-                    <div id="event-participants-section" class="hidden">
-                        <h3 class="text-lg font-semibold mb-3">Учасники події: <span id="current-event-name"></span></h3>
-                        <button onclick="closeParticipants()" class="mb-3 bg-gray-500 text-white px-4 py-2 rounded">Назад</button>
-                        <div id="event-participants-list" class="space-y-3">
-                            <p class="text-gray-500 text-center">Завантаження...</p>
-                        </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button onclick="cleanDatabase('all')" 
+                            class="bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold py-4 rounded-lg hover:from-red-600 hover:to-red-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            Очистити всю базу
+                        </button>
+                        <button onclick="cleanDatabase('events')" 
+                            class="bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-4 rounded-lg hover:from-orange-600 hover:to-orange-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                            Очистити івенти
+                        </button>
+                        <button onclick="cleanDatabase('schedules')" 
+                            class="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-semibold py-4 rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="calendar-days" class="w-5 h-5"></i>
+                            Очистити розклади
+                        </button>
+                        <button onclick="cleanDatabase('videos')" 
+                            class="bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold py-4 rounded-lg hover:from-purple-600 hover:to-purple-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="video" class="w-5 h-5"></i>
+                            Очистити відео
+                        </button>
                     </div>
                 </div>
+            </div>
+        </main>
+    </div>
 
-                <div id="tab-videos" class="tab-content p-6">
-                    <h2 class="text-xl font-bold mb-4">Відео на модерації</h2>
-                    <div id="videos-list" class="space-y-4">
-                        <p class="text-gray-500 text-center">Завантаження...</p>
-                    </div>
-                </div>
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
-                <div id="tab-photos" class="tab-content p-6">
-                    <h2 class="text-xl font-bold mb-4">Фото на модерації</h2>
-                    <div id="photos-list" class="space-y-4">
-                        <p class="text-gray-500 text-center">Завантаження...</p>
-                    </div>
-                </div>
-
-                <div id="tab-cleanup" class="tab-content p-6">
-                    <h2 class="text-xl font-bold mb-4">Очистка бази даних</h2>
-                    <div class="space-y-4">
-                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                            <h3 class="text-lg font-semibold text-red-800 mb-2">⚠️ Увага!</h3>
-                            <p class="text-red-700">Ці дії не можна скасувати. Будьте обережні!</p>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button onclick="cleanDatabase('all')" class="bg-red-500 text-white font-semibold py-4 rounded-lg hover:bg-red-600">
-                                🗑️ Очистити всю базу
-                            </button>
-                            <button onclick="cleanDatabase('events')" class="bg-orange-500 text-white font-semibold py-4 rounded-lg hover:bg-orange-600">
-                                🎭 Очистити івенти
-                            </button>
-                            <button onclick="cleanDatabase('schedules')" class="bg-yellow-500 text-white font-semibold py-4 rounded-lg hover:bg-yellow-600">
-                                📅 Очистити розклади
-                            </button>
-                            <button onclick="cleanDatabase('videos')" class="bg-purple-500 text-white font-semibold py-4 rounded-lg hover:bg-purple-600">
-                                🎥 Очистити відео
-                            </button>
-                        </div>
-                        
-                        <div id="cleanup-status" class="hidden mt-4 p-3 rounded-lg"></div>
-                    </div>
-                </div>
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal fixed inset-0 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h3 class="text-xl font-bold text-gray-800 mb-2" id="confirm-title">Підтвердження</h3>
+            <p class="text-gray-600 mb-6" id="confirm-message">Ви впевнені?</p>
+            <div class="flex gap-3">
+                <button onclick="cancelConfirmation()" 
+                    class="flex-1 bg-gray-500 text-white font-semibold py-3 rounded-lg hover:bg-gray-600 transition">
+                    Скасувати
+                </button>
+                <button onclick="confirmAction()" id="confirm-btn"
+                    class="flex-1 bg-red-500 text-white font-semibold py-3 rounded-lg hover:bg-red-600 transition">
+                    Підтвердити
+                </button>
             </div>
         </div>
     </div>
@@ -334,6 +854,11 @@
     <script>
         const API_URL = window.location.origin;
         let adminToken = null;
+        let currentConfirmAction = null;
+        let selectedVideos = new Set();
+        let selectedPhotos = new Set();
+
+        lucide.createIcons();
 
         async function login() {
             const password = document.getElementById('password-input').value;
@@ -351,12 +876,14 @@
                     document.getElementById('login-screen').classList.add('hidden');
                     document.getElementById('admin-panel').classList.remove('hidden');
                     loadAdminData();
+                    showToast('success', 'Успішний вхід в систему!');
                 } else {
                     document.getElementById('login-error').classList.remove('hidden');
+                    lucide.createIcons();
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                alert('Помилка входу');
+                showToast('error', 'Помилка входу');
             }
         }
 
@@ -365,6 +892,102 @@
             document.getElementById('login-screen').classList.remove('hidden');
             document.getElementById('admin-panel').classList.add('hidden');
             document.getElementById('password-input').value = '';
+            showToast('info', 'Ви вийшли з системи');
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('sidebar').classList.toggle('mobile-open');
+        }
+
+        function navigateTo(section) {
+            document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`section-${section}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
+            event.target.closest('.sidebar-item').classList.add('active');
+            
+            const titles = {
+                dashboard: 'Dashboard',
+                users: 'Користувачі',
+                stars: 'Stars & Баланси',
+                events: 'Події',
+                videos: 'Відео',
+                photos: 'Фото',
+                images: 'Hero Images',
+                schedules: 'Розклади',
+                broadcast: 'Розсилка',
+                cleanup: 'Очистка'
+            };
+            
+            document.getElementById('page-title').textContent = titles[section];
+            
+            if (window.innerWidth < 768) {
+                toggleMobileMenu();
+            }
+            
+            if (section === 'dashboard') loadDashboardStats();
+            if (section === 'users') loadUsersList();
+            if (section === 'stars') loadStarsData();
+            if (section === 'events') { loadPendingEvents(); loadAllEvents(); }
+            if (section === 'videos') loadPendingVideos();
+            if (section === 'photos') loadPendingPhotos();
+            if (section === 'schedules') { loadSchedulesList(); loadNavigationSchemes(); }
+            if (section === 'broadcast') loadUsersCount();
+        }
+
+        function showToast(type, message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500',
+                warning: 'bg-orange-500'
+            };
+            
+            const icons = {
+                success: 'check-circle',
+                error: 'x-circle',
+                info: 'info',
+                warning: 'alert-triangle'
+            };
+            
+            toast.className = `toast ${colors[type]} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]`;
+            toast.innerHTML = `
+                <i data-lucide="${icons[type]}" class="w-5 h-5"></i>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showConfirmation(title, message, action, btnText = 'Підтвердити', btnClass = 'bg-red-500 hover:bg-red-600') {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            document.getElementById('confirm-btn').textContent = btnText;
+            document.getElementById('confirm-btn').className = `flex-1 ${btnClass} text-white font-semibold py-3 rounded-lg transition`;
+            currentConfirmAction = action;
+            document.getElementById('confirmation-modal').classList.remove('hidden');
+        }
+
+        function cancelConfirmation() {
+            document.getElementById('confirmation-modal').classList.add('hidden');
+            currentConfirmAction = null;
+        }
+
+        function confirmAction() {
+            if (currentConfirmAction) {
+                currentConfirmAction();
+                cancelConfirmation();
+            }
         }
 
         async function loadAdminData() {
@@ -382,144 +1005,485 @@
                     document.getElementById(`pos-y-${block}-val`).textContent = pos.y + '%';
                 });
                 
-                if (settings.heroImages) {
-                    blocks.forEach(block => {
-                        if (settings.heroImages[block]) {
-                            const preview = document.getElementById(`preview-${block}`);
-                            preview.src = settings.heroImages[block];
-                            preview.classList.remove('hidden');
-                            const pos = positions[block] || { x: 50, y: 50 };
-                            preview.style.objectPosition = `${pos.x}% ${pos.y}%`;
-                        }
-                    });
-                }
-                
-                const usersRes = await fetch(`${API_URL}/api/admin/bot-users-count?token=${adminToken}`);
-                const usersData = await usersRes.json();
-                document.getElementById('users-count').textContent = usersData.count || 0;
-                // </CHANGE>
-                
-                loadPendingVideos();
+                loadDashboardStats();
             } catch (error) {
                 console.error('Error loading admin data:', error);
+                showToast('error', 'Помилка завантаження даних');
             }
         }
 
-        function handleFileSelect(blockName) {
-            const fileInput = document.getElementById(`file-${blockName}`);
-            const preview = document.getElementById(`preview-${blockName}`);
-            
-            if (fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                
-                reader.onload = (e) => {
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                };
-                
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function updateImagePosition(blockName) {
-            const posX = document.getElementById(`pos-x-${blockName}`).value;
-            const posY = document.getElementById(`pos-y-${blockName}`).value;
-            const preview = document.getElementById(`preview-${blockName}`);
-            
-            document.getElementById(`pos-x-${blockName}-val`).textContent = posX + '%';
-            document.getElementById(`pos-y-${blockName}-val`).textContent = posY + '%';
-            
-            preview.style.objectPosition = `${posX}% ${posY}%`;
-        }
-
-        async function saveImages() {
-            const blocks = ['news', 'schedule', 'video', 'events'];
-            const formData = new FormData();
-            
-            for (const block of blocks) {
-                const fileInput = document.getElementById(`file-${block}`);
-                const posX = document.getElementById(`pos-x-${block}`).value;
-                const posY = document.getElementById(`pos-y-${block}`).value;
-                
-                if (fileInput.files && fileInput.files[0]) {
-                    formData.append(block, fileInput.files[0]);
-                }
-                
-                formData.append(`${block}_position_x`, posX);
-                formData.append(`${block}_position_y`, posY);
-            }
-            
+        async function loadDashboardStats() {
             try {
-                const response = await fetch(`${API_URL}/api/admin/upload-hero-images?token=${adminToken}`, {
-                    method: 'POST',
-                    body: formData
-                });
+                const [usersRes, eventsRes, videosRes, photosRes] = await Promise.all([
+                    fetch(`${API_URL}/api/admin/users?token=${adminToken}`),
+                    fetch(`${API_URL}/api/admin/events?token=${adminToken}`),
+                    fetch(`${API_URL}/api/admin/videos/pending?token=${adminToken}`),
+                    fetch(`${API_URL}/api/admin/photos/pending?token=${adminToken}`)
+                ]);
                 
-                if (response.ok) {
-                    const status = document.getElementById('images-status');
-                    status.textContent = '✅ Зображення успішно збережено!';
-                    status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
-                    status.classList.remove('hidden');
-                    setTimeout(() => status.classList.add('hidden'), 3000);
-                    
-                    blocks.forEach(block => {
-                        document.getElementById(`file-${block}`).value = '';
-                    });
-                    
-                    await loadAdminData();
-                } else {
-                    throw new Error('Upload failed');
-                }
+                const users = await usersRes.json();
+                const events = await eventsRes.json();
+                const pendingVideos = await videosRes.json();
+                const pendingPhotos = await photosRes.json();
+                
+                const approvedEvents = events.filter(e => e.status === 'approved').length;
+                const totalEvents = events.length;
+                
+                document.getElementById('stat-users').textContent = users.length;
+                document.getElementById('stat-events').textContent = totalEvents;
+                document.getElementById('stat-videos').textContent = pendingVideos.length;
+                document.getElementById('stat-photos').textContent = pendingPhotos.length;
+                
+                document.getElementById('pending-videos-count').textContent = pendingVideos.length;
+                document.getElementById('pending-photos-count').textContent = pendingPhotos.length;
+                document.getElementById('pending-events-count').textContent = events.filter(e => e.status === 'pending').length;
+                
+                document.getElementById('approved-events-count').textContent = approvedEvents;
+                document.getElementById('approved-events-bar').style.width = (totalEvents > 0 ? (approvedEvents / totalEvents * 100) : 0) + '%';
+                
+                const allVideosRes = await fetch(`${API_URL}/api/videos`);
+                const allVideos = await allVideosRes.json();
+                const approvedVideos = allVideos.length;
+                const totalVideos = approvedVideos + pendingVideos.length;
+                document.getElementById('approved-videos-count').textContent = approvedVideos;
+                document.getElementById('approved-videos-bar').style.width = (totalVideos > 0 ? (approvedVideos / totalVideos * 100) : 0) + '%';
+                
+                const allPhotosRes = await fetch(`${API_URL}/api/photos`);
+                const allPhotos = await allPhotosRes.json();
+                const approvedPhotos = allPhotos.length;
+                const totalPhotos = approvedPhotos + pendingPhotos.length;
+                document.getElementById('approved-photos-count').textContent = approvedPhotos;
+                document.getElementById('approved-photos-bar').style.width = (totalPhotos > 0 ? (approvedPhotos / totalPhotos * 100) : 0) + '%';
+                
             } catch (error) {
-                console.error('Error saving images:', error);
-                alert('Помилка збереження');
+                console.error('Error loading dashboard stats:', error);
             }
         }
 
-        async function sendBroadcast() {
-            const message = document.getElementById('broadcast-message').value.trim();
-            const photosInput = document.getElementById('broadcast-photos');
-            const photos = photosInput.files;
-            
-            if (photos.length > 10) {
-                alert('Можна завантажити максимум 10 фото');
-                return;
-            }
-            
-            if (!message && photos.length === 0) {
-                alert('Введіть повідомлення або додайте фото');
-                return;
-            }
-            
-            if (!confirm('Відправити розсилку всім користувачам?')) return;
-            
+        async function loadUsersList() {
             try {
-                const formData = new FormData();
-                formData.append('message', message);
+                const response = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                const users = await response.json();
                 
-                for (let i = 0; i < photos.length; i++) {
-                    formData.append('photos', photos[i]);
+                const balancesRes = await fetch(`${API_URL}/api/admin/balances?token=${adminToken}`);
+                const balances = await balancesRes.json();
+                
+                const tbody = document.getElementById('users-table-body');
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">Немає користувачів</td></tr>';
+                    return;
                 }
                 
-                const response = await fetch(`${API_URL}/api/admin/broadcast?token=${adminToken}`, {
+                tbody.innerHTML = users.map(user => {
+                    const balance = balances.find(b => String(b.userId) === String(user.telegramId)) || { balance: 0 };
+                    return `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                            <td class="py-3 px-4 text-sm text-gray-600">${user.telegramId}</td>
+                            <td class="py-3 px-4 text-sm font-medium text-gray-800">${user.firstName || ''} ${user.lastName || ''}</td>
+                            <td class="py-3 px-4 text-sm text-gray-600">${user.username || '-'}</td>
+                            <td class="py-3 px-4 text-sm font-medium text-yellow-600">${balance.balance || 0}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showToast('error', 'Помилка завантаження користувачів');
+            }
+        }
+
+        function filterUsers() {
+            const search = document.getElementById('users-search').value.toLowerCase();
+            const rows = document.querySelectorAll('#users-table-body tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
+            });
+        }
+
+        async function loadStarsData() {
+            try {
+                const [balancesRes, withdrawalsRes] = await Promise.all([
+                    fetch(`${API_URL}/api/admin/balances?token=${adminToken}`),
+                    fetch(`${API_URL}/api/admin/withdrawal-requests?token=${adminToken}`)
+                ]);
+                
+                const balances = await balancesRes.json();
+                const withdrawals = await withdrawalsRes.json();
+                
+                const totalStars = balances.reduce((sum, b) => sum + (b.balance || 0), 0);
+                const approvedWithdrawals = withdrawals.filter(w => w.status === 'approved');
+                const totalWithdrawn = approvedWithdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+                const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
+                
+                document.getElementById('total-stars').textContent = totalStars;
+                document.getElementById('total-withdrawn').textContent = totalWithdrawn;
+                document.getElementById('pending-withdrawals').textContent = pendingWithdrawals.length;
+                
+                const balancesBody = document.getElementById('balances-table-body');
+                if (balances.length === 0) {
+                    balancesBody.innerHTML = '<tr><td colspan="2" class="text-center py-8 text-gray-500">Немає балансів</td></tr>';
+                } else {
+                    const usersRes = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                    const users = await usersRes.json();
+                    
+                    balancesBody.innerHTML = balances
+                        .filter(b => b.balance > 0)
+                        .sort((a, b) => (b.balance || 0) - (a.balance || 0))
+                        .map(balance => {
+                            const user = users.find(u => String(u.telegramId) === String(balance.userId));
+                            const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || `User ${balance.userId}` : `User ${balance.userId}`;
+                            return `
+                                <tr class="border-b border-gray-100">
+                                    <td class="py-3 px-4 text-sm text-gray-800">${userName}</td>
+                                    <td class="py-3 px-4 text-sm font-medium text-yellow-600 text-right">${balance.balance || 0} ⭐</td>
+                                </tr>
+                            `;
+                        }).join('');
+                }
+                
+                const withdrawalsList = document.getElementById('withdrawal-requests-list');
+                if (pendingWithdrawals.length === 0) {
+                    withdrawalsList.innerHTML = '<p class="text-center py-4 text-gray-500">Немає запитів на виплату</p>';
+                } else {
+                    const usersRes = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                    const users = await usersRes.json();
+                    
+                    withdrawalsList.innerHTML = pendingWithdrawals.map(w => {
+                        const user = users.find(u => String(u.telegramId) === String(w.userId));
+                        const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || `User ${w.userId}` : `User ${w.userId}`;
+                        return `
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div>
+                                        <p class="font-medium text-gray-800">${userName}</p>
+                                        <p class="text-sm text-gray-600">Сума: ${w.amount} ⭐</p>
+                                        <p class="text-xs text-gray-500 mt-1">${new Date(w.createdAt).toLocaleString('uk-UA')}</p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="approveWithdrawal('${w.id}')" 
+                                        class="flex-1 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition text-sm flex items-center justify-center gap-2">
+                                        <i data-lucide="check" class="w-4 h-4"></i>
+                                        Схвалити
+                                    </button>
+                                    <button onclick="rejectWithdrawal('${w.id}')" 
+                                        class="flex-1 bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition text-sm flex items-center justify-center gap-2">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                        Відхилити
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    lucide.createIcons();
+                }
+                
+            } catch (error) {
+                console.error('Error loading stars data:', error);
+                showToast('error', 'Помилка завантаження даних Stars');
+            }
+        }
+
+        async function approveWithdrawal(id) {
+            showConfirmation(
+                'Схвалити виплату',
+                'Ви впевнені, що хочете схвалити цей запит на виплату?',
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/withdrawal-requests/${id}/approve?token=${adminToken}`, {
+                            method: 'POST'
+                        });
+                        
+                        if (response.ok) {
+                            showToast('success', 'Виплату схвалено');
+                            loadStarsData();
+                        } else {
+                            showToast('error', 'Помилка схвалення виплати');
+                        }
+                    } catch (error) {
+                        console.error('Error approving withdrawal:', error);
+                        showToast('error', 'Помилка схвалення виплати');
+                    }
+                },
+                'Схвалити',
+                'bg-green-500 hover:bg-green-600'
+            );
+        }
+
+        async function rejectWithdrawal(id) {
+            showConfirmation(
+                'Відхилити виплату',
+                'Ви впевнені, що хочете відхилити цей запит на виплату?',
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/withdrawal-requests/${id}/reject?token=${adminToken}`, {
+                            method: 'POST'
+                        });
+                        
+                        if (response.ok) {
+                            showToast('success', 'Виплату відхилено');
+                            loadStarsData();
+                        } else {
+                            showToast('error', 'Помилка відхилення виплати');
+                        }
+                    } catch (error) {
+                        console.error('Error rejecting withdrawal:', error);
+                        showToast('error', 'Помилка відхилення виплати');
+                    }
+                }
+            );
+        }
+
+        async function loadPendingEvents() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/pending?token=${adminToken}`);
+                const events = await response.json();
+                
+                const listEl = document.getElementById('pending-events-list');
+                document.getElementById('pending-events-badge').textContent = events.length;
+                
+                if (events.length === 0) {
+                    listEl.innerHTML = '<p class="text-center py-8 text-gray-500">Немає подій на модерації</p>';
+                    return;
+                }
+                
+                listEl.innerHTML = events.map(event => `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-bold text-gray-800 text-lg">${event.title}</h4>
+                                <p class="text-sm text-gray-600 mt-1">${event.description || 'Немає опису'}</p>
+                                <div class="flex gap-4 mt-2 text-xs text-gray-500">
+                                    <span><i data-lucide="calendar" class="w-3 h-3 inline"></i> ${event.date}</span>
+                                    <span><i data-lucide="clock" class="w-3 h-3 inline"></i> ${event.time}</span>
+                                    <span><i data-lucide="map-pin" class="w-3 h-3 inline"></i> ${event.location}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="moderateEvent('${event.id}', 'approve')" 
+                                class="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition flex items-center justify-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                                Схвалити
+                            </button>
+                            <button onclick="moderateEvent('${event.id}', 'reject')" 
+                                class="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                                Відхилити
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading pending events:', error);
+                showToast('error', 'Помилка завантаження подій');
+            }
+        }
+
+        async function loadAllEvents() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/all?token=${adminToken}`);
+                const events = await response.json();
+                
+                const listEl = document.getElementById('all-events-list');
+                
+                if (events.length === 0) {
+                    listEl.innerHTML = '<p class="text-center py-8 text-gray-500">Немає подій</p>';
+                    return;
+                }
+                
+                listEl.innerHTML = events.map(event => `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <h4 class="font-bold text-gray-800 text-lg">${event.title}</h4>
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium ${event.status === 'approved' ? 'bg-green-100 text-green-600' : event.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}">
+                                        ${event.status === 'approved' ? 'Схвалено' : event.status === 'rejected' ? 'Відхилено' : 'На модерації'}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600">${event.description || 'Немає опису'}</p>
+                                <div class="flex gap-4 mt-2 text-xs text-gray-500">
+                                    <span><i data-lucide="calendar" class="w-3 h-3 inline"></i> ${event.date}</span>
+                                    <span><i data-lucide="clock" class="w-3 h-3 inline"></i> ${event.time}</span>
+                                    <span><i data-lucide="map-pin" class="w-3 h-3 inline"></i> ${event.location}</span>
+                                    <span><i data-lucide="users" class="w-3 h-3 inline"></i> ${event.participants || 0} учасників</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="viewParticipants('${event.id}', '${event.title}')" 
+                                class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm flex items-center gap-2">
+                                <i data-lucide="users" class="w-4 h-4"></i>
+                                Учасники
+                            </button>
+                            <button onclick="deleteEvent('${event.id}')" 
+                                class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm flex items-center gap-2">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                Видалити
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading all events:', error);
+                showToast('error', 'Помилка завантаження подій');
+            }
+        }
+
+        async function moderateEvent(eventId, action) {
+            const actionText = action === 'approve' ? 'схвалити' : 'відхилити';
+            showConfirmation(
+                `${action === 'approve' ? 'Схвалити' : 'Відхилити'} подію`,
+                `Ви впевнені, що хочете ${actionText} цю подію?`,
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/events/${eventId}/moderate?token=${adminToken}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action })
+                        });
+                        
+                        if (response.ok) {
+                            showToast('success', `Подію ${action === 'approve' ? 'схвалено' : 'відхилено'}`);
+                            loadPendingEvents();
+                            loadAllEvents();
+                            loadDashboardStats();
+                        } else {
+                            showToast('error', 'Помилка модерації події');
+                        }
+                    } catch (error) {
+                        console.error('Error moderating event:', error);
+                        showToast('error', 'Помилка модерації події');
+                    }
+                },
+                action === 'approve' ? 'Схвалити' : 'Відхилити',
+                action === 'approve' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+            );
+        }
+
+        async function deleteEvent(eventId) {
+            showConfirmation(
+                'Видалити подію',
+                'Ви впевнені, що хочете видалити цю подію? Учасники та повідомлення будуть видалені. Фото залишаться в галереї.',
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/events/${eventId}?token=${adminToken}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            showToast('success', 'Подію видалено');
+                            loadPendingEvents();
+                            loadAllEvents();
+                            loadDashboardStats();
+                        } else {
+                            showToast('error', 'Помилка видалення події');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting event:', error);
+                        showToast('error', 'Помилка видалення події');
+                    }
+                }
+            );
+        }
+
+        async function viewParticipants(eventId, eventName) {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/participants?token=${adminToken}`);
+                const participants = await response.json();
+                
+                document.getElementById('current-event-name').textContent = eventName;
+                document.getElementById('all-events-section').classList.add('hidden');
+                document.getElementById('event-participants-section').classList.remove('hidden');
+                
+                const listEl = document.getElementById('event-participants-list');
+                
+                if (participants.length === 0) {
+                    listEl.innerHTML = '<p class="text-center py-8 text-gray-500">Немає учасників</p>';
+                    return;
+                }
+                
+                const usersRes = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                const users = await usersRes.json();
+                
+                listEl.innerHTML = participants.map(p => {
+                    const user = users.find(u => String(u.telegramId) === String(p.user_id));
+                    const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || `User ${p.user_id}` : `User ${p.user_id}`;
+                    return `
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <i data-lucide="user" class="w-5 h-5 text-blue-500"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-gray-800">${userName}</p>
+                                    <p class="text-xs text-gray-500">ID: ${p.user_id}</p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-500">${new Date(p.joined_at).toLocaleString('uk-UA')}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading participants:', error);
+                showToast('error', 'Помилка завантаження учасників');
+            }
+        }
+
+        function closeParticipants() {
+            document.getElementById('event-participants-section').classList.add('hidden');
+            document.getElementById('all-events-section').classList.remove('hidden');
+        }
+
+        async function createAdminEvent() {
+            const title = document.getElementById('admin-event-title').value.trim();
+            const date = document.getElementById('admin-event-date').value;
+            const time = document.getElementById('admin-event-time').value;
+            const location = document.getElementById('admin-event-location').value.trim();
+            const description = document.getElementById('admin-event-description').value.trim();
+            const duration = parseInt(document.getElementById('admin-event-duration').value) || 24;
+            
+            if (!title || !date || !time || !location) {
+                showToast('warning', 'Заповніть всі обов\'язкові поля');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/events?token=${adminToken}`, {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, date, time, location, description, duration })
                 });
                 
                 const data = await response.json();
                 
-                const status = document.getElementById('broadcast-status');
-                status.textContent = `✅ Розсилка завершена! Відправлено: ${data.sent}, Помилок: ${data.failed}`;
-                status.className = 'mt-4 p-3 rounded-lg bg-green-100 text-green-700';
-                status.classList.remove('hidden');
-                
-                document.getElementById('broadcast-message').value = '';
-                photosInput.value = '';
-                document.getElementById('broadcast-photos-preview').innerHTML = '';
+                if (response.ok) {
+                    showToast('success', 'Івент успішно створено!');
+                    document.getElementById('admin-event-title').value = '';
+                    document.getElementById('admin-event-date').value = '';
+                    document.getElementById('admin-event-time').value = '';
+                    document.getElementById('admin-event-location').value = '';
+                    document.getElementById('admin-event-description').value = '';
+                    document.getElementById('admin-event-duration').value = '24';
+                    
+                    loadAllEvents();
+                    loadDashboardStats();
+                } else {
+                    showToast('error', data.error || 'Помилка створення івенту');
+                }
             } catch (error) {
-                console.error('Error broadcasting:', error);
-                alert('Помилка розсилки');
+                console.error('Error creating event:', error);
+                showToast('error', 'Помилка створення івенту');
             }
         }
 
@@ -528,484 +1492,345 @@
                 const response = await fetch(`${API_URL}/api/admin/videos/pending?token=${adminToken}`);
                 const videos = await response.json();
                 
-                const videosList = document.getElementById('videos-list');
+                const listEl = document.getElementById('videos-list');
+                document.getElementById('videos-pending-badge').textContent = videos.length;
                 
                 if (videos.length === 0) {
-                    videosList.innerHTML = '<p class="text-gray-500 text-center">Немає відео на модерації</p>';
+                    listEl.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">Немає відео на модерації</div>';
                     return;
                 }
                 
-                videosList.innerHTML = videos.map(video => `
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <p class="font-semibold">${video.originalName}</p>
-                                <p class="text-sm text-gray-500">Завантажено: ${new Date(video.uploadedAt).toLocaleString('uk-UA')}</p>
-                                <p class="text-sm text-gray-500">Розмір: ${(video.size / 1024 / 1024).toFixed(2)} MB</p>
+                const usersRes = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                const users = await usersRes.json();
+                
+                listEl.innerHTML = videos.map(video => {
+                    const user = users.find(u => String(u.telegramId) === String(video.user_id));
+                    const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || `User ${video.user_id}` : `User ${video.user_id}`;
+                    return `
+                        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                            <div class="flex items-center gap-2 mb-3">
+                                <input type="checkbox" class="batch-checkbox w-5 h-5 rounded" 
+                                    onchange="toggleVideoSelection('${video.id}')" id="video-${video.id}">
+                                <label for="video-${video.id}" class="text-sm text-gray-600">Обрати</label>
+                            </div>
+                            <video src="${API_URL}${video.url}" controls class="w-full rounded-lg mb-3"></video>
+                            <div class="mb-3">
+                                <p class="text-sm text-gray-600 mb-1"><strong>Автор:</strong> ${userName}</p>
+                                <p class="text-xs text-gray-500">${new Date(video.createdAt || video.created_at).toLocaleString('uk-UA')}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="moderateVideo('${video.id}', 'approve')" 
+                                    class="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition flex items-center justify-center gap-2">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                    Схвалити
+                                </button>
+                                <button onclick="moderateVideo('${video.id}', 'reject')" 
+                                    class="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                    Відхилити
+                                </button>
                             </div>
                         </div>
-                        <video src="${API_URL}${video.path}" controls class="w-full rounded-lg mb-3" style="max-height: 300px;"></video>
-                        <div class="flex gap-2">
-                            <button onclick="moderateVideo('${video.id}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Схвалити</button>
-                            <button onclick="moderateVideo('${video.id}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">Відхилити</button>
-                            <a href="${API_URL}${video.path}" download="${video.originalName}" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 flex items-center justify-center">
-                                <!-- убрал текст, оставил только символ загрузки -->
-                                <span>⬇️</span>
-                            </a>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
+                
+                lucide.createIcons();
             } catch (error) {
-                console.error('Error loading videos:', error);
+                console.error('Error loading pending videos:', error);
+                showToast('error', 'Помилка завантаження відео');
+            }
+        }
+
+        function toggleVideoSelection(videoId) {
+            if (selectedVideos.has(videoId)) {
+                selectedVideos.delete(videoId);
+            } else {
+                selectedVideos.add(videoId);
+            }
+        }
+
+        async function batchApproveVideos() {
+            if (selectedVideos.size === 0) {
+                showToast('warning', 'Оберіть відео для схвалення');
+                return;
+            }
+            
+            showConfirmation(
+                'Схвалити відео',
+                `Ви впевнені, що хочете схвалити ${selectedVideos.size} відео?`,
+                async () => {
+                    for (const videoId of selectedVideos) {
+                        await moderateVideo(videoId, 'approve', false);
+                    }
+                    selectedVideos.clear();
+                    showToast('success', 'Відео схвалено');
+                    loadPendingVideos();
+                    loadDashboardStats();
+                },
+                'Схвалити',
+                'bg-green-500 hover:bg-green-600'
+            );
+        }
+
+        async function moderateVideo(videoId, action, showConfirm = true) {
+            const performModeration = async () => {
+                try {
+                    const response = await fetch(`${API_URL}/api/admin/videos/${videoId}/moderate?token=${adminToken}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action })
+                    });
+                    
+                    if (response.ok) {
+                        if (showConfirm) {
+                            showToast('success', `Відео ${action === 'approve' ? 'схвалено' : 'відхилено'}`);
+                            loadPendingVideos();
+                            loadDashboardStats();
+                        }
+                    } else {
+                        showToast('error', 'Помилка модерації відео');
+                    }
+                } catch (error) {
+                    console.error('Error moderating video:', error);
+                    showToast('error', 'Помилка модерації відео');
+                }
+            };
+            
+            if (showConfirm) {
+                const actionText = action === 'approve' ? 'схвалити' : 'відхилити';
+                showConfirmation(
+                    `${action === 'approve' ? 'Схвалити' : 'Відхилити'} відео`,
+                    `Ви впевнені, що хочете ${actionText} це відео?`,
+                    performModeration,
+                    action === 'approve' ? 'Схвалити' : 'Відхилити',
+                    action === 'approve' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                );
+            } else {
+                await performModeration();
             }
         }
 
         async function loadPendingPhotos() {
             try {
-                const response = await fetch(`${API_URL}/api/photos/pending?token=${adminToken}`);
+                const response = await fetch(`${API_URL}/api/admin/photos/pending?token=${adminToken}`);
                 const photos = await response.json();
                 
-                const photosList = document.getElementById('photos-list');
+                const listEl = document.getElementById('photos-list');
+                document.getElementById('photos-pending-badge').textContent = photos.length;
                 
                 if (photos.length === 0) {
-                    photosList.innerHTML = '<p class="text-gray-500 text-center">Немає фото на модерації</p>';
+                    listEl.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">Немає фото на модерації</div>';
                     return;
                 }
                 
-                const eventsRes = await fetch(`${API_URL}/api/events`);
-                const events = await eventsRes.json();
+                const usersRes = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                const users = await usersRes.json();
                 
-                // Групуємо фото по альбомах
-                const albums = {};
-                const singlePhotos = [];
-                
-                photos.forEach(photo => {
-                    if (photo.albumId && photo.albumTotal > 1) {
-                        if (!albums[photo.albumId]) {
-                            albums[photo.albumId] = [];
-                        }
-                        albums[photo.albumId].push(photo);
-                    } else {
-                        singlePhotos.push(photo);
-                    }
-                });
-                
-                // Сортуємо фото в альбомах
-                Object.keys(albums).forEach(albumId => {
-                    albums[albumId].sort((a, b) => (a.albumIndex || 0) - (b.albumIndex || 0));
-                });
-                
-                let html = '';
-                
-                // Відображаємо альбоми
-                Object.keys(albums).forEach(albumId => {
-                    const albumPhotos = albums[albumId];
-                    const firstPhoto = albumPhotos[0];
-                    const event = events.find(e => e.id === firstPhoto.eventId);
-                    const eventName = event ? event.title : 'Подія видалена';
-                    
-                    html += `
-                        <div class="bg-blue-50 border-2 border-blue-300 p-4 rounded-lg mb-4">
+                listEl.innerHTML = photos.map(photo => {
+                    const user = users.find(u => String(u.telegramId) === String(photo.user_id));
+                    const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || `User ${photo.user_id}` : `User ${photo.user_id}`;
+                    return `
+                        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                             <div class="flex items-center gap-2 mb-3">
-                                <span class="text-xl">📸</span>
-                                <p class="font-bold text-blue-900">Альбом (${albumPhotos.length} фото)</p>
+                                <input type="checkbox" class="batch-checkbox w-5 h-5 rounded" 
+                                    onchange="togglePhotoSelection('${photo.id}')" id="photo-${photo.id}">
+                                <label for="photo-${photo.id}" class="text-sm text-gray-600">Обрати</label>
                             </div>
-                            <div class="flex justify-between items-start mb-3">
-                                <div>
-                                    <p class="font-semibold">${eventName}</p>
-                                    <p class="text-sm text-gray-500">Автор: ${firstPhoto.firstName || 'Анонім'}</p>
-                                    <p class="text-sm text-gray-500">Завантажено: ${new Date(firstPhoto.uploadedAt).toLocaleString('uk-UA')}</p>
-                                    ${firstPhoto.description ? `<p class="text-sm text-gray-600 mt-1">${firstPhoto.description}</p>` : ''}
-                                    ${firstPhoto.hasBlur ? `<p class="text-sm text-purple-600 mt-1">🔒 З блюром</p>` : ''}
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2 mb-3">
-                                ${albumPhotos.map(photo => `
-                                    <img src="${API_URL}${photo.url}" class="w-full rounded-lg" style="max-height: 200px; object-fit: cover;" alt="">
-                                `).join('')}
-                            </div>
+                            <img src="${API_URL}${photo.url}" class="w-full h-48 object-cover rounded-lg mb-3 cursor-pointer" 
+                                onclick="showImageModal('${API_URL}${photo.url}')">
                             <div class="mb-3">
-                                <label class="text-sm text-gray-600">Івент:</label>
-                                <select id="photo-event-${firstPhoto.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">
-                                    ${events.map(e => `<option value="${e.id}" ${e.id === firstPhoto.eventId ? 'selected' : ''}>${e.title}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="text-sm text-gray-600">Редагувати опис:</label>
-                                <textarea id="photo-desc-${firstPhoto.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">${firstPhoto.description || ''}</textarea>
+                                <p class="text-sm text-gray-600 mb-1"><strong>Автор:</strong> ${userName}</p>
+                                <p class="text-xs text-gray-500">${new Date(photo.createdAt || photo.created_at).toLocaleString('uk-UA')}</p>
                             </div>
                             <div class="flex gap-2">
-                                <button onclick="moderateAlbum('${albumId}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Схвалити всі</button>
-                                <button onclick="moderateAlbum('${albumId}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">Відхилити всі</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                // Відображаємо окремі фото
-                singlePhotos.forEach(photo => {
-                    const event = events.find(e => e.id === photo.eventId);
-                    const eventName = event ? event.title : 'Подія видалена';
-                    
-                    html += `
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <p class="font-semibold">${eventName}</p>
-                                    <p class="text-sm text-gray-500">Автор: ${photo.firstName || 'Анонім'}</p>
-                                    <p class="text-sm text-gray-500">Завантажено: ${new Date(photo.uploadedAt).toLocaleString('uk-UA')}</p>
-                                    ${photo.description ? `<p class="text-sm text-gray-600 mt-1">${photo.description}</p>` : ''}
-                                    ${photo.hasBlur ? `<p class="text-sm text-purple-600 mt-1">🔒 З блюром</p>` : ''}
-                                </div>
-                            </div>
-                            <img src="${API_URL}${photo.url}" class="w-full rounded-lg mb-3" style="max-height: 400px; object-fit: contain;" alt="${photo.description || eventName}">
-                            <div class="mb-3">
-                                <label class="text-sm text-gray-600">Івент:</label>
-                                <select id="photo-event-${photo.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">
-                                    ${events.map(e => `<option value="${e.id}" ${e.id === photo.eventId ? 'selected' : ''}>${e.title}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="text-sm text-gray-600">Редагувати опис:</label>
-                                <textarea id="photo-desc-${photo.id}" class="w-full border border-gray-300 rounded-lg p-2 mt-1">${photo.description || ''}</textarea>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="moderatePhoto('${photo.id}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">Схвалити</button>
-                                <button onclick="moderatePhoto('${photo.id}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">Відхилити</button>
-                                <button onclick="deletePhoto('${photo.id}')" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600">Видалити</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                photosList.innerHTML = html;
-            } catch (error) {
-                console.error('Error loading photos:', error);
-            }
-        }
-
-        async function moderateAlbum(albumId, action) {
-            try {
-                const response = await fetch(`${API_URL}/api/photos/pending?token=${adminToken}`);
-                const photos = await response.json();
-                const albumPhotos = photos.filter(p => p.albumId === albumId);
-                
-                const firstPhoto = albumPhotos[0];
-                const description = document.getElementById(`photo-desc-${firstPhoto.id}`).value;
-                const eventId = document.getElementById(`photo-event-${firstPhoto.id}`).value;
-                
-                for (const photo of albumPhotos) {
-                    await fetch(`${API_URL}/api/photos/${photo.id}/moderate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action, description, eventId })
-                    });
-                }
-                
-                alert(action === 'approve' ? 'Альбом схвалено' : 'Альбом відхилено');
-                loadPendingPhotos();
-            } catch (error) {
-                console.error('Error moderating album:', error);
-                alert('Помилка модерації альбому');
-            }
-        }
-
-        async function moderatePhoto(photoId, action) {
-            try {
-                const description = document.getElementById(`photo-desc-${photoId}`).value;
-                const eventId = document.getElementById(`photo-event-${photoId}`).value;
-                
-                const response = await fetch(`${API_URL}/api/photos/${photoId}/moderate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, description, eventId })
-                });
-                
-                if (response.ok) {
-                    alert(action === 'approve' ? 'Фото схвалено' : 'Фото відхилено');
-                    loadPendingPhotos();
-                }
-            } catch (error) {
-                console.error('Error moderating photo:', error);
-                alert('Помилка модерації');
-            }
-        }
-
-        async function deletePhoto(photoId) {
-            if (!confirm('Видалити це фото назавжди?')) return;
-            
-            try {
-                const response = await fetch(`${API_URL}/api/photos/${photoId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    alert('Фото видалено');
-                    loadPendingPhotos();
-                }
-            } catch (error) {
-                console.error('Error deleting photo:', error);
-                alert('Помилка видалення');
-            }
-        }
-
-        async function moderateVideo(videoId, action) {
-            try {
-                const response = await fetch(`${API_URL}/api/videos/${videoId}/moderate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action })
-                });
-                
-                if (response.ok) {
-                    loadPendingVideos();
-                }
-            } catch (error) {
-                console.error('Error moderating video:', error);
-            }
-        }
-
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('text-blue-500', 'border-b-2', 'border-blue-500');
-                btn.classList.add('text-gray-500');
-            });
-            
-            document.getElementById(`tab-${tab}`).classList.add('active');
-            event.target.classList.remove('text-gray-500');
-            event.target.classList.add('text-blue-500', 'border-b-2', 'border-blue-500');
-            
-            if (tab === 'videos') {
-                loadPendingVideos();
-            } else if (tab === 'photos') {
-                loadPendingPhotos();
-            } else if (tab === 'schedules') {
-                loadSchedulesList();
-                loadNavigationSchemes(); // Завантажуємо схеми при переключенні на вкладку розкладів
-            } else if (tab === 'events') {
-                loadPendingEvents();
-                loadAllEvents();
-            }
-        }
-
-        async function loadPendingEvents() {
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/pending?token=${adminToken}`);
-                const events = await response.json();
-                
-                const eventsList = document.getElementById('pending-events-list');
-                
-                if (events.length === 0) {
-                    eventsList.innerHTML = '<p class="text-gray-500 text-center">Немає подій на модерації</p>';
-                    return;
-                }
-                
-                eventsList.innerHTML = events.map(event => `
-                    <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                        <div class="mb-2">
-                            <h4 class="font-bold text-lg">${event.title}</h4>
-                            <p class="text-sm text-gray-600">📅 ${event.date} ⏰ ${event.time}</p>
-                            <p class="text-sm text-gray-600">📍 ${event.location}</p>
-                            <p class="text-sm text-gray-700 mt-2">${event.description}</p>
-                            <p class="text-xs text-gray-500 mt-1">Створено: ${new Date(event.createdAt).toLocaleString('uk-UA')}</p>
-                        </div>
-                        <div class="flex gap-2 mt-3">
-                            <button onclick="moderateEvent('${event.id}', 'approve')" class="flex-1 bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">✅ Схвалити</button>
-                            <button onclick="moderateEvent('${event.id}', 'reject')" class="flex-1 bg-red-500 text-white font-semibold py-2 rounded-lg hover:bg-red-600">❌ Відхилити</button>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading pending events:', error);
-            }
-        }
-
-        let currentEventForParticipants = null;
-
-        async function loadAllEvents() {
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/all?token=${adminToken}`);
-                const events = await response.json();
-                
-                const eventsList = document.getElementById('all-events-list');
-                
-                if (events.length === 0) {
-                    eventsList.innerHTML = '<p class="text-gray-500 text-center">Немає подій</p>';
-                    return;
-                }
-                
-                eventsList.innerHTML = events.map(event => {
-                    const statusColor = event.status === 'approved' ? 'green' : event.status === 'rejected' ? 'red' : 'yellow';
-                    const statusText = event.status === 'approved' ? 'Схвалено' : event.status === 'rejected' ? 'Відхилено' : 'На модерації';
-                    
-                    return `
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="flex-1">
-                                    <h4 class="font-bold">${event.title}</h4>
-                                    <p class="text-sm text-gray-600">📅 ${event.date} ⏰ ${event.time}</p>
-                                    <p class="text-sm text-gray-600">👥 ${event.participants || 0} учасників</p>
-                                </div>
-                                <span class="bg-${statusColor}-100 text-${statusColor}-700 text-xs px-2 py-1 rounded">${statusText}</span>
-                            </div>
-                            <div class="flex gap-2 mt-2">
-                                ${event.status !== 'approved' && event.status !== 'rejected' ? `
-                                    <button onclick="moderateEvent('${event.id}', 'approve')" class="flex-1 bg-green-500 text-white text-sm py-1 rounded hover:bg-green-600">Схвалити</button>
-                                    <button onclick="moderateEvent('${event.id}', 'reject')" class="flex-1 bg-red-500 text-white text-sm py-1 rounded hover:bg-red-600">Відхилити</button>
-                                ` : ''}
-                                <button onclick="deleteEvent('${event.id}')" class="bg-gray-500 text-white text-sm py-1 px-3 rounded hover:bg-gray-600">🗑 Видалити</button>
-                                ${event.participants > 0 ? `
-                                    <button onclick="viewParticipants('${event.id}', '${event.title}')" class="flex-1 bg-blue-500 text-white text-sm py-1 rounded hover:bg-blue-600">Учасники</button>
-                                ` : ''}
+                                <button onclick="moderatePhoto('${photo.id}', 'approve')" 
+                                    class="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition flex items-center justify-center gap-2">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                    Схвалити
+                                </button>
+                                <button onclick="moderatePhoto('${photo.id}', 'reject')" 
+                                    class="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                    Відхилити
+                                </button>
                             </div>
                         </div>
                     `;
                 }).join('');
+                
+                lucide.createIcons();
             } catch (error) {
-                console.error('Error loading all events:', error);
+                console.error('Error loading pending photos:', error);
+                showToast('error', 'Помилка завантаження фото');
             }
         }
 
-        async function viewParticipants(eventId, eventTitle) {
-            currentEventForParticipants = eventId;
-            document.getElementById('current-event-name').textContent = eventTitle;
-            document.getElementById('all-events-list').parentElement.classList.add('hidden');
-            document.getElementById('pending-events-list').parentElement.classList.add('hidden');
-            document.getElementById('event-participants-section').classList.remove('hidden');
-            
-            await loadParticipants(eventId);
-        }
-
-        function closeParticipants() {
-            document.getElementById('event-participants-section').classList.add('hidden');
-            document.getElementById('all-events-list').parentElement.classList.remove('hidden');
-            document.getElementById('pending-events-list').parentElement.classList.remove('hidden');
-            currentEventForParticipants = null;
-        }
-
-        async function loadParticipants(eventId) {
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/participants?token=${adminToken}`);
-                const participants = await response.json();
-                
-                const list = document.getElementById('event-participants-list');
-                
-                if (participants.length === 0) {
-                    list.innerHTML = '<p class="text-gray-500 text-center">Немає учасників</p>';
-                    return;
-                }
-                
-                list.innerHTML = participants.map(p => {
-                    const isBlocked = p.restrictions?.blocked;
-                    const isMuted = p.restrictions?.muted;
-                    
-                    return `
-                        <div class="bg-white p-3 rounded-lg border ${isBlocked ? 'border-red-300' : isMuted ? 'border-yellow-300' : 'border-gray-200'}">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-3">
-                                    <img src="${p.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.firstName)}`}" class="w-10 h-10 rounded-full">
-                                    <div>
-                                        <p class="font-semibold">${p.firstName}</p>
-                                        <p class="text-xs text-gray-500">ID: ${p.userId}</p>
-                                        ${isBlocked ? '<span class="text-xs text-red-600">🚫 Заблокований</span>' : ''}
-                                        ${isMuted ? '<span class="text-xs text-yellow-600">🔇 В муті</span>' : ''}
-                                    </div>
-                                </div>
-                                <div class="flex gap-2">
-                                    ${!isBlocked ? `
-                                        <button onclick="restrictUser('${eventId}', '${p.userId}', 'block')" class="bg-red-500 text-white text-xs px-3 py-1 rounded hover:bg-red-600">Блок</button>
-                                    ` : `
-                                        <button onclick="restrictUser('${eventId}', '${p.userId}', 'unblock')" class="bg-green-500 text-white text-xs px-3 py-1 rounded hover:bg-green-600">Розблокувати</button>
-                                    `}
-                                    ${!isMuted ? `
-                                        <button onclick="muteUser('${eventId}', '${p.userId}')" class="bg-yellow-500 text-white text-xs px-3 py-1 rounded hover:bg-yellow-600">Мут</button>
-                                    ` : `
-                                        <button onclick="restrictUser('${eventId}', '${p.userId}', 'unmute')" class="bg-green-500 text-white text-xs px-3 py-1 rounded hover:bg-green-600">Зняти мут</button>
-                                    `}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (error) {
-                console.error('Error loading participants:', error);
+        function togglePhotoSelection(photoId) {
+            if (selectedPhotos.has(photoId)) {
+                selectedPhotos.delete(photoId);
+            } else {
+                selectedPhotos.add(photoId);
             }
         }
 
-        async function restrictUser(eventId, userId, action) {
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/restrict-user?token=${adminToken}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId, action })
-                });
-                
-                if (response.ok) {
-                    loadParticipants(eventId);
-                }
-            } catch (error) {
-                console.error('Error restricting user:', error);
-            }
-        }
-
-        async function muteUser(eventId, userId) {
-            const duration = prompt('Тривалість муту в хвилинах (залиште порожнім для постійного):');
-            const durationNum = duration ? parseInt(duration) : null;
-            
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/restrict-user?token=${adminToken}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId, action: 'mute', duration: durationNum })
-                });
-                
-                if (response.ok) {
-                    loadParticipants(eventId);
-                }
-            } catch (error) {
-                console.error('Error muting user:', error);
-            }
-        }
-
-        async function moderateEvent(eventId, action) {
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/${eventId}/moderate?token=${adminToken}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action })
-                });
-                
-                if (response.ok) {
-                    loadPendingEvents();
-                    loadAllEvents();
-                }
-            } catch (error) {
-                console.error('Error moderating event:', error);
-            }
-        }
-
-        async function deleteEvent(eventId) {
-            if (!confirm('Ви впевнені, що хочете видалити цю подію?\n\nУчасники та повідомлення будуть видалені.\nФото залишаться в галереї.')) {
+        async function batchApprovePhotos() {
+            if (selectedPhotos.size === 0) {
+                showToast('warning', 'Оберіть фото для схвалення');
                 return;
             }
             
-            try {
-                const response = await fetch(`${API_URL}/api/admin/events/${eventId}?token=${adminToken}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    alert('Подію успішно видалено. Фото залишились в галереї.');
-                    loadPendingEvents();
-                    loadAllEvents();
-                } else {
-                    alert('Помилка видалення події');
+            showConfirmation(
+                'Схвалити фото',
+                `Ви впевнені, що хочете схвалити ${selectedPhotos.size} фото?`,
+                async () => {
+                    for (const photoId of selectedPhotos) {
+                        await moderatePhoto(photoId, 'approve', false);
+                    }
+                    selectedPhotos.clear();
+                    showToast('success', 'Фото схвалено');
+                    loadPendingPhotos();
+                    loadDashboardStats();
+                },
+                'Схвалити',
+                'bg-green-500 hover:bg-green-600'
+            );
+        }
+
+        async function moderatePhoto(photoId, action, showConfirm = true) {
+            const performModeration = async () => {
+                try {
+                    const response = await fetch(`${API_URL}/api/admin/photos/${photoId}/moderate?token=${adminToken}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action })
+                    });
+                    
+                    if (response.ok) {
+                        if (showConfirm) {
+                            showToast('success', `Фото ${action === 'approve' ? 'схвалено' : 'відхилено'}`);
+                            loadPendingPhotos();
+                            loadDashboardStats();
+                        }
+                    } else {
+                        showToast('error', 'Помилка модерації фото');
+                    }
+                } catch (error) {
+                    console.error('Error moderating photo:', error);
+                    showToast('error', 'Помилка модерації фото');
                 }
-            } catch (error) {
-                console.error('Error deleting event:', error);
-                alert('Помилка видалення події');
+            };
+            
+            if (showConfirm) {
+                const actionText = action === 'approve' ? 'схвалити' : 'відхилити';
+                showConfirmation(
+                    `${action === 'approve' ? 'Схвалити' : 'Відхилити'} фото`,
+                    `Ви впевнені, що хочете ${actionText} це фото?`,
+                    performModeration,
+                    action === 'approve' ? 'Схвалити' : 'Відхилити',
+                    action === 'approve' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                );
+            } else {
+                await performModeration();
             }
+        }
+
+        function showImageModal(url) {
+            const modal = document.createElement('div');
+            modal.className = 'modal fixed inset-0 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl p-4 max-w-4xl max-h-[90vh] overflow-auto mx-4">
+                    <img src="${url}" class="w-full h-auto">
+                    <button onclick="this.closest('.modal').remove()" 
+                        class="mt-4 w-full bg-gray-500 text-white font-semibold py-3 rounded-lg hover:bg-gray-600 transition">
+                        Закрити
+                    </button>
+                </div>
+            `;
+            modal.onclick = (e) => {
+                if (e.target === modal) modal.remove();
+            };
+            document.body.appendChild(modal);
+        }
+
+        const imageFiles = {};
+
+        function handleFileSelect(block) {
+            const fileInput = document.getElementById(`file-${block}`);
+            const preview = document.getElementById(`preview-${block}`);
+            
+            if (fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                imageFiles[block] = file;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateImagePosition(block) {
+            const x = document.getElementById(`pos-x-${block}`).value;
+            const y = document.getElementById(`pos-y-${block}`).value;
+            
+            document.getElementById(`pos-x-${block}-val`).textContent = x + '%';
+            document.getElementById(`pos-y-${block}-val`).textContent = y + '%';
+            
+            const preview = document.getElementById(`preview-${block}`);
+            if (preview && !preview.classList.contains('hidden')) {
+                preview.style.objectPosition = `${x}% ${y}%`;
+            }
+        }
+
+        async function saveImages() {
+            showConfirmation(
+                'Зберегти зображення',
+                'Ви впевнені, що хочете зберегти зміни?',
+                async () => {
+                    try {
+                        const blocks = ['news', 'schedule', 'video', 'events'];
+                        const positions = {};
+                        
+                        for (const block of blocks) {
+                            positions[block] = {
+                                x: parseInt(document.getElementById(`pos-x-${block}`).value),
+                                y: parseInt(document.getElementById(`pos-y-${block}`).value)
+                            };
+                            
+                            if (imageFiles[block]) {
+                                const formData = new FormData();
+                                formData.append('image', imageFiles[block]);
+                                formData.append('block', block);
+                                
+                                await fetch(`${API_URL}/api/admin/hero-image?token=${adminToken}`, {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                            }
+                        }
+                        
+                        await fetch(`${API_URL}/api/admin/settings?token=${adminToken}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ imagePositions: positions })
+                        });
+                        
+                        showToast('success', 'Зображення успішно збережено!');
+                        
+                        Object.keys(imageFiles).forEach(block => {
+                            delete imageFiles[block];
+                        });
+                        
+                    } catch (error) {
+                        console.error('Error saving images:', error);
+                        showToast('error', 'Помилка збереження зображень');
+                    }
+                },
+                'Зберегти',
+                'bg-blue-500 hover:bg-blue-600'
+            );
         }
 
         async function uploadSchedule() {
@@ -1013,12 +1838,12 @@
             const fileInput = document.getElementById('schedule-file');
             
             if (!nameInput.value.trim()) {
-                alert('Введіть назву розкладу');
+                showToast('warning', 'Введіть назву розкладу');
                 return;
             }
             
             if (!fileInput.files || !fileInput.files[0]) {
-                alert('Оберіть файл Excel');
+                showToast('warning', 'Оберіть файл Excel');
                 return;
             }
             
@@ -1033,12 +1858,7 @@
                 });
                 
                 if (response.ok) {
-                    const status = document.getElementById('schedule-status');
-                    status.textContent = '✅ Розклад успішно завантажено!';
-                    status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
-                    status.classList.remove('hidden');
-                    setTimeout(() => status.classList.add('hidden'), 3000);
-                    
+                    showToast('success', 'Розклад успішно завантажено!');
                     nameInput.value = '';
                     fileInput.value = '';
                     loadSchedulesList();
@@ -1048,10 +1868,7 @@
                 }
             } catch (error) {
                 console.error('Error uploading schedule:', error);
-                const status = document.getElementById('schedule-status');
-                status.textContent = '❌ Помилка завантаження: ' + error.message;
-                status.className = 'mt-2 p-3 rounded-lg bg-red-100 text-red-700';
-                status.classList.remove('hidden');
+                showToast('error', 'Помилка завантаження: ' + error.message);
             }
         }
 
@@ -1063,112 +1880,150 @@
                 const listEl = document.getElementById('schedules-list');
                 
                 if (schedules.length === 0) {
-                    listEl.innerHTML = '<p class="text-gray-500 text-center">Немає завантажених розкладів</p>';
+                    listEl.innerHTML = '<p class="text-center py-8 text-gray-500">Немає завантажених розкладів</p>';
                     return;
                 }
                 
                 listEl.innerHTML = schedules.map(schedule => `
-                    <div class="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
+                    <div class="bg-gray-50 p-4 rounded-lg flex justify-between items-center hover:bg-gray-100 transition">
                         <div>
-                            <p class="font-semibold">${schedule.name}</p>
+                            <p class="font-semibold text-gray-800">${schedule.name}</p>
                             <p class="text-sm text-gray-500">Завантажено: ${new Date(schedule.uploadedAt).toLocaleString('uk-UA')}</p>
                         </div>
-                        <button onclick="deleteSchedule('${schedule.id}')" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">Видалити</button>
+                        <button onclick="deleteSchedule('${schedule.id}')" 
+                            class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center gap-2">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            Видалити
+                        </button>
                     </div>
                 `).join('');
+                
+                lucide.createIcons();
             } catch (error) {
                 console.error('Error loading schedules:', error);
+                showToast('error', 'Помилка завантаження розкладів');
             }
         }
 
         async function deleteSchedule(scheduleId) {
-            if (!confirm('Видалити цей розклад?')) return;
-            
-            try {
-                const response = await fetch(`${API_URL}/api/admin/schedules/${scheduleId}?token=${adminToken}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    loadSchedulesList();
+            showConfirmation(
+                'Видалити розклад',
+                'Ви впевнені, що хочете видалити цей розклад?',
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/schedules/${scheduleId}?token=${adminToken}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            showToast('success', 'Розклад видалено');
+                            loadSchedulesList();
+                        } else {
+                            showToast('error', 'Помилка видалення');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting schedule:', error);
+                        showToast('error', 'Помилка видалення');
+                    }
                 }
-            } catch (error) {
-                console.error('Error deleting schedule:', error);
-                alert('Помилка видалення');
-            }
+            );
         }
 
-        async function cleanDatabase(type) {
-            if (!confirm(`Ви впевнені, що хочете очистити ${type}? Цю дію не можна скасувати!`)) {
+        async function uploadNavigationSchemes() {
+            const input = document.getElementById('navigation-scheme-input');
+            const files = input.files;
+            
+            if (!files || files.length === 0) {
+                showToast('warning', 'Оберіть файли для завантаження');
                 return;
             }
             
-            try {
-                const response = await fetch(`${API_URL}/api/admin/clean-database?token=${adminToken}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type })
-                });
-                
-                const data = await response.json();
-                
-                const status = document.getElementById('cleanup-status');
-                status.textContent = `✅ ${data.message}`;
-                status.className = 'mt-4 p-3 rounded-lg bg-green-100 text-green-700';
-                status.classList.remove('hidden');
-                
-            } catch (error) {
-                console.error('Error cleaning database:', error);
-                const status = document.getElementById('cleanup-status');
-                status.textContent = '❌ Помилка очищення бази';
-                status.className = 'mt-4 p-3 rounded-lg bg-red-100 text-red-700';
-                status.classList.remove('hidden');
-            }
-        }
-
-        document.getElementById('password-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') login();
-        });
-        
-        async function createAdminEvent() {
-            const title = document.getElementById('admin-event-title').value.trim();
-            const date = document.getElementById('admin-event-date').value;
-            const time = document.getElementById('admin-event-time').value;
-            const location = document.getElementById('admin-event-location').value.trim();
-            const description = document.getElementById('admin-event-description').value.trim();
-            const duration = parseInt(document.getElementById('admin-event-duration').value) || 24;
-            
-            if (!title || !date || !time || !location) {
-                alert('Заповніть всі обов\'язкові поля');
-                return;
-            }
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('photos', file);
+            });
+            formData.append('userId', 'admin');
             
             try {
-                const response = await fetch(`${API_URL}/api/admin/events?token=${adminToken}`, {
+                const response = await fetch(`${API_URL}/api/navigation/upload`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, date, time, location, description, duration })
+                    body: formData
                 });
-                
-                const data = await response.json();
                 
                 if (response.ok) {
-                    alert('Івент успішно створено!');
-                    // Очищаем форму
-                    document.getElementById('admin-event-title').value = '';
-                    document.getElementById('admin-event-date').value = '';
-                    document.getElementById('admin-event-time').value = '';
-                    document.getElementById('admin-event-location').value = '';
-                    document.getElementById('admin-event-description').value = '';
-                    document.getElementById('admin-event-duration').value = '24';
-                    
-                    loadAllEvents();
+                    showToast('success', 'Схеми успішно завантажено!');
+                    input.value = '';
+                    loadNavigationSchemes();
                 } else {
-                    alert(data.error || 'Помилка створення івенту');
+                    throw new Error('Помилка завантаження');
                 }
             } catch (error) {
-                console.error('Error creating event:', error);
-                alert('Помилка створення івенту');
+                console.error('Error uploading schemes:', error);
+                showToast('error', 'Помилка завантаження схем');
+            }
+        }
+
+        async function loadNavigationSchemes() {
+            try {
+                const response = await fetch(`${API_URL}/api/navigation/photos`);
+                const photos = await response.json();
+                
+                const list = document.getElementById('navigation-schemes-list');
+                
+                if (photos.length === 0) {
+                    list.innerHTML = '<div class="col-span-full text-center py-4 text-gray-500 text-sm">Немає завантажених схем</div>';
+                    return;
+                }
+                
+                list.innerHTML = photos.map(photo => `
+                    <div class="relative group">
+                        <img src="${API_URL}${photo.url}" class="w-full h-32 object-cover rounded-lg cursor-pointer" 
+                            onclick="showImageModal('${API_URL}${photo.url}')">
+                        <button onclick="deleteNavigationScheme('${photo.id}')" 
+                            class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `).join('');
+                
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading schemes:', error);
+                showToast('error', 'Помилка завантаження схем');
+            }
+        }
+
+        async function deleteNavigationScheme(photoId) {
+            showConfirmation(
+                'Видалити схему',
+                'Ви впевнені, що хочете видалити цю схему?',
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/navigation/photos/${photoId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            showToast('success', 'Схему видалено');
+                            loadNavigationSchemes();
+                        } else {
+                            showToast('error', 'Помилка видалення');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting scheme:', error);
+                        showToast('error', 'Помилка видалення');
+                    }
+                }
+            );
+        }
+
+        async function loadUsersCount() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/users?token=${adminToken}`);
+                const users = await response.json();
+                document.getElementById('users-count').textContent = users.length;
+            } catch (error) {
+                console.error('Error loading users count:', error);
             }
         }
 
@@ -1189,96 +2044,107 @@
                 reader.readAsDataURL(file);
             });
         });
-        
-        async function uploadNavigationSchemes() {
-            const input = document.getElementById('navigation-scheme-input');
-            const files = input.files;
+
+        async function sendBroadcast() {
+            const message = document.getElementById('broadcast-message').value.trim();
+            const photosInput = document.getElementById('broadcast-photos');
+            const audience = document.getElementById('broadcast-audience').value;
             
-            if (!files || files.length === 0) {
-                alert('Оберіть файли для завантаження');
+            if (!message) {
+                showToast('warning', 'Введіть повідомлення');
                 return;
             }
             
-            const formData = new FormData();
-            Array.from(files).forEach(file => {
-                formData.append('photos', file);
-            });
-            formData.append('userId', 'admin');
+            showConfirmation(
+                'Відправити розсилку',
+                `Ви впевнені, що хочете відправити розсилку всім користувачам?`,
+                async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('message', message);
+                        formData.append('audience', audience);
+                        
+                        if (photosInput.files) {
+                            Array.from(photosInput.files).slice(0, 10).forEach(file => {
+                                formData.append('photos', file);
+                            });
+                        }
+                        
+                        document.getElementById('broadcast-progress').classList.remove('hidden');
+                        
+                        const response = await fetch(`${API_URL}/api/admin/broadcast?token=${adminToken}`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            showToast('success', `Розсилку відправлено! Успішно: ${data.success}, Помилок: ${data.failed}`);
+                            document.getElementById('broadcast-message').value = '';
+                            photosInput.value = '';
+                            document.getElementById('broadcast-photos-preview').innerHTML = '';
+                        } else {
+                            showToast('error', data.error || 'Помилка розсилки');
+                        }
+                        
+                        document.getElementById('broadcast-progress').classList.add('hidden');
+                    } catch (error) {
+                        console.error('Error sending broadcast:', error);
+                        showToast('error', 'Помилка розсилки');
+                        document.getElementById('broadcast-progress').classList.add('hidden');
+                    }
+                },
+                'Відправити',
+                'bg-green-500 hover:bg-green-600'
+            );
+        }
+
+        async function cleanDatabase(type) {
+            const typeNames = {
+                all: 'всю базу даних',
+                events: 'івенти',
+                schedules: 'розклади',
+                videos: 'відео'
+            };
             
-            try {
-                const response = await fetch(`${API_URL}/api/navigation/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const status = document.getElementById('navigation-schemes-status');
-                    status.textContent = '✅ Схеми успішно завантажено!';
-                    status.className = 'mt-2 p-3 rounded-lg bg-green-100 text-green-700';
-                    status.classList.remove('hidden');
-                    setTimeout(() => status.classList.add('hidden'), 3000);
-                    
-                    input.value = '';
-                    loadNavigationSchemes();
-                } else {
-                    throw new Error('Помилка завантаження');
+            showConfirmation(
+                'Очистити базу даних',
+                `Ви впевнені, що хочете очистити ${typeNames[type]}? Цю дію не можна скасувати!`,
+                async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/clean-database?token=${adminToken}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ type })
+                        });
+                        
+                        const data = await response.json();
+                        showToast('success', data.message);
+                        
+                        if (type === 'events' || type === 'all') {
+                            loadPendingEvents();
+                            loadAllEvents();
+                        }
+                        if (type === 'videos' || type === 'all') {
+                            loadPendingVideos();
+                        }
+                        if (type === 'schedules' || type === 'all') {
+                            loadSchedulesList();
+                        }
+                        
+                        loadDashboardStats();
+                    } catch (error) {
+                        console.error('Error cleaning database:', error);
+                        showToast('error', 'Помилка очищення бази');
+                    }
                 }
-            } catch (error) {
-                console.error('Error uploading schemes:', error);
-                const status = document.getElementById('navigation-schemes-status');
-                status.textContent = '❌ Помилка завантаження схем';
-                status.className = 'mt-2 p-3 rounded-lg bg-red-100 text-red-700';
-                status.classList.remove('hidden');
-            }
+            );
         }
-        
-        async function loadNavigationSchemes() {
-            try {
-                const response = await fetch(`${API_URL}/api/navigation/photos`);
-                const photos = await response.json();
-                
-                const list = document.getElementById('navigation-schemes-list');
-                
-                if (photos.length === 0) {
-                    list.innerHTML = '<p class="col-span-3 text-gray-500 text-center text-sm">Немає завантажених схем</p>';
-                    return;
-                }
-                
-                list.innerHTML = photos.map(photo => `
-                    <div class="relative group">
-                        <img src="${API_URL}${photo.url}" class="w-full h-24 object-cover rounded-lg">
-                        <button onclick="deleteNavigationScheme('${photo.id}')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition">✕</button>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading schemes:', error);
-            }
-        }
-        
-        async function deleteNavigationScheme(photoId) {
-            if (!confirm('Видалити цю схему?')) return;
-            
-            try {
-                const response = await fetch(`${API_URL}/api/navigation/photos/${photoId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    loadNavigationSchemes();
-                }
-            } catch (error) {
-                console.error('Error deleting scheme:', error);
-            }
-        }
-        
-        // Завантажуємо схеми при переключенні на вкладку розкладів
-        const originalSwitchTab = switchTab;
-        switchTab = function(tab) {
-            originalSwitchTab.call(this, tab);
-            if (tab === 'schedules') {
-                loadNavigationSchemes();
-            }
-        };
+
+        document.getElementById('password-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
     </script>
 </body>
 </html>

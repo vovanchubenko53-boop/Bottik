@@ -1812,6 +1812,182 @@ app.post("/api/admin/events/:id/restrict-user", async (req, res) => {
   }
 })
 
+app.get("/api/admin/users", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const users = await getAllUsers()
+    res.json(users)
+  } catch (error) {
+    console.error("Error fetching users:", error)
+    res.status(500).json({ error: "Failed to fetch users" })
+  }
+})
+
+app.get("/api/admin/balances", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const balances = await getAllBalances()
+    res.json(balances)
+  } catch (error) {
+    console.error("Error fetching balances:", error)
+    res.status(500).json({ error: "Failed to fetch balances" })
+  }
+})
+
+app.get("/api/admin/photos/pending", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const db = require("./db").db
+    db.all(
+      `SELECT * FROM photos WHERE status = 'pending' ORDER BY uploaded_at DESC`,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Error fetching pending photos:", err)
+          return res.status(500).json({ error: "Failed to fetch pending photos" })
+        }
+        
+        const photosWithCamelCase = rows.map((photo) => ({
+          id: photo.id,
+          filename: photo.filename,
+          url: photo.url,
+          eventId: photo.event_id,
+          description: photo.description,
+          userId: photo.user_id,
+          user_id: photo.user_id,
+          firstName: photo.first_name,
+          uploadedAt: photo.uploaded_at,
+          createdAt: photo.uploaded_at,
+          created_at: photo.uploaded_at,
+          status: photo.status,
+          approvedAt: photo.approved_at,
+          rejectedAt: photo.rejected_at,
+          albumId: photo.album_id,
+          albumIndex: photo.album_index,
+          albumTotal: photo.album_total,
+          unlockCount: photo.unlock_count || 0,
+          hasBlur: photo.has_blur === 1,
+          paidUnlocks: photo.paid_unlocks || 0,
+        }))
+        
+        res.json(photosWithCamelCase)
+      }
+    )
+  } catch (error) {
+    console.error("[v0] ❌ Error fetching pending photos:", error)
+    res.status(500).json({ error: "Failed to fetch pending photos" })
+  }
+})
+
+app.post("/api/admin/videos/:id/moderate", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const { action } = req.body
+    const video = await getVideoById(req.params.id)
+
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" })
+    }
+
+    const timestamp = new Date().toISOString()
+
+    if (action === "approve") {
+      await updateVideoStatus(req.params.id, "approved", timestamp)
+      res.json({ success: true, message: "Відео схвалено" })
+    } else if (action === "reject") {
+      await updateVideoStatus(req.params.id, "rejected", timestamp)
+      res.json({ success: true, message: "Відео відхилено" })
+    }
+  } catch (error) {
+    console.error("Error moderating video:", error)
+    res.status(500).json({ error: "Failed to moderate video" })
+  }
+})
+
+app.post("/api/admin/photos/:id/moderate", async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const { action } = req.body
+    const photo = await getPhotoById(req.params.id)
+
+    if (!photo) {
+      return res.status(404).json({ error: "Photo not found" })
+    }
+
+    const timestamp = new Date().toISOString()
+
+    if (action === "approve") {
+      await updatePhotoStatus(req.params.id, "approved", timestamp)
+      res.json({ success: true, message: "Фото схвалено" })
+    } else if (action === "reject") {
+      await updatePhotoStatus(req.params.id, "rejected", timestamp)
+      res.json({ success: true, message: "Фото відхилено" })
+    }
+  } catch (error) {
+    console.error("Error moderating photo:", error)
+    res.status(500).json({ error: "Failed to moderate photo" })
+  }
+})
+
+app.post("/api/admin/hero-image", uploadHeroImage.single("image"), async (req, res) => {
+  const { token } = req.query
+  if (token !== "admin-authenticated") {
+    return res.status(401).json({ error: "Не авторизовано" })
+  }
+
+  try {
+    const { block } = req.body
+    
+    if (!block || !["news", "schedule", "video", "events"].includes(block)) {
+      return res.status(400).json({ error: "Invalid block name" })
+    }
+
+    const dbSettings = await getAllAdminSettings()
+    const settingsObj = dbSettings.reduce((acc, s) => {
+      acc[s.key] = s.value
+      return acc
+    }, {})
+
+    let heroImages = settingsObj.heroImages || {
+      news: "https://placehold.co/600x300/a3e635/444?text=News",
+      schedule: "https://placehold.co/600x300/60a5fa/FFF?text=Schedule",
+      video: "https://placehold.co/600x300/f87171/FFF?text=Video",
+      events: "https://placehold.co/600x300/c084fc/FFF?text=Events",
+    }
+
+    if (req.file) {
+      heroImages[block] = `/uploads/hero-images/${req.file.filename}`
+    }
+
+    await updateAdminSetting("heroImages", heroImages)
+
+    res.json({ success: true, heroImages })
+  } catch (error) {
+    console.error("Error uploading hero image:", error)
+    res.status(500).json({ error: "Failed to upload hero image" })
+  }
+})
+
 app.post(
   "/api/admin/upload-hero-images",
   uploadHeroImage.fields([
