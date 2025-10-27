@@ -2192,6 +2192,10 @@ async function loadNavigationPhotos() {
     navigationPhotos = await response.json()
 
     const grid = document.getElementById("navigation-photos-grid")
+    if (!grid) {
+      return
+    }
+    
     if (navigationPhotos.length === 0) {
       grid.innerHTML = '<p class="col-span-2 text-center text-gray-500 text-sm">Немає завантажених схем</p>'
       return
