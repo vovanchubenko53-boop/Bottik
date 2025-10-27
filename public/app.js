@@ -259,6 +259,11 @@ function displayFilteredNews() {
     })
   }
 
+  // Ограничиваем количество новостей до 30 для категории "Всі"
+  if (currentCategory === "all") {
+    filteredNews = filteredNews.slice(0, 30)
+  }
+
   if (filteredNews.length === 0) {
     newsListEl.innerHTML = '<div class="p-4 text-center text-gray-500">Новини не знайдено для цієї категорії</div>'
     return
@@ -1660,7 +1665,7 @@ function showAlbumPhoto(index) {
     overlay.onclick = (e) => {
       e.stopPropagation()
       console.log(`[v0] MODAL unlock click photo id=${photo.id}`)
-      unlockPhoto(String(photo.id)).then(async () => {
+      unlockPhoto(String(photo.id), true).then(async () => {
         console.log(`[v0] MODAL unlock returned, checking status for id=${photo.id}`)
         // Після оплати перевіряємо статус і прибираємо блюр
         const unlocked = await checkPhotoUnlocked(String(photo.id))

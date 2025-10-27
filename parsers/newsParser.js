@@ -26,7 +26,7 @@ const TELEGRAM_CHANNELS = [
   { name: "Erasmus+ Projects", username: "erasmusplusprojects", category: "scholarships" },
   { name: "Scholarships Corner", username: "scholarshipscorner", category: "scholarships" },
   { name: "UCU International", username: "ucu_international", category: "scholarships" },
-  { name: "OP Corner", username: "opcorner", category: "scholarships" },
+  { name: "OP Corner", username: "opcorners", category: "scholarships" },
   { name: "Scholarships 365", username: "scholarships365", category: "scholarships" },
   { name: "The Global Scholarship", username: "theglobalscholarship", category: "scholarships" },
   { name: "Scholarship", username: "scholarship", category: "scholarships" },
