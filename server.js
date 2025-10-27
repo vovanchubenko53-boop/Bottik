@@ -765,6 +765,15 @@ app.get("/api/news", async (req, res) => {
   }
 })
 
+app.get("/api/channels", (req, res) => {
+  try {
+    res.json(newsParser.TELEGRAM_CHANNELS || [])
+  } catch (error) {
+    console.error("Error fetching channels:", error)
+    res.status(500).json({ error: "Failed to fetch channels" })
+  }
+})
+
 app.get("/api/schedules/search", async (req, res) => {
   try {
     const { course, query } = req.query

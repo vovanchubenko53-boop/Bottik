@@ -92,6 +92,8 @@ function goToPage(pageId, event) {
   } else if (pageId === "page-schedule-list") {
     loadUserSchedule()
     updateScheduleDayCounts()
+  } else if (pageId === "page-telegram-channels") {
+    loadTelegramChannels()
   }
 }
 
@@ -239,6 +241,9 @@ function getCategoryEmoji(category) {
     events: "🎸",
     music: "🎶",
     scholarships: "🎓",
+    studlife: "🎒",
+    exchanges: "🌍",
+    ielts: "📚",
     tech: "🔬",
     energy: "⚡",
     beauty: "💄",
@@ -279,6 +284,73 @@ function displayFilteredNews() {
       `,
     )
     .join("")
+}
+
+async function loadTelegramChannels() {
+  try {
+    const response = await fetch(`${API_URL}/api/channels`)
+    const channels = await response.json()
+    
+    const container = document.getElementById("channels-container")
+    
+    if (!container) {
+      console.error("Channels container not found")
+      return
+    }
+    
+    if (channels.length === 0) {
+      container.innerHTML = '<p class="text-center text-gray-500">Канали не знайдено</p>'
+      return
+    }
+    
+    const categoryNames = {
+      events: "🎭 Афіша, події, мероприятия",
+      music: "🎶 Музика",
+      kyiv: "📰 Новини Києва",
+      studlife: "🎒 Студлайф",
+      exchanges: "🌍 Обмін, Стипендії, Гранти",
+      tech: "💻 Наука, Технології, AI",
+      ielts: "📚 IELTS",
+      beauty: "💄 Бьюті"
+    }
+    
+    const groupedChannels = {}
+    channels.forEach(channel => {
+      if (!groupedChannels[channel.category]) {
+        groupedChannels[channel.category] = []
+      }
+      groupedChannels[channel.category].push(channel)
+    })
+    
+    const orderedCategories = ['events', 'music', 'kyiv', 'studlife', 'exchanges', 'tech', 'ielts', 'beauty']
+    
+    container.innerHTML = orderedCategories
+      .filter(category => groupedChannels[category])
+      .map(category => {
+        const categoryChannels = groupedChannels[category]
+        return `
+          <div class="channel-category">
+            <h2 class="text-lg font-bold mb-2">${categoryNames[category] || category}</h2>
+            ${categoryChannels.map(channel => `
+              <a href="https://t.me/${channel.username}" target="_blank" class="channel-link">
+                <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+                ${channel.name}
+              </a>
+            `).join('')}
+          </div>
+        `
+      }).join('')
+    
+    if (lucide) {
+      lucide.createIcons()
+    }
+  } catch (error) {
+    console.error("Error loading channels:", error)
+    const container = document.getElementById("channels-container")
+    if (container) {
+      container.innerHTML = '<p class="text-center text-red-500">Помилка завантаження каналів</p>'
+    }
+  }
 }
 
 async function loadAvailableSchedules() {

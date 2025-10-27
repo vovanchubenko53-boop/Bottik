@@ -20,22 +20,22 @@ const TELEGRAM_CHANNELS = [
   { name: "🟢Київ Новини | Live 24/7", username: "kyiv_novyny_24", category: "kyiv" },
 
   // Студлайф
-  { name: "STUDLAVA", username: "studlava", category: "scholarships" },
+  { name: "STUDLAVA", username: "studlava", category: "studlife" },
 
   // Обмін, Стипендії, Гранти
-  { name: "Erasmus+ Projects", username: "erasmusplusprojects", category: "scholarships" },
-  { name: "Scholarships Corner", username: "scholarshipscorner", category: "scholarships" },
-  { name: "UCU International", username: "ucu_international", category: "scholarships" },
-  { name: "OP Corner", username: "opcorners", category: "scholarships" },
-  { name: "Scholarships 365", username: "scholarships365", category: "scholarships" },
-  { name: "The Global Scholarship", username: "theglobalscholarship", category: "scholarships" },
-  { name: "Scholarship", username: "scholarship", category: "scholarships" },
-  { name: "Scholarships EE", username: "scholarshipsee", category: "scholarships" },
-  { name: "Study Abroad YMGrad", username: "study_abroad_ymgrad", category: "scholarships" },
-  { name: "Opportunities Circle", username: "opportunitiescircleofficial", category: "scholarships" },
-  { name: "FLEX Alumni Ukraine", username: "FLEXAlumniUkraine", category: "scholarships" },
-  { name: "Leap Abroad", username: "leap_abroad", category: "scholarships" },
-  { name: "Education USA Ukraine", username: "educationusaukraine", category: "scholarships" },
+  { name: "Erasmus+ Projects", username: "erasmusplusprojects", category: "exchanges" },
+  { name: "Scholarships Corner", username: "scholarshipscorner", category: "exchanges" },
+  { name: "UCU International", username: "ucu_international", category: "exchanges" },
+  { name: "OP Corner", username: "opcorners", category: "exchanges" },
+  { name: "Scholarships 365", username: "scholarships365", category: "exchanges" },
+  { name: "The Global Scholarship", username: "theglobalscholarship", category: "exchanges" },
+  { name: "Scholarship", username: "scholarship", category: "exchanges" },
+  { name: "Scholarships EE", username: "scholarshipsee", category: "exchanges" },
+  { name: "Study Abroad YMGrad", username: "study_abroad_ymgrad", category: "exchanges" },
+  { name: "Opportunities Circle", username: "opportunitiescircleofficial", category: "exchanges" },
+  { name: "FLEX Alumni Ukraine", username: "FLEXAlumniUkraine", category: "exchanges" },
+  { name: "Leap Abroad", username: "leap_abroad", category: "exchanges" },
+  { name: "Education USA Ukraine", username: "educationusaukraine", category: "exchanges" },
 
   // Наука, Технології, AI
   { name: "AI Best Tools", username: "AI_Best_Tools", category: "tech" },
@@ -44,8 +44,8 @@ const TELEGRAM_CHANNELS = [
   { name: "ITC UA", username: "itcua", category: "tech" },
 
   // IELTS
-  { name: "Ingliz Tili UZ", username: "Ingliztiliuzz", category: "scholarships" },
-  { name: "English Made Easy", username: "Englishmade_easy", category: "scholarships" },
+  { name: "Ingliz Tili UZ", username: "Ingliztiliuzz", category: "ielts" },
+  { name: "English Made Easy", username: "Englishmade_easy", category: "ielts" },
 
   // Бьюті
   { name: "UA Eva", username: "uaeva", category: "beauty" },

@@ -399,7 +399,7 @@
         
         .photo-modal-close {
             position: absolute;
-            top: 60px;
+            top: 16px;
             right: 16px;
             width: 44px;
             height: 44px;
@@ -413,6 +413,7 @@
             color: #000;
             transition: all 0.2s ease;
             z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
         .photo-modal-close:hover {
@@ -963,7 +964,9 @@
             <div class="category-filter">
                 <button class="category-btn active" data-category="all" onclick="filterNewsByCategory('all')">Всі</button>
                 <button class="category-btn" data-category="knu" onclick="filterNewsByCategory('knu')">🎓 КНУ</button>
-                <button class="category-btn" data-category="scholarships" onclick="filterNewsByCategory('scholarships')">🎓 Стипендії</button>
+                <button class="category-btn" data-category="studlife" onclick="filterNewsByCategory('studlife')">🎒 Студлайф</button>
+                <button class="category-btn" data-category="exchanges" onclick="filterNewsByCategory('exchanges')">🌍 Обмін та Стипендії</button>
+                <button class="category-btn" data-category="ielts" onclick="filterNewsByCategory('ielts')">📚 IELTS</button>
                 <button class="category-btn" data-category="events" onclick="filterNewsByCategory('events')">🎸 Афіша</button>
                 <button class="category-btn" data-category="kyiv" onclick="filterNewsByCategory('kyiv')">📰 Новини Києва</button>
                 <button class="category-btn" data-category="music" onclick="filterNewsByCategory('music')">🎶 Музика</button>
@@ -1396,169 +1399,9 @@
         <main class="flex-grow p-4 space-y-4">
             <h1 class="text-center text-xl font-bold">Telegram Канали</h1>
             
-            <!-- Обновляем названия каналов на правильные FirstName -->
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">🎭 Афіша, події, мероприятия</h2>
-                <a href="https://t.me/afficherkyiv" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Аффішер Києва
-                </a>
-                <a href="https://t.me/Concertua" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Відчути Київ: події та місця
-                </a>
-                <a href="https://t.me/kontrabass_promo" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    КОНТРАБАС
-                </a>
-                <a href="https://t.me/afishakontramarka" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Kontramarka | Київ
-                </a>
-                <a href="https://t.me/karabascom" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    KARABAS.COM
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">🎶 Музика</h2>
-                <a href="https://t.me/numogo" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Нумо їхати!
-                </a>
-                <a href="https://t.me/NewUAM" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    NUAM
-                </a>
-                <a href="https://t.me/slaymsc" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Slay Music
-                </a>
-                <a href="https://t.me/liroom" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Liroom
-                </a>
-                <a href="https://t.me/bezodnyamusic" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Bezodnya Music🎧
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">📰 Новини Києва</h2>
-                <a href="https://t.me/kyiv_novyny_24" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    🟢Київ Новини | Live 24/7
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">🎓 Студлайф</h2>
-                <a href="https://t.me/studlava" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    STUDLAVA
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">🌍 Обмін, Стипендії, Гранти</h2>
-                <a href="https://t.me/erasmusplusprojects" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Erasmus+ Projects
-                </a>
-                <a href="https://t.me/scholarshipscorner" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Scholarships Corner
-                </a>
-                <a href="https://t.me/ucu_international" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    UCU International
-                </a>
-                <a href="https://t.me/opcorners" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    OP Corner
-                </a>
-                <a href="https://t.me/scholarships365" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Scholarships 365
-                </a>
-                <a href="https://t.me/theglobalscholarship" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    The Global Scholarship
-                </a>
-                <a href="https://t.me/scholarship" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Scholarship
-                </a>
-                <a href="https://t.me/scholarshipsee" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Scholarships EE
-                </a>
-                <a href="https://t.me/study_abroad_ymgrad" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Study Abroad YMGrad
-                </a>
-                <a href="https://t.me/opportunitiescircleofficial" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Opportunities Circle
-                </a>
-                <a href="https://t.me/FLEXAlumniUkraine" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    FLEX Alumni Ukraine
-                </a>
-                <a href="https://t.me/leap_abroad" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Leap Abroad
-                </a>
-                <a href="https://t.me/educationusaukraine" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Education USA Ukraine
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">💻 Наука, Технології, AI</h2>
-                <a href="https://t.me/AI_Best_Tools" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    AI Best Tools
-                </a>
-                <a href="https://t.me/science" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Science
-                </a>
-                <a href="https://t.me/usfofficial" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    USF Official
-                </a>
-                <a href="https://t.me/itcua" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    ITC UA
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">📚 IELTS</h2>
-                <a href="https://t.me/Ingliztiliuzz" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Ingliz Tili UZ
-                </a>
-                <a href="https://t.me/Englishmade_easy" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    English Made Easy
-                </a>
-            </div>
-
-            <div class="channel-category">
-                <h2 class="text-lg font-bold mb-2">💄 Бьюті</h2>
-                <a href="https://t.me/uaeva" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    UA Eva
-                </a>
-                <a href="https://t.me/fashiondepartment_kp" target="_blank" class="channel-link">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                    Fashion Department KP
-                </a>
+            <!-- Динамічний контейнер для каналів -->
+            <div id="channels-container">
+                <div class="p-4 text-center text-gray-500">Завантаження каналів...</div>
             </div>
         </main>
         <div class="bottom-nav-link" onclick="goToPage('page-news-feed')">Назад до новин</div>
@@ -1667,6 +1510,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=20251019"></script>
+    <script src="app.js?v=20251027"></script>
 </body>
 </html>
