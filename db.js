@@ -1282,6 +1282,1445 @@ async function migrateAllData(dataDir = path.join(__dirname, "data")) {
   }
 }
 
+// ============== CRUD FUNCTIONS ==============
+
+// ===== 1. EVENTS TABLE =====
+
+function getAllEvents() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM events
+      WHERE status = 'approved'
+      ORDER BY start_date DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения событий:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено событий:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getEventById(eventId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM events
+      WHERE id = ?
+    `,
+      [eventId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения события:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function updateEvent(eventId, updates) {
+  return new Promise((resolve, reject) => {
+    const fields = []
+    const values = []
+
+    if (updates.title !== undefined) {
+      fields.push("title = ?")
+      values.push(updates.title)
+    }
+    if (updates.description !== undefined) {
+      fields.push("description = ?")
+      values.push(updates.description)
+    }
+    if (updates.startDate !== undefined) {
+      fields.push("start_date = ?")
+      values.push(updates.startDate)
+    }
+    if (updates.endDate !== undefined) {
+      fields.push("end_date = ?")
+      values.push(updates.endDate)
+    }
+    if (updates.location !== undefined) {
+      fields.push("location = ?")
+      values.push(updates.location)
+    }
+    if (updates.organizer !== undefined) {
+      fields.push("organizer = ?")
+      values.push(updates.organizer)
+    }
+
+    if (fields.length === 0) {
+      return resolve(0)
+    }
+
+    values.push(eventId)
+
+    db.run(
+      `UPDATE events SET ${fields.join(", ")} WHERE id = ?`,
+      values,
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления события:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Событие обновлено:", eventId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function updateEventStatus(eventId, status, timestamp) {
+  return new Promise((resolve, reject) => {
+    const field = status === "approved" ? "approved_at" : "rejected_at"
+
+    db.run(
+      `
+      UPDATE events
+      SET status = ?, ${field} = ?
+      WHERE id = ?
+    `,
+      [status, timestamp || new Date().toISOString(), eventId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления статуса события:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Статус события обновлен:", eventId, status)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function deleteEvent(eventId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM events
+      WHERE id = ?
+    `,
+      [eventId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления события:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Событие удалено:", eventId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function incrementEventParticipants(eventId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      UPDATE events
+      SET participants_count = participants_count + 1
+      WHERE id = ?
+    `,
+      [eventId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка инкремента участников:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Участники события увеличены:", eventId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function decrementEventParticipants(eventId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      UPDATE events
+      SET participants_count = CASE
+        WHEN participants_count > 0 THEN participants_count - 1
+        ELSE 0
+      END
+      WHERE id = ?
+    `,
+      [eventId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка декремента участников:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Участники события уменьшены:", eventId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 2. EVENT PARTICIPANTS =====
+
+function getEventParticipants(eventId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM event_participants
+      WHERE event_id = ?
+      ORDER BY joined_at DESC
+    `,
+      [eventId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения участников события:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено участников события:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function checkUserJoinedEvent(eventId, userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM event_participants
+      WHERE event_id = ? AND user_id = ?
+    `,
+      [eventId, userId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка проверки участия:", err.message)
+          reject(err)
+        } else {
+          resolve(!!row)
+        }
+      },
+    )
+  })
+}
+
+function deleteEventParticipant(eventId, userId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM event_participants
+      WHERE event_id = ? AND user_id = ?
+    `,
+      [eventId, userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления участника:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Участник удален:", userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 3. EVENT MESSAGES =====
+
+function getEventMessages(eventId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM event_messages
+      WHERE event_id = ?
+      ORDER BY timestamp ASC
+    `,
+      [eventId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения сообщений события:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено сообщений события:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function deleteEventMessage(messageId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM event_messages
+      WHERE id = ?
+    `,
+      [messageId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления сообщения:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Сообщение удалено:", messageId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 4. PHOTOS =====
+
+function getAllApprovedPhotos() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM photos
+      WHERE status = 'approved'
+      ORDER BY uploaded_at DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения фотографий:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено фотографий:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getPhotoById(photoId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM photos
+      WHERE id = ?
+    `,
+      [photoId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения фотографии:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function getPhotosByEvent(eventId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM photos
+      WHERE event_id = ? AND status = 'approved'
+      ORDER BY uploaded_at DESC
+    `,
+      [eventId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения фото события:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено фото события:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function updatePhoto(photoId, updates) {
+  return new Promise((resolve, reject) => {
+    const fields = []
+    const values = []
+
+    if (updates.description !== undefined) {
+      fields.push("description = ?")
+      values.push(updates.description)
+    }
+    if (updates.eventId !== undefined) {
+      fields.push("event_id = ?")
+      values.push(updates.eventId)
+    }
+    if (updates.albumId !== undefined) {
+      fields.push("album_id = ?")
+      values.push(updates.albumId)
+    }
+    if (updates.hasBlur !== undefined) {
+      fields.push("has_blur = ?")
+      values.push(updates.hasBlur)
+    }
+
+    if (fields.length === 0) {
+      return resolve(0)
+    }
+
+    values.push(photoId)
+
+    db.run(
+      `UPDATE photos SET ${fields.join(", ")} WHERE id = ?`,
+      values,
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления фото:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Фото обновлено:", photoId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function updatePhotoStatus(photoId, status, timestamp) {
+  return new Promise((resolve, reject) => {
+    const field = status === "approved" ? "approved_at" : "rejected_at"
+
+    db.run(
+      `
+      UPDATE photos
+      SET status = ?, ${field} = ?
+      WHERE id = ?
+    `,
+      [status, timestamp || new Date().toISOString(), photoId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления статуса фото:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Статус фото обновлен:", photoId, status)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function incrementPhotoUnlockCount(photoId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      UPDATE photos
+      SET unlock_count = unlock_count + 1
+      WHERE id = ?
+    `,
+      [photoId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка инкремента разблокировок:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Разблокировки фото увеличены:", photoId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function incrementPhotoPaidUnlocks(photoId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      UPDATE photos
+      SET paid_unlocks = paid_unlocks + 1
+      WHERE id = ?
+    `,
+      [photoId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка инкремента платных разблокировок:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Платные разблокировки фото увеличены:", photoId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function deletePhoto(photoId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM photos
+      WHERE id = ?
+    `,
+      [photoId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления фото:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Фото удалено:", photoId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 5. PHOTO REACTIONS =====
+
+function getPhotoReactions(photoId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM photo_reactions
+      WHERE photo_id = ?
+      ORDER BY created_at DESC
+    `,
+      [photoId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения реакций:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено реакций:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function deletePhotoReaction(photoId, userId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM photo_reactions
+      WHERE photo_id = ? AND user_id = ?
+    `,
+      [photoId, userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления реакции:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Реакция удалена:", photoId, userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 6. PHOTO UNLOCKS =====
+
+function getPhotoUnlocks(photoId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM photo_unlocks
+      WHERE photo_id = ?
+      ORDER BY unlocked_at DESC
+    `,
+      [photoId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения разблокировок:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено разблокировок:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function checkPhotoUnlocked(photoId, userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM photo_unlocks
+      WHERE photo_id = ? AND user_id = ?
+    `,
+      [photoId, userId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка проверки разблокировки:", err.message)
+          reject(err)
+        } else {
+          resolve(!!row)
+        }
+      },
+    )
+  })
+}
+
+function deletePhotoUnlock(photoId, userId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM photo_unlocks
+      WHERE photo_id = ? AND user_id = ?
+    `,
+      [photoId, userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления разблокировки:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Разблокировка удалена:", photoId, userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 7. VIDEOS =====
+
+function getAllApprovedVideos() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM videos
+      WHERE status = 'approved'
+      ORDER BY uploaded_at DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения видео:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено видео:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getAllPendingVideos() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM videos
+      WHERE status = 'pending'
+      ORDER BY uploaded_at DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения ожидающих видео:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено ожидающих видео:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getVideoById(videoId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM videos
+      WHERE id = ?
+    `,
+      [videoId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения видео:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function updateVideoStatus(videoId, status, timestamp) {
+  return new Promise((resolve, reject) => {
+    const field = status === "approved" ? "approved_at" : "rejected_at"
+
+    db.run(
+      `
+      UPDATE videos
+      SET status = ?, ${field} = ?
+      WHERE id = ?
+    `,
+      [status, timestamp || new Date().toISOString(), videoId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления статуса видео:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Статус видео обновлен:", videoId, status)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function deleteVideo(videoId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM videos
+      WHERE id = ?
+    `,
+      [videoId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления видео:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Видео удалено:", videoId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 8. USER STARS BALANCES =====
+
+function getUserStarsBalance(userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM user_stars_balances
+      WHERE user_id = ?
+    `,
+      [userId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения баланса:", err.message)
+          reject(err)
+        } else {
+          resolve(row || { user_id: userId, balance: 0 })
+        }
+      },
+    )
+  })
+}
+
+function updateUserStarsBalance(userId, newBalance) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      INSERT OR REPLACE INTO user_stars_balances (user_id, balance, updated_at)
+      VALUES (?, ?, ?)
+    `,
+      [userId, newBalance, new Date().toISOString()],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления баланса:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Баланс обновлен:", userId, newBalance)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function incrementUserStarsBalance(userId, amount) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      INSERT INTO user_stars_balances (user_id, balance, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET
+        balance = balance + ?,
+        updated_at = ?
+    `,
+      [userId, amount, new Date().toISOString(), amount, new Date().toISOString()],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка инкремента баланса:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Баланс увеличен:", userId, amount)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function decrementUserStarsBalance(userId, amount) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      UPDATE user_stars_balances
+      SET balance = CASE
+        WHEN balance >= ? THEN balance - ?
+        ELSE 0
+      END,
+      updated_at = ?
+      WHERE user_id = ?
+    `,
+      [amount, amount, new Date().toISOString(), userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка декремента баланса:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Баланс уменьшен:", userId, amount)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function getAllBalances() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM user_stars_balances
+      ORDER BY balance DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения балансов:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено балансов:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+// ===== 9. WITHDRAWAL REQUESTS =====
+
+function getAllWithdrawalRequests() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM withdrawal_requests
+      ORDER BY created_at DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения запросов на вывод:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено запросов на вывод:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getPendingWithdrawalRequests() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM withdrawal_requests
+      WHERE status = 'pending'
+      ORDER BY created_at ASC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения ожидающих запросов:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено ожидающих запросов:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getWithdrawalRequestById(requestId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM withdrawal_requests
+      WHERE id = ?
+    `,
+      [requestId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения запроса на вывод:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function updateWithdrawalRequestStatus(requestId, status, processedAt, rejectionReason) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      UPDATE withdrawal_requests
+      SET status = ?, processed_at = ?, rejection_reason = ?
+      WHERE id = ?
+    `,
+      [status, processedAt || new Date().toISOString(), rejectionReason || null, requestId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления статуса запроса:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Статус запроса обновлен:", requestId, status)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function deleteWithdrawalRequest(requestId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM withdrawal_requests
+      WHERE id = ?
+    `,
+      [requestId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления запроса на вывод:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Запрос на вывод удален:", requestId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function getUserWithdrawalRequests(userId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM withdrawal_requests
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+    `,
+      [userId],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения запросов пользователя:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено запросов пользователя:", rows.length)
+          resolve(rows || [])
+        }
+      },
+    )
+  })
+}
+
+// ===== 10. PHOTO EARNINGS =====
+
+function getPhotoEarning(photoId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM photo_earnings
+      WHERE photo_id = ?
+    `,
+      [photoId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения заработка:", err.message)
+          reject(err)
+        } else {
+          resolve(row || { photo_id: photoId, earned: 0, last_payout: 0 })
+        }
+      },
+    )
+  })
+}
+
+function updatePhotoEarning(photoId, earned, lastPayout) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      INSERT OR REPLACE INTO photo_earnings (photo_id, earned, last_payout)
+      VALUES (?, ?, ?)
+    `,
+      [photoId, earned, lastPayout],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления заработка:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Заработок обновлен:", photoId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function incrementPhotoEarning(photoId, amount) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      INSERT INTO photo_earnings (photo_id, earned, last_payout)
+      VALUES (?, ?, 0)
+      ON CONFLICT(photo_id) DO UPDATE SET
+        earned = earned + ?
+    `,
+      [photoId, amount, amount],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка инкремента заработка:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Заработок увеличен:", photoId, amount)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 11. DAILY PHOTO UPLOADS =====
+
+function getDailyPhotoUpload(userId, date) {
+  return new Promise((resolve, reject) => {
+    const userDateKey = `${userId}_${date}`
+    db.get(
+      `
+      SELECT * FROM daily_photo_uploads
+      WHERE user_date_key = ?
+    `,
+      [userDateKey],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения дневных загрузок:", err.message)
+          reject(err)
+        } else {
+          resolve(row || { user_date_key: userDateKey, user_id: userId, date: date, count: 0 })
+        }
+      },
+    )
+  })
+}
+
+function updateDailyPhotoUpload(userId, date, count) {
+  return new Promise((resolve, reject) => {
+    const userDateKey = `${userId}_${date}`
+    db.run(
+      `
+      INSERT OR REPLACE INTO daily_photo_uploads (user_date_key, user_id, date, count)
+      VALUES (?, ?, ?, ?)
+    `,
+      [userDateKey, userId, date, count],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления дневных загрузок:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Дневные загрузки обновлены:", userId, date, count)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function incrementDailyPhotoUpload(userId, date) {
+  return new Promise((resolve, reject) => {
+    const userDateKey = `${userId}_${date}`
+    db.run(
+      `
+      INSERT INTO daily_photo_uploads (user_date_key, user_id, date, count)
+      VALUES (?, ?, ?, 1)
+      ON CONFLICT(user_date_key) DO UPDATE SET
+        count = count + 1
+    `,
+      [userDateKey, userId, date],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка инкремента дневных загрузок:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Дневные загрузки увеличены:", userId, date)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 12. WEEKLY BLUR PHOTOS =====
+
+function getWeeklyBlurPhoto(userId, weekStart) {
+  return new Promise((resolve, reject) => {
+    const userWeekKey = `${userId}_${weekStart}`
+    db.get(
+      `
+      SELECT * FROM weekly_blur_photos
+      WHERE user_week_key = ?
+    `,
+      [userWeekKey],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения недельного блюр-фото:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function deleteWeeklyBlurPhoto(userId, weekStart) {
+  return new Promise((resolve, reject) => {
+    const userWeekKey = `${userId}_${weekStart}`
+    db.run(
+      `
+      DELETE FROM weekly_blur_photos
+      WHERE user_week_key = ?
+    `,
+      [userWeekKey],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления недельного блюр-фото:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Недельное блюр-фото удалено:", userId, weekStart)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 13. SCHEDULES =====
+
+function getAllSchedules() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM schedules
+      ORDER BY created_at DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения расписаний:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено расписаний:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function getScheduleById(scheduleId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM schedules
+      WHERE id = ?
+    `,
+      [scheduleId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения расписания:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function deleteSchedule(scheduleId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM schedules
+      WHERE id = ?
+    `,
+      [scheduleId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления расписания:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Расписание удалено:", scheduleId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 14. NAVIGATION PHOTOS =====
+
+function getAllNavigationPhotos() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM navigation_photos
+      ORDER BY uploaded_at DESC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения фото навигации:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Загружено фото навигации:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function deleteNavigationPhoto(filename) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM navigation_photos
+      WHERE filename = ?
+    `,
+      [filename],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления фото навигации:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Фото навигации удалено:", filename)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 15. ADMIN SETTINGS =====
+
+function getAdminSetting(key) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM admin_settings
+      WHERE key = ?
+    `,
+      [key],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения настройки:", err.message)
+          reject(err)
+        } else {
+          if (row) {
+            try {
+              row.value = JSON.parse(row.value)
+            } catch (e) {
+              // Если не JSON, оставляем как есть
+            }
+          }
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function getAllAdminSettings() {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `
+      SELECT * FROM admin_settings
+      ORDER BY key ASC
+    `,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения настроек:", err.message)
+          reject(err)
+        } else {
+          rows.forEach((row) => {
+            try {
+              row.value = JSON.parse(row.value)
+            } catch (e) {
+              // Если не JSON, оставляем как есть
+            }
+          })
+          console.log("[v0] ✅ Загружено настроек:", rows.length)
+          resolve(rows)
+        }
+      },
+    )
+  })
+}
+
+function updateAdminSetting(key, value) {
+  return new Promise((resolve, reject) => {
+    const valueStr = typeof value === "object" ? JSON.stringify(value) : String(value)
+
+    db.run(
+      `
+      INSERT OR REPLACE INTO admin_settings (key, value, updated_at)
+      VALUES (?, ?, ?)
+    `,
+      [key, valueStr, new Date().toISOString()],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка обновления настройки:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Настройка обновлена:", key)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+function deleteAdminSetting(key) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM admin_settings
+      WHERE key = ?
+    `,
+      [key],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления настройки:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Настройка удалена:", key)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 16. USER RESTRICTIONS =====
+
+function getUserRestrictions(userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM user_restrictions
+      WHERE user_id = ?
+    `,
+      [userId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения ограничений:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function deleteUserRestriction(userId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM user_restrictions
+      WHERE user_id = ?
+    `,
+      [userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления ограничений:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Ограничения удалены:", userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
+// ===== 17. USER SCHEDULES =====
+
+function getUserSchedule(userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT * FROM user_schedules
+      WHERE user_id = ?
+    `,
+      [userId],
+      (err, row) => {
+        if (err) {
+          console.error("[v0] ❌ Ошибка получения расписания пользователя:", err.message)
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      },
+    )
+  })
+}
+
+function deleteUserSchedule(userId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      DELETE FROM user_schedules
+      WHERE user_id = ?
+    `,
+      [userId],
+      function (err) {
+        if (err) {
+          console.error("[v0] ❌ Ошибка удаления расписания пользователя:", err.message)
+          reject(err)
+        } else {
+          console.log("[v0] ✅ Расписание пользователя удалено:", userId)
+          resolve(this.changes)
+        }
+      },
+    )
+  })
+}
+
 module.exports = {
   db,
   saveUser,
@@ -1309,4 +2748,83 @@ module.exports = {
   insertUserSchedule,
   // Главная функция миграции
   migrateAllData,
+  // CRUD функции для Events
+  getAllEvents,
+  getEventById,
+  updateEvent,
+  updateEventStatus,
+  deleteEvent,
+  incrementEventParticipants,
+  decrementEventParticipants,
+  // CRUD функции для Event Participants
+  getEventParticipants,
+  checkUserJoinedEvent,
+  deleteEventParticipant,
+  // CRUD функции для Event Messages
+  getEventMessages,
+  deleteEventMessage,
+  // CRUD функции для Photos
+  getAllApprovedPhotos,
+  getPhotoById,
+  getPhotosByEvent,
+  updatePhoto,
+  updatePhotoStatus,
+  incrementPhotoUnlockCount,
+  incrementPhotoPaidUnlocks,
+  deletePhoto,
+  // CRUD функции для Photo Reactions
+  getPhotoReactions,
+  deletePhotoReaction,
+  // CRUD функции для Photo Unlocks
+  getPhotoUnlocks,
+  checkPhotoUnlocked,
+  deletePhotoUnlock,
+  // CRUD функции для Videos
+  getAllApprovedVideos,
+  getAllPendingVideos,
+  getVideoById,
+  updateVideoStatus,
+  deleteVideo,
+  // CRUD функции для User Stars Balances
+  getUserStarsBalance,
+  updateUserStarsBalance,
+  incrementUserStarsBalance,
+  decrementUserStarsBalance,
+  getAllBalances,
+  // CRUD функции для Withdrawal Requests
+  getAllWithdrawalRequests,
+  getPendingWithdrawalRequests,
+  getWithdrawalRequestById,
+  getUserWithdrawalRequests,
+  updateWithdrawalRequestStatus,
+  deleteWithdrawalRequest,
+  // CRUD функции для Photo Earnings
+  getPhotoEarning,
+  updatePhotoEarning,
+  incrementPhotoEarning,
+  // CRUD функции для Daily Photo Uploads
+  getDailyPhotoUpload,
+  updateDailyPhotoUpload,
+  incrementDailyPhotoUpload,
+  // CRUD функции для Weekly Blur Photos
+  getWeeklyBlurPhoto,
+  deleteWeeklyBlurPhoto,
+  // CRUD функции для Schedules
+  getAllSchedules,
+  getScheduleById,
+  deleteSchedule,
+  // CRUD функции для Navigation Photos
+  getAllNavigationPhotos,
+  deleteNavigationPhoto,
+  // CRUD функции для Admin Settings
+  getAdminSetting,
+  getAllAdminSettings,
+  updateAdminSetting,
+  deleteAdminSetting,
+  // CRUD функции для User Restrictions
+  getUserRestrictions,
+  deleteUserRestriction,
+  // CRUD функции для User Schedules
+  getUserSchedule,
+  deleteUserSchedule,
 }

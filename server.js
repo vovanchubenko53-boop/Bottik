@@ -25,7 +25,77 @@ const TelegramBot = require("node-telegram-bot-api")
 const { exec } = require("child_process")
 const util = require("util")
 const execPromise = util.promisify(exec)
-const { saveUser, getAllUsers, getUserCount, migrateFromJSON } = require("./db")
+const {
+  saveUser,
+  getAllUsers,
+  getUserCount,
+  migrateFromJSON,
+  getAllEvents,
+  getEventById,
+  insertEvent,
+  updateEventStatus,
+  deleteEvent,
+  incrementEventParticipants,
+  decrementEventParticipants,
+  getEventParticipants,
+  checkUserJoinedEvent,
+  insertEventParticipant,
+  deleteEventParticipant,
+  getEventMessages,
+  insertEventMessage,
+  getAllApprovedPhotos,
+  getPhotoById,
+  getPhotosByEvent,
+  insertPhoto,
+  updatePhoto,
+  updatePhotoStatus,
+  incrementPhotoUnlockCount,
+  incrementPhotoPaidUnlocks,
+  deletePhoto,
+  getPhotoReactions,
+  insertPhotoReaction,
+  deletePhotoReaction,
+  getPhotoUnlocks,
+  checkPhotoUnlocked,
+  insertPhotoUnlock,
+  deletePhotoUnlock,
+  getDailyPhotoUpload,
+  updateDailyPhotoUpload,
+  incrementDailyPhotoUpload,
+  getWeeklyBlurPhoto,
+  insertWeeklyBlurPhoto,
+  deleteWeeklyBlurPhoto,
+  getPhotoEarning,
+  updatePhotoEarning,
+  incrementPhotoEarning,
+  getUserStarsBalance,
+  updateUserStarsBalance,
+  incrementUserStarsBalance,
+  decrementUserStarsBalance,
+  getAllBalances,
+  getAllWithdrawalRequests,
+  getPendingWithdrawalRequests,
+  getWithdrawalRequestById,
+  getUserWithdrawalRequests,
+  insertWithdrawalRequest,
+  updateWithdrawalRequestStatus,
+  deleteWithdrawalRequest,
+  getAllApprovedVideos,
+  getAllPendingVideos,
+  getVideoById,
+  insertVideo,
+  updateVideoStatus,
+  deleteVideo,
+  getAllSchedules,
+  getScheduleById,
+  insertSchedule,
+  deleteSchedule,
+  getAllNavigationPhotos,
+  insertNavigationPhoto,
+  deleteNavigationPhoto,
+  getAllAdminSettings,
+  updateAdminSetting,
+} = require("./db")
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -178,47 +248,41 @@ if (BOT_TOKEN) {
 
           if (payload.type === "photo_unlock") {
             const { photoId, userId } = payload
-            const photo = photosData.find((p) => p.id === photoId)
+            const photo = await getPhotoById(photoId)
 
             if (photo) {
               // Розблокування фото
-              if (!photoUnlocks[photoId]) {
-                photoUnlocks[photoId] = []
-              }
-              if (!photoUnlocks[photoId].includes(String(userId))) {
-                photoUnlocks[photoId].push(String(userId))
+              const alreadyUnlocked = await checkPhotoUnlocked(photoId, userId)
+              if (!alreadyUnlocked) {
+                await insertPhotoUnlock(photoId, userId)
               }
 
-              // Збільшуємо лічильник платних відкриттів
-              photo.paidUnlocks = (photo.paidUnlocks || 0) + 1
+              // Збільшуємо лічильники
+              await incrementPhotoUnlockCount(photoId)
+              await incrementPhotoPaidUnlocks(photoId)
 
-              // Перевіряємо чи досягнуто 50 відкриттів
-              const authorId = String(photo.userId)
-              if (!photoEarnings[photoId]) {
-                photoEarnings[photoId] = { earned: 0, lastPayout: 0 }
-              }
-
-              photoEarnings[photoId].earned += 1
+              // Increment photo earnings
+              const authorId = String(photo.user_id)
+              await incrementPhotoEarning(photoId, 1)
+              
+              const earnings = await getPhotoEarning(photoId)
+              const earnedCount = earnings ? earnings.earned : 1
 
               // Автоматична виплата кожні 50 відкриттів
-              if (photoEarnings[photoId].earned >= 50 && 
-                  photoEarnings[photoId].earned % 50 === 0) {
-                
-                userStarsBalances[authorId] = (userStarsBalances[authorId] || 0) + 50
-                photoEarnings[photoId].lastPayout = photoEarnings[photoId].earned
+              if (earnedCount >= 50 && earnedCount % 50 === 0) {
+                await incrementUserStarsBalance(authorId, 50)
+                await updatePhotoEarning(photoId, earnedCount, earnedCount)
 
                 // Відправляємо повідомлення автору
                 try {
                   await bot.sendMessage(
-                    photo.userId,
-                    `🎉 Вітаємо!\n\nВаше фото набрало ${photoEarnings[photoId].earned} платних переглядів!\n\n💰 Вам нараховано 50 Telegram Stars ⭐\n\nПродовжуйте публікувати якісні фото!`
+                    photo.user_id,
+                    `🎉 Вітаємо!\n\nВаше фото набрало ${earnedCount} платних переглядів!\n\n💰 Вам нараховано 50 Telegram Stars ⭐\n\nПродовжуйте публікувати якісні фото!`
                   )
                 } catch (notifyError) {
                   console.error("[v0] ❌ Помилка відправки повідомлення автору:", notifyError)
                 }
               }
-
-              await saveData()
 
               await bot.sendMessage(msg.chat.id, "✅ Фото розблоковано! Ви можете переглянути його в галереї.")
             }
@@ -257,35 +321,40 @@ if (BOT_TOKEN) {
         const { type, photoId, userId } = payload
 
         if (type === "photo_unlock") {
-          const photo = photosData.find((p) => p.id === photoId)
+          const photo = await getPhotoById(photoId)
           if (!photo) {
             console.error("[v0] ❌ Фото не знайдено:", photoId)
             return
           }
 
           // Розблоковуємо фото для користувача
-          if (!photoUnlocks[photoId]) {
-            photoUnlocks[photoId] = []
-          }
-          if (!photoUnlocks[photoId].includes(String(userId))) {
-            photoUnlocks[photoId].push(String(userId))
+          const alreadyUnlocked = await checkPhotoUnlocked(photoId, userId)
+          if (!alreadyUnlocked) {
+            await insertPhotoUnlock(photoId, userId)
           }
 
-          const authorId = String(photo.userId)
-          userStarsBalances[authorId] = (userStarsBalances[authorId] || 0) + 1
+          const authorId = String(photo.user_id)
+          
+          // Нараховуємо зірку автору
+          await incrementUserStarsBalance(authorId, 1)
 
           // Оновлюємо лічильник відкриттів фото
-          photo.unlockCount = (photo.unlockCount || 0) + 1
+          await incrementPhotoUnlockCount(photoId)
+          
+          // Get updated photo to check unlock count
+          const updatedPhoto = await getPhotoById(photoId)
+          const unlockCount = updatedPhoto.unlock_count || 1
 
           // Відправляємо уведомление владельцу фото о каждом открытии
           if (String(authorId) !== String(userId) && bot) {
             try {
+              const balance = await getUserStarsBalance(authorId)
               await bot.sendMessage(
                 authorId,
                 `📸 Ваше фото відкрили за 1 ⭐\n\n` +
                   `💰 Вам нараховано 1 зірку\n` +
-                  `⭐ Поточний баланс: ${userStarsBalances[authorId]} зірок\n\n` +
-                  `Всього відкриттів цього фото: ${photo.unlockCount}`
+                  `⭐ Поточний баланс: ${balance || 1} зірок\n\n` +
+                  `Всього відкриттів цього фото: ${unlockCount}`
               )
               console.log(`[v0] 📬 Відправлено уведомление автору ${authorId} про відкриття фото`)
             } catch (error) {
@@ -293,17 +362,17 @@ if (BOT_TOKEN) {
             }
           }
 
-          if (photo.unlockCount % 50 === 0) {
+          if (unlockCount % 50 === 0) {
             const starsToTransfer = 50
-            const currentBalance = userStarsBalances[authorId] || 0
+            const currentBalance = await getUserStarsBalance(authorId)
 
             // Відправляємо повідомлення автору про нагороду
             try {
               await bot.sendMessage(
                 authorId,
-                `🎉 Вітаємо! Ваше фото набрало ${photo.unlockCount} відкриттів!\n\n` +
+                `🎉 Вітаємо! Ваше фото набрало ${unlockCount} відкриттів!\n\n` +
                   `⭐ Вам нараховано ${starsToTransfer} зірок Telegram!\n` +
-                  `💰 Ваш поточний баланс: ${currentBalance} зірок\n\n` +
+                  `💰 Ваш поточний баланс: ${currentBalance || 0} зірок\n\n` +
                   `Продовжуйте публікувати якісні фото! 📸`,
               )
               console.log(`[v0] 🎁 Відправлено повідомлення автору ${authorId} про ${starsToTransfer} зірок`)
@@ -311,8 +380,6 @@ if (BOT_TOKEN) {
               console.error(`[v0] ❌ Помилка відправки повідомлення автору:`, error)
             }
           }
-
-          await saveData()
 
           await bot.sendMessage(userId, "✅ Фото успішно розблоковано!")
           console.log(`[v0] 🔓 Фото ${photoId} розблоковано для користувача ${userId}`)
@@ -352,66 +419,72 @@ if (BOT_TOKEN) {
       const photoId = data.photoId || data.i
 
       if (type === "video_mod" || type === 'v') {
-        const video = videosData.find((v) => v.id === videoId)
-        if (video) {
-          if (action === "approve" || action === 'ap') {
-            video.status = "approved"
-            video.approvedAt = new Date().toISOString()
-            bot.editMessageCaption(`✅ Відео схвалено`, {
-              chat_id: query.message.chat.id,
-              message_id: query.message.message_id,
-            })
-          } else if (action === "reject" || action === 'rj') {
-            video.status = "rejected"
-            video.rejectedAt = new Date().toISOString()
-            bot.editMessageCaption(`❌ Відео відхилено`, {
-              chat_id: query.message.chat.id,
-              message_id: query.message.message_id,
-            })
+        try {
+          const video = await getVideoById(videoId)
+          if (video) {
+            const timestamp = new Date().toISOString()
+            if (action === "approve" || action === 'ap') {
+              await updateVideoStatus(videoId, "approved", timestamp)
+              bot.editMessageCaption(`✅ Відео схвалено`, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              })
+            } else if (action === "reject" || action === 'rj') {
+              await updateVideoStatus(videoId, "rejected", timestamp)
+              bot.editMessageCaption(`❌ Відео відхилено`, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              })
+            }
           }
-          await saveData()
+        } catch (error) {
+          console.error("[v0] ❌ Error updating video status:", error.message)
         }
         bot.answerCallbackQuery(query.id)
       } else if (type === "event_mod" || type === 'e') {
-        const event = eventsData.find((e) => e.id === eventId)
-        if (event) {
-          if (action === "approve" || action === 'ap') {
-            event.status = "approved"
-            event.approvedAt = new Date().toISOString()
-            bot.editMessageText(`✅ Івент схвалено`, {
-              chat_id: query.message.chat.id,
-              message_id: query.message.message_id,
-            })
-          } else if (action === "reject" || action === 'rj') {
-            event.status = "rejected"
-            event.rejectedAt = new Date().toISOString()
-            bot.editMessageText(`❌ Івент відхилено`, {
-              chat_id: query.message.chat.id,
-              message_id: query.message.message_id,
-            })
+        try {
+          const event = await getEventById(eventId)
+          if (event) {
+            const timestamp = new Date().toISOString()
+            if (action === "approve" || action === 'ap') {
+              await updateEventStatus(eventId, "approved", timestamp)
+              bot.editMessageText(`✅ Івент схвалено`, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              })
+            } else if (action === "reject" || action === 'rj') {
+              await updateEventStatus(eventId, "rejected", timestamp)
+              bot.editMessageText(`❌ Івент відхилено`, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              })
+            }
           }
-          await saveData()
+        } catch (error) {
+          console.error("[v0] ❌ Error updating event status:", error.message)
         }
         bot.answerCallbackQuery(query.id)
       } else if (type === "photo_mod" || type === 'p') {
-        const photo = photosData.find((p) => p.id === photoId)
-        if (photo) {
-          if (action === "approve" || action === 'ap') {
-            photo.status = "approved"
-            photo.approvedAt = new Date().toISOString()
-            bot.editMessageCaption(`✅ Фото схвалено`, {
-              chat_id: query.message.chat.id,
-              message_id: query.message.message_id,
-            })
-          } else if (action === "reject" || action === 'rj') {
-            photo.status = "rejected"
-            photo.rejectedAt = new Date().toISOString()
-            bot.editMessageCaption(`❌ Фото відхилено`, {
-              chat_id: query.message.chat.id,
-              message_id: query.message.message_id,
-            })
+        try {
+          const photo = await getPhotoById(photoId)
+          if (photo) {
+            const timestamp = new Date().toISOString()
+            if (action === "approve" || action === 'ap') {
+              await updatePhotoStatus(photoId, "approved", timestamp)
+              bot.editMessageCaption(`✅ Фото схвалено`, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              })
+            } else if (action === "reject" || action === 'rj') {
+              await updatePhotoStatus(photoId, "rejected", timestamp)
+              bot.editMessageCaption(`❌ Фото відхилено`, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+              })
+            }
           }
-          await saveData()
+        } catch (error) {
+          console.error("[v0] ❌ Error updating photo status:", error.message)
         }
         bot.answerCallbackQuery(query.id)
       }
@@ -446,8 +519,6 @@ async function initializeData() {
       photosData = []
     }
 
-    schedulesData = await scheduleParser.initializeSchedules(dataPath)
-
     await loadBotUsers()
 
     if (botUsers.length > 0) {
@@ -458,7 +529,6 @@ async function initializeData() {
       }
     }
 
-    await loadAdminSettings()
     await loadUserRestrictions()
     await loadEventParticipants()
 
@@ -469,24 +539,6 @@ async function initializeData() {
     } catch (e) {
       eventMessages = {}
       console.log("[v0] ⚠️ Файл сообщений не найден, создан новый объект")
-    }
-
-    try {
-      const navigationPhotosFile = await fs.readFile(path.join(dataPath, "navigationPhotos.json"), "utf-8")
-      navigationPhotos = JSON.parse(navigationPhotosFile)
-      console.log("[v0] ✅ Фото навігації завантажено:", navigationPhotos.length)
-    } catch (error) {
-      navigationPhotos = []
-      console.log("[v0] ⚠️ Файл фото навігації не знайдено, створено новий масив")
-    }
-
-    try {
-      const starsBalancesFile = await fs.readFile(path.join(dataPath, "userStarsBalances.json"), "utf-8")
-      userStarsBalances = JSON.parse(starsBalancesFile)
-      console.log("[v0] ✅ Балансы звезд загружены")
-    } catch (e) {
-      userStarsBalances = {}
-      console.log("[v0] ⚠️ Файл балансов не найден, создан новый объект")
     }
 
     try {
@@ -534,15 +586,6 @@ async function initializeData() {
       console.log("[v0] ⚠️ Файл заработков не найден, создан новый объект")
     }
 
-    try {
-      const withdrawalRequestsFile = await fs.readFile(path.join(dataPath, "withdrawalRequests.json"), "utf-8")
-      withdrawalRequests = JSON.parse(withdrawalRequestsFile)
-      console.log("[v0] ✅ Запросы на вывод загружены")
-    } catch (e) {
-      withdrawalRequests = {}
-      console.log("[v0] ⚠️ Файл запросов на вывод не найден, создан новый объект")
-    }
-
     eventsData.forEach((event) => {
       if (!eventParticipants[event.id]) {
         eventParticipants[event.id] = []
@@ -571,21 +614,16 @@ async function saveData() {
 
     await Promise.all([
       fs.writeFile(path.join(dataPath, "events.json"), JSON.stringify(eventsData, null, 2)),
-      fs.writeFile(path.join(dataPath, "schedules.json"), JSON.stringify(schedulesData, null, 2)),
       fs.writeFile(path.join(dataPath, "videos.json"), JSON.stringify(videosData, null, 2)),
       fs.writeFile(path.join(dataPath, "photos.json"), JSON.stringify(photosData, null, 2)),
       fs.writeFile(path.join(dataPath, "eventMessages.json"), JSON.stringify(eventMessages, null, 2)),
       fs.writeFile(path.join(dataPath, "eventParticipants.json"), JSON.stringify(eventParticipants, null, 2)),
-      fs.writeFile(path.join(dataPath, "adminSettings.json"), JSON.stringify(adminSettings, null, 2)),
       fs.writeFile(path.join(dataPath, "userRestrictions.json"), JSON.stringify(userRestrictions, null, 2)),
-      fs.writeFile(path.join(dataPath, "navigationPhotos.json"), JSON.stringify(navigationPhotos, null, 2)),
-      fs.writeFile(path.join(dataPath, "userStarsBalances.json"), JSON.stringify(userStarsBalances, null, 2)),
       fs.writeFile(path.join(dataPath, "photoReactions.json"), JSON.stringify(photoReactions, null, 2)),
       fs.writeFile(path.join(dataPath, "photoUnlocks.json"), JSON.stringify(photoUnlocks, null, 2)),
       fs.writeFile(path.join(dataPath, "dailyPhotoUploads.json"), JSON.stringify(dailyPhotoUploads, null, 2)),
       fs.writeFile(path.join(dataPath, "weeklyBlurPhotos.json"), JSON.stringify(weeklyBlurPhotos, null, 2)),
       fs.writeFile(path.join(dataPath, "photoEarnings.json"), JSON.stringify(photoEarnings, null, 2)),
-      fs.writeFile(path.join(dataPath, "withdrawalRequests.json"), JSON.stringify(withdrawalRequests, null, 2)),
     ])
 
     console.log("Data saved successfully")
@@ -709,7 +747,9 @@ async function checkUpcomingEvents() {
     const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000)
     const fiveMinutesFromOneHour = new Date(now.getTime() + 55 * 60 * 1000)
 
-    for (const event of eventsData) {
+    const allEvents = await getAllEvents()
+
+    for (const event of allEvents) {
       if (notifiedEvents.has(event.id)) continue
 
       const eventDateTime = parseEventDateTime(event.date, event.time)
@@ -717,18 +757,18 @@ async function checkUpcomingEvents() {
       if (eventDateTime >= fiveMinutesFromOneHour && eventDateTime <= oneHourFromNow) {
         console.log(`[v0] 🔔 Отправляем уведомление для события: ${event.title}`)
 
-        const participants = eventParticipants[event.id] || []
+        const participants = await getEventParticipants(event.id)
 
         for (const participant of participants) {
-          if (bot && participant.userId) {
+          if (bot && participant.user_id) {
             try {
               await bot.sendMessage(
-                participant.userId,
+                participant.user_id,
                 `🔔 Нагадування!\n\nПодія "${event.title}" почнеться через 1 годину!\n\n📅 ${event.date} о ${event.time}\n📍 ${event.location}`,
               )
-              console.log(`[v0] ✅ Уведомление отправлено пользователю ${participant.userId}`)
+              console.log(`[v0] ✅ Уведомление отправлено пользователю ${participant.user_id}`)
             } catch (error) {
-              console.error(`[v0] ❌ Ошибка отправки уведомления пользователю ${participant.userId}:`, error.message)
+              console.error(`[v0] ❌ Ошибка отправки уведомления пользователю ${participant.user_id}:`, error.message)
             }
           }
         }
@@ -777,33 +817,42 @@ app.get("/api/schedules/search", async (req, res) => {
   }
 })
 
-app.get("/api/events", (req, res) => {
-  const now = new Date()
-  const cutoffTime = new Date(now.getTime() - 72 * 60 * 60 * 1000) // 72 часа назад для автоудаления
+app.get("/api/events", async (req, res) => {
+  try {
+    const allEvents = await getAllEvents()
+    const now = new Date()
+    const cutoffTime = new Date(now.getTime() - 72 * 60 * 60 * 1000)
 
-  const approvedEvents = eventsData
-    .filter((e) => {
-      // Показываем только одобренные события
-      if (e.status !== "approved" && e.status) return false
+    const filteredEvents = allEvents
+      .filter((e) => {
+        if (e.expiresAt) {
+          const expiresAt = new Date(e.expiresAt)
+          if (expiresAt < cutoffTime) {
+            return false
+          }
+        }
+        return true
+      })
+      .sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt))
 
-      const expiresAt = new Date(e.expiresAt)
-      if (expiresAt < cutoffTime) {
-        return false // Скрываем события, истекшие более 72 часов назад
-      }
-
-      return true
-    })
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) // Новые вверху
-
-  res.json(approvedEvents)
+    res.json(filteredEvents)
+  } catch (error) {
+    console.error("Error fetching events:", error)
+    res.status(500).json({ error: "Failed to fetch events" })
+  }
 })
 
-app.get("/api/events/:id", (req, res) => {
-  const event = eventsData.find((e) => e.id === req.params.id)
-  if (event) {
-    res.json(event)
-  } else {
-    res.status(404).json({ error: "Event not found" })
+app.get("/api/events/:id", async (req, res) => {
+  try {
+    const event = await getEventById(req.params.id)
+    if (event) {
+      res.json(event)
+    } else {
+      res.status(404).json({ error: "Event not found" })
+    }
+  } catch (error) {
+    console.error("Error fetching event:", error)
+    res.status(500).json({ error: "Failed to fetch event" })
   }
 })
 
@@ -818,17 +867,14 @@ app.post("/api/events", async (req, res) => {
       time,
       location,
       description,
-      participants: 0,
+      participantsCount: 0,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + (duration || 24) * 60 * 60 * 1000).toISOString(),
-      joined: false,
       status: "pending",
-      creatorUsername: creatorUsername || "Анонім",
+      organizer: creatorUsername || "Анонім",
     }
 
-    eventsData.push(newEvent)
-    eventMessages[newEvent.id] = []
-    await saveData()
+    await insertEvent(newEvent)
 
     if (bot) {
       const adminUsers = getAdminChatIds()
@@ -836,7 +882,7 @@ app.post("/api/events", async (req, res) => {
         try {
           await bot.sendMessage(
             adminChatId,
-            `🎉 Новий івент на модерацію:\n\n📝 Назва: ${newEvent.title}\n📅 Дата: ${newEvent.date}\n⏰ Час: ${newEvent.time}\n📍 Місце: ${newEvent.location}\n👤 Автор: ${newEvent.creatorUsername}\n\nОпис: ${newEvent.description}`,
+            `🎉 Новий івент на модерацію:\n\n📝 Назва: ${newEvent.title}\n📅 Дата: ${newEvent.date}\n⏰ Час: ${newEvent.time}\n📍 Місце: ${newEvent.location}\n👤 Автор: ${newEvent.organizer}\n\nОпис: ${newEvent.description}`,
             {
               reply_markup: {
                 inline_keyboard: [
@@ -874,45 +920,43 @@ app.post("/api/events/:id/join", async (req, res) => {
 
   try {
     const { userId, firstName, photoUrl } = req.body
-    const event = eventsData.find((e) => e.id === req.params.id)
+    const eventId = req.params.id
+
+    const event = await getEventById(eventId)
 
     if (event) {
-      if (!eventParticipants[event.id]) {
-        eventParticipants[event.id] = []
-        console.log("[v0] 📝 Создан новый массив участников для события")
-      }
+      const alreadyJoined = await checkUserJoinedEvent(eventId, userId)
 
-      const existingParticipant = eventParticipants[event.id].find((p) => String(p.userId) === String(userId))
-
-      if (!existingParticipant) {
-        eventParticipants[event.id].push({ userId, firstName, photoUrl, joinedAt: new Date().toISOString() })
+      if (!alreadyJoined) {
+        const participant = {
+          userId,
+          firstName,
+          photoUrl,
+          joinedAt: new Date().toISOString(),
+        }
+        await insertEventParticipant(eventId, participant)
         console.log("[v0] ✅ Участник добавлен")
 
-        if (!eventMessages[event.id]) {
-          eventMessages[event.id] = []
-        }
+        await incrementEventParticipants(eventId)
 
-        eventMessages[event.id].push({
-          id: Date.now().toString(),
-          text: "Привіт👋",
-          timestamp: new Date().toISOString(),
-          sender: "system",
+        const welcomeMessage = {
           userId: userId,
           firstName: firstName,
+          message: "Привіт👋",
           photoUrl: photoUrl,
-        })
+          timestamp: new Date().toISOString(),
+        }
+        await insertEventMessage(eventId, welcomeMessage)
         console.log("[v0] 👋 Добавлено приветственное сообщение с эмодзи")
       } else {
         console.log("[v0] ⚠️ Участник уже в списке")
       }
 
-      event.participants = eventParticipants[event.id].length
-      console.log("[v0] 📊 Обновлено количество участников:", event.participants)
+      const participants = await getEventParticipants(eventId)
+      const participantCount = participants.length
+      console.log("[v0] 📊 Количество участников:", participantCount)
 
-      await saveData()
-      console.log("[v0] 💾 Данные сохранены")
-
-      res.json({ success: true, participants: event.participants, joined: true })
+      res.json({ success: true, participants: participantCount, joined: true })
       console.log("[v0] 🎉 ========== КОНЕЦ ПРИСОЕДИНЕНИЯ ==========")
     } else {
       console.error("[v0] ❌ Событие не найдено!")
@@ -927,16 +971,18 @@ app.post("/api/events/:id/join", async (req, res) => {
 app.post("/api/events/:id/leave", async (req, res) => {
   try {
     const { userId } = req.body
-    const event = eventsData.find((e) => e.id === req.params.id)
+    const eventId = req.params.id
+
+    const event = await getEventById(eventId)
 
     if (event) {
-      if (eventParticipants[event.id]) {
-        eventParticipants[event.id] = eventParticipants[event.id].filter((p) => String(p.userId) !== String(userId))
-        event.participants = eventParticipants[event.id].length
-        await saveData()
-      }
+      await deleteEventParticipant(eventId, userId)
+      await decrementEventParticipants(eventId)
 
-      res.json({ success: true, participants: event.participants, joined: false })
+      const participants = await getEventParticipants(eventId)
+      const participantCount = participants.length
+
+      res.json({ success: true, participants: participantCount, joined: false })
     } else {
       res.status(404).json({ error: "Event not found" })
     }
@@ -946,24 +992,32 @@ app.post("/api/events/:id/leave", async (req, res) => {
   }
 })
 
-app.get("/api/events/:id/joined", (req, res) => {
+app.get("/api/events/:id/joined", async (req, res) => {
   console.log("[v0] 🔍 Проверка участия в событии:", req.params.id, "User:", req.query.userId)
 
-  const { userId } = req.query
-  const event = eventsData.find((e) => e.id === req.params.id)
+  try {
+    const { userId } = req.query
+    const eventId = req.params.id
 
-  if (event && eventParticipants[event.id]) {
-    const isJoined = eventParticipants[event.id].some((p) => String(p.userId) === String(userId))
-    const participants = eventParticipants[event.id].length
+    const event = await getEventById(eventId)
 
-    console.log("[v0] 📊 Результат проверки:")
-    console.log("[v0]   - Joined:", isJoined)
-    console.log("[v0]   - Participants:", participants)
+    if (event) {
+      const isJoined = await checkUserJoinedEvent(eventId, userId)
+      const participants = await getEventParticipants(eventId)
+      const participantCount = participants.length
 
-    res.json({ joined: isJoined, participants: participants })
-  } else {
-    console.log("[v0] ⚠️ Событие не найдено или нет участников")
-    res.json({ joined: false, participants: event?.participants || 0 })
+      console.log("[v0] 📊 Результат проверки:")
+      console.log("[v0]   - Joined:", isJoined)
+      console.log("[v0]   - Participants:", participantCount)
+
+      res.json({ joined: isJoined, participants: participantCount })
+    } else {
+      console.log("[v0] ⚠️ Событие не найдено")
+      res.json({ joined: false, participants: 0 })
+    }
+  } catch (error) {
+    console.error("Error checking joined status:", error)
+    res.status(500).json({ error: "Failed to check joined status" })
   }
 })
 
@@ -975,64 +1029,77 @@ app.post("/api/events/:id/messages", async (req, res) => {
   console.log("[v0] 📝 Message:", req.body.message)
   console.log("[v0] 👤 User:", req.body.firstName)
 
-  const { message, userId, firstName, photoUrl } = req.body
-  const eventId = req.params.id
-
-  const restrictionKey = `${eventId}_${userId}`
-  if (userRestrictions[restrictionKey]) {
-    const restriction = userRestrictions[restrictionKey]
-    if (restriction.blocked) {
-      console.log("[v0] ❌ Пользователь заблокирован")
-      return res.status(403).json({ error: "Ви заблоковані в цьому івенті" })
-    }
-    if (restriction.muted && (!restriction.muteUntil || new Date(restriction.muteUntil) > new Date())) {
-      console.log("[v0] ❌ Пользователь в муте")
-      return res.status(403).json({ error: "Ви в муті. Не можете писати повідомлення" })
-    }
-  }
-
-  if (!eventMessages[eventId]) {
-    eventMessages[eventId] = []
-    console.log("[v0] 📝 Создан новый массив сообщений для события")
-  }
-
-  const newMessage = {
-    id: Date.now().toString(),
-    text: message,
-    timestamp: new Date().toISOString(),
-    sender: "user",
-    userId,
-    firstName,
-    photoUrl,
-  }
-
-  eventMessages[eventId].push(newMessage)
-  console.log("[v0] ✅ Сообщение добавлено")
-  console.log("[v0] 📊 Всего сообщений в чате:", eventMessages[eventId].length)
-
-  if (typingUsers[eventId] && typingUsers[eventId][userId]) {
-    delete typingUsers[eventId][userId]
-  }
-
-  // Сохраняем сообщения в файл
   try {
-    const dataPath = path.join(__dirname, "data")
-    await fs.mkdir(dataPath, { recursive: true })
-    await fs.writeFile(path.join(dataPath, "eventMessages.json"), JSON.stringify(eventMessages, null, 2))
-    console.log("[v0] 💾 Сообщения сохранены в файл")
-  } catch (error) {
-    console.error("[v0] ❌ Ошибка сохранения сообщений:", error)
-  }
+    const { message, userId, firstName, photoUrl } = req.body
+    const eventId = req.params.id
 
-  console.log("[v0] 💬 ========== КОНЕЦ ОТПРАВКИ СООБЩЕНИЯ ==========")
-  res.json(newMessage)
+    const restrictionKey = `${eventId}_${userId}`
+    if (userRestrictions[restrictionKey]) {
+      const restriction = userRestrictions[restrictionKey]
+      if (restriction.blocked) {
+        console.log("[v0] ❌ Пользователь заблокирован")
+        return res.status(403).json({ error: "Ви заблоковані в цьому івенті" })
+      }
+      if (restriction.muted && (!restriction.muteUntil || new Date(restriction.muteUntil) > new Date())) {
+        console.log("[v0] ❌ Пользователь в муте")
+        return res.status(403).json({ error: "Ви в муті. Не можете писати повідомлення" })
+      }
+    }
+
+    const newMessage = {
+      userId,
+      firstName,
+      message,
+      photoUrl,
+      timestamp: new Date().toISOString(),
+    }
+
+    await insertEventMessage(eventId, newMessage)
+    console.log("[v0] ✅ Сообщение добавлено в базу данных")
+
+    if (typingUsers[eventId] && typingUsers[eventId][userId]) {
+      delete typingUsers[eventId][userId]
+    }
+
+    console.log("[v0] 💬 ========== КОНЕЦ ОТПРАВКИ СООБЩЕНИЯ ==========")
+    res.json({
+      id: Date.now().toString(),
+      text: message,
+      timestamp: newMessage.timestamp,
+      sender: "user",
+      userId,
+      firstName,
+      photoUrl,
+    })
+  } catch (error) {
+    console.error("[v0] ❌ Ошибка отправки сообщения:", error)
+    res.status(500).json({ error: "Failed to send message" })
+  }
 })
 
-app.get("/api/events/:id/messages", (req, res) => {
-  const eventId = req.params.id
-  console.log("[v0] 📨 Запрос сообщений для события:", eventId)
-  console.log("[v0] 📊 Количество сообщений:", eventMessages[eventId]?.length || 0)
-  res.json(eventMessages[eventId] || [])
+app.get("/api/events/:id/messages", async (req, res) => {
+  try {
+    const eventId = req.params.id
+    console.log("[v0] 📨 Запрос сообщений для события:", eventId)
+
+    const messages = await getEventMessages(eventId)
+    console.log("[v0] 📊 Количество сообщений:", messages.length)
+
+    const formattedMessages = messages.map(msg => ({
+      id: msg.id?.toString(),
+      text: msg.message,
+      timestamp: msg.timestamp,
+      sender: msg.user_id ? "user" : "system",
+      userId: msg.user_id,
+      firstName: msg.first_name,
+      photoUrl: msg.photo_url,
+    }))
+
+    res.json(formattedMessages)
+  } catch (error) {
+    console.error("Error fetching messages:", error)
+    res.status(500).json({ error: "Failed to fetch messages" })
+  }
 })
 
 app.post("/api/events/:id/typing", (req, res) => {
@@ -1096,20 +1163,31 @@ app.get("/api/events/:id/typing", (req, res) => {
   res.json(typing)
 })
 
-app.get("/api/events/:eventId/participants/:userId", (req, res) => {
-  const { eventId, userId } = req.params
+app.get("/api/events/:eventId/participants/:userId", async (req, res) => {
+  try {
+    const { eventId, userId } = req.params
 
-  if (!eventParticipants[eventId]) {
-    return res.status(404).json({ error: "Event not found" })
+    const participants = await getEventParticipants(eventId)
+    
+    if (participants.length === 0) {
+      return res.status(404).json({ error: "Event not found" })
+    }
+
+    const participant = participants.find((p) => String(p.user_id) === String(userId))
+
+    if (!participant) {
+      return res.status(404).json({ error: "Participant not found" })
+    }
+
+    res.json({
+      userId: participant.user_id,
+      firstName: participant.first_name,
+      joinedAt: participant.joined_at,
+    })
+  } catch (error) {
+    console.error("Error fetching participant:", error)
+    res.status(500).json({ error: "Failed to fetch participant" })
   }
-
-  const participant = eventParticipants[eventId].find((p) => String(p.userId) === String(userId))
-
-  if (!participant) {
-    return res.status(404).json({ error: "Participant not found" })
-  }
-
-  res.json(participant)
 })
 
 const thumbnailStorage = multer.diskStorage({
@@ -1218,27 +1296,32 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
     }
 
     console.log("[v0] 📝 Создаем объект данных видео...")
+    
+    const { userId, firstName, description } = req.body
+
     const videoData = {
       id: Date.now().toString(),
       filename: videoFile.filename,
-      originalName: videoFile.originalname,
-      path: `/uploads/videos/${videoFile.filename}`,
-      thumbnailPath: thumbnailPath,
+      thumbnailFilename: thumbnailFile ? thumbnailFile.filename : null,
+      url: `/uploads/videos/${videoFile.filename}`,
+      thumbnailUrl: thumbnailPath,
+      description: description || videoFile.originalname,
+      userId: userId || null,
+      firstName: firstName || null,
       uploadedAt: new Date().toISOString(),
       status: "pending",
-      size: videoFile.size,
     }
 
     console.log("[v0] 📊 Данные видео:", JSON.stringify(videoData, null, 2))
 
-    console.log("[v0] 💾 Добавляем видео в массив videosData...")
-    console.log("[v0] 📈 Текущее количество видео:", videosData.length)
-    videosData.push(videoData)
-    console.log("[v0] ✅ Видео добавлено. Новое количество:", videosData.length)
-
-    console.log("[v0] 💾 Сохраняем данные в файл...")
-    await saveData()
-    console.log("[v0] ✅ Данные сохранены успешно")
+    console.log("[v0] 💾 Сохраняем видео в базу данных...")
+    try {
+      await insertVideo(videoData)
+      console.log("[v0] ✅ Видео успешно сохранено в базе данных")
+    } catch (dbError) {
+      console.error("[v0] ❌ Ошибка сохранения видео в БД:", dbError.message)
+      throw new Error("Не удалось сохранить видео в базе данных")
+    }
 
     if (bot) {
       console.log("[v0] 🤖 Отправляем уведомление в Telegram бот...")
@@ -1250,7 +1333,7 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
           console.log("[v0] 📤 Отправляем сообщение админу:", adminChatId)
           await bot.sendMessage(
             adminChatId,
-            `🎥 Нове відео на модерацію:\n\n📝 Назва: ${videoData.originalName}\n📅 Дата: ${new Date(videoData.uploadedAt).toLocaleString("uk-UA")}\n💾 Розмір: ${(videoData.size / 1024 / 1024).toFixed(2)} MB`,
+            `🎥 Нове відео на модерацію:\n\n📝 Назва: ${videoData.description}\n📅 Дата: ${new Date(videoData.uploadedAt).toLocaleString("uk-UA")}\n💾 Розмір: ${(videoFile.size / 1024 / 1024).toFixed(2)} MB`,
             {
               reply_markup: {
                 inline_keyboard: [
@@ -1294,39 +1377,46 @@ app.post("/api/videos/upload", uploadVideoWithThumbnail, async (req, res) => {
   }
 })
 
-app.get("/api/videos/pending", (req, res) => {
-  const pendingVideos = videosData.filter((v) => v.status === "pending")
-  res.json(pendingVideos)
+app.get("/api/videos/pending", async (req, res) => {
+  try {
+    const pendingVideos = await getAllPendingVideos()
+    res.json(pendingVideos)
+  } catch (error) {
+    console.error("Error fetching pending videos:", error)
+    res.status(500).json({ error: "Failed to fetch pending videos" })
+  }
 })
 
-app.get("/api/videos/approved", (req, res) => {
-  const approvedVideos = videosData
-    .filter((v) => v.status === "approved")
-    .sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt))
-    .slice(0, 3)
-  res.json(approvedVideos)
+app.get("/api/videos/approved", async (req, res) => {
+  try {
+    const approvedVideos = await getAllApprovedVideos()
+    const sortedVideos = approvedVideos
+      .sort((a, b) => new Date(b.approved_at) - new Date(a.approved_at))
+      .slice(0, 3)
+    res.json(sortedVideos)
+  } catch (error) {
+    console.error("Error fetching approved videos:", error)
+    res.status(500).json({ error: "Failed to fetch approved videos" })
+  }
 })
 
 app.post("/api/videos/:id/moderate", async (req, res) => {
   try {
     const { action } = req.body
-    const video = videosData.find((v) => v.id === req.params.id)
+    const video = await getVideoById(req.params.id)
 
     if (!video) {
       return res.status(404).json({ error: "Video not found" })
     }
 
+    const timestamp = new Date().toISOString()
     if (action === "approve") {
-      video.status = "approved"
-      video.approvedAt = new Date().toISOString()
+      await updateVideoStatus(req.params.id, "approved", timestamp)
       res.json({ success: true, message: "Відео схвалено" })
     } else if (action === "reject") {
-      video.status = "rejected"
-      video.rejectedAt = new Date().toISOString()
+      await updateVideoStatus(req.params.id, "rejected", timestamp)
       res.json({ success: true, message: "Відео відхилено" })
     }
-
-    await saveData()
   } catch (error) {
     console.error("Error moderating video:", error)
     res.status(500).json({ error: "Failed to moderate video" })
@@ -1360,33 +1450,25 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
 
     const blurEnabled = hasBlur === "true" || hasBlur === true
 
+    // Check weekly blur photo limit
     if (blurEnabled) {
       const weekStart = getWeekStart()
-      const userWeekKey = `${userId}_${weekStart}`
+      const existingBlurPhoto = await getWeeklyBlurPhoto(userId, weekStart)
 
-      if (weeklyBlurPhotos[userWeekKey]) {
-        // Дозволяємо продовжити, якщо це той самий альбом із блюром від цього ж користувача
-        if (albumId) {
-          const sameAlbumBlur = photosData.find(
-            (p) => p.albumId === albumId && String(p.userId) === String(userId) && p.hasBlur,
-          )
-          if (!sameAlbumBlur) {
-            console.log("[v0] ⚠️ Ліміт блюр-фото: інший альбом/фото у цей тиждень")
-            return res.status(400).json({
-              error:
-                "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото/альбом з блюром на тиждень)",
-            })
-          }
+      if (existingBlurPhoto) {
+        // Allow if it's the same album with blur from the same user
+        if (albumId && existingBlurPhoto.album_id === albumId) {
+          console.log("[v0] ✅ Це той самий альбом із блюром, дозволяємо продовжити")
         } else {
           console.log("[v0] ⚠️ Ліміт блюр-фото: вже було фото з блюром цього тижня")
           return res.status(400).json({
-            error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото з блюром на тиждень)",
+            error: "Ви вже використали ліміт блюр-фото на цей тиждень (1 фото/альбом з блюром на тиждень)",
           })
         }
       } else {
-        // Помічаємо використання ліміту на цей тиждень
-        weeklyBlurPhotos[userWeekKey] = albumId || new Date().toISOString()
-        console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, ключ: ${userWeekKey}, альбом: ${albumId || 'single'}`)
+        // Mark blur photo usage for this week
+        await insertWeeklyBlurPhoto(userId, weekStart, albumId || null)
+        console.log(`[v0] ✅ Встановлено блюр для користувача ${userId}, тиждень: ${weekStart}, альбом: ${albumId || 'single'}`)
       }
     }
 
@@ -1400,30 +1482,33 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     console.log("[v0]   - Album Total:", albumTotal)
     console.log("[v0]   - Has Blur:", blurEnabled)
 
+    const photoId = Date.now().toString() + "-" + (albumIndex || "0")
     const newPhoto = {
-      id: Date.now().toString() + "-" + (albumIndex || "0"),
+      id: photoId,
       filename: req.file.filename,
       url: `/uploads/photos/${req.file.filename}`,
-      eventId,
+      event_id: eventId,
       description: description || "",
-      userId,
-      firstName: firstName || "Анонім",
-      uploadedAt: new Date().toISOString(),
+      user_id: userId,
+      first_name: firstName || "Анонім",
+      uploaded_at: new Date().toISOString(),
       status: "pending",
-      albumId: albumId || null,
-      albumIndex: albumIndex ? Number.parseInt(albumIndex) : null,
-      albumTotal: albumTotal ? Number.parseInt(albumTotal) : null,
-      unlockCount: 0,
-      hasBlur: blurEnabled,
-      paidUnlocks: 0,
+      album_id: albumId || null,
+      album_index: albumIndex ? Number.parseInt(albumIndex) : null,
+      album_total: albumTotal ? Number.parseInt(albumTotal) : null,
+      unlock_count: 0,
+      has_blur: blurEnabled ? 1 : 0,
+      paid_unlocks: 0,
     }
 
-    console.log("[v0] 💾 Добавляем фото в массив photosData...")
-    photosData.push(newPhoto)
-    console.log("[v0] ✅ Фото добавлено. Всего фото:", photosData.length)
+    console.log("[v0] 💾 Сохраняем фото в базу данных...")
+    await insertPhoto(newPhoto)
+    console.log("[v0] ✅ Фото сохранено в БД")
 
-    await saveData()
-    console.log("[v0] ✅ Данные сохранены")
+    // Increment daily photo upload count
+    const today = new Date().toISOString().split('T')[0]
+    await incrementDailyPhotoUpload(userId, today)
+    console.log("[v0] ✅ Обновлен счетчик ежедневных загрузок")
 
     // Відправляємо повідомлення в Telegram тільки для першого фото альбому або окремого фото
     if (bot && (!albumIndex || albumIndex === "0")) {
@@ -1431,7 +1516,7 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
       const adminUsers = getAdminChatIds()
       for (const adminChatId of adminUsers) {
         try {
-          const event = eventsData.find((e) => e.id === eventId)
+          const event = await getEventById(eventId)
           const eventName = event ? event.title : "Подія"
           const photoCount = albumTotal ? ` (${albumTotal} фото)` : ""
           console.log("[v0] 📤 Отправляем фото адміну:", adminChatId)
@@ -1450,12 +1535,12 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
               adminChatId,
               `${publicBaseUrl}${newPhoto.url}`,
               {
-              caption: `📸 Нове фото на модерацію${photoCount}:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.firstName}\n📝 Опис: ${newPhoto.description || "без опису"}`,
+              caption: `📸 Нове фото на модерацію${photoCount}:\n\n🎉 Івент: ${eventName}\n👤 Автор: ${newPhoto.first_name}\n📝 Опис: ${newPhoto.description || "без опису"}`,
               reply_markup: {
                 inline_keyboard: [
                   [
-                    { text: "✅ Підтвердити", callback_data: buildCallbackData('p', newPhoto.id, 'ap') },
-                    { text: "❌ Відхилити", callback_data: buildCallbackData('p', newPhoto.id, 'rj') },
+                    { text: "✅ Підтвердити", callback_data: buildCallbackData('p', photoId, 'ap') },
+                    { text: "❌ Відхилити", callback_data: buildCallbackData('p', photoId, 'rj') },
                   ],
                 ],
               },
@@ -1470,10 +1555,30 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
     }
 
     console.log("[v0] 📤 Отправляем успешный ответ клиенту")
+    
+    // Convert response to camelCase for compatibility
+    const photoResponse = {
+      id: newPhoto.id,
+      filename: newPhoto.filename,
+      url: newPhoto.url,
+      eventId: newPhoto.event_id,
+      description: newPhoto.description,
+      userId: newPhoto.user_id,
+      firstName: newPhoto.first_name,
+      uploadedAt: newPhoto.uploaded_at,
+      status: newPhoto.status,
+      albumId: newPhoto.album_id,
+      albumIndex: newPhoto.album_index,
+      albumTotal: newPhoto.album_total,
+      unlockCount: newPhoto.unlock_count,
+      hasBlur: newPhoto.has_blur === 1,
+      paidUnlocks: newPhoto.paid_unlocks,
+    }
+    
     res.json({
       success: true,
       message: "Фото відправлено на модерацію",
-      photo: newPhoto,
+      photo: photoResponse,
     })
     console.log("[v0] 📸 ========== КІНЕЦЬ ОБРОБКИ ЗАВАНТАЖЕННЯ ФОТО ==========")
   } catch (error) {
@@ -1486,71 +1591,122 @@ app.post("/api/photos/upload", uploadPhoto.single("photo"), async (req, res) => 
   }
 })
 
-app.get("/api/photos/:photoId/reactions", (req, res) => {
-  const { photoId } = req.params
-  const reactions = photoReactions[photoId] || {}
+app.get("/api/photos", async (req, res) => {
+  try {
+    const { eventId } = req.query
 
-  const counts = { "❤️": 0 }
-  Object.values(reactions).forEach((reaction) => {
-    if (counts[reaction] !== undefined) {
-      counts[reaction]++
+    let photos
+    if (eventId) {
+      photos = await getPhotosByEvent(eventId)
+    } else {
+      photos = await getAllApprovedPhotos()
     }
-  })
 
-  res.json({ reactions: counts, userReaction: reactions[req.query.userId] || null })
-})
+    // Convert snake_case to camelCase and sort by date (newest first)
+    const photosWithCamelCase = photos
+      .map((photo) => ({
+        id: photo.id,
+        filename: photo.filename,
+        url: photo.url,
+        eventId: photo.event_id,
+        description: photo.description,
+        userId: photo.user_id,
+        firstName: photo.first_name,
+        uploadedAt: photo.uploaded_at,
+        status: photo.status,
+        approvedAt: photo.approved_at,
+        rejectedAt: photo.rejected_at,
+        albumId: photo.album_id,
+        albumIndex: photo.album_index,
+        albumTotal: photo.album_total,
+        unlockCount: photo.unlock_count || 0,
+        hasBlur: photo.has_blur === 1,
+        paidUnlocks: photo.paid_unlocks || 0,
+      }))
+      .sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0))
 
-app.get("/api/photos", (req, res) => {
-  const { eventId } = req.query
-
-  let photos = photosData.filter((photo) => photo.status === "approved")
-
-  if (eventId) {
-    photos = photos.filter((p) => p.eventId === eventId)
+    res.json(photosWithCamelCase)
+  } catch (error) {
+    console.error("[v0] ❌ Error fetching photos:", error)
+    res.status(500).json({ error: "Failed to fetch photos" })
   }
-
-  // Сортуємо фото за датою - нові зверху
-  photos.sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0))
-
-  const photosWithUnlockCount = photos.map((photo) => ({
-    ...photo,
-    unlockCount: photoUnlocks[photo.id] ? photoUnlocks[photo.id].length : 0,
-  }))
-
-  res.json(photosWithUnlockCount)
 })
 
-app.get("/api/photos/pending", (req, res) => {
-  const pendingPhotos = photosData.filter((p) => p.status === "pending")
-  res.json(pendingPhotos)
+app.get("/api/photos/pending", async (req, res) => {
+  try {
+    const allPhotos = await getAllApprovedPhotos()
+    // getAllApprovedPhotos returns approved photos, we need to query for pending separately
+    // For now, filter from all photos (we may need a dedicated function in db.js)
+    const db = require("./db").db
+    db.all(
+      `SELECT * FROM photos WHERE status = 'pending' ORDER BY uploaded_at DESC`,
+      [],
+      (err, rows) => {
+        if (err) {
+          console.error("[v0] ❌ Error fetching pending photos:", err)
+          return res.status(500).json({ error: "Failed to fetch pending photos" })
+        }
+        
+        const photosWithCamelCase = rows.map((photo) => ({
+          id: photo.id,
+          filename: photo.filename,
+          url: photo.url,
+          eventId: photo.event_id,
+          description: photo.description,
+          userId: photo.user_id,
+          firstName: photo.first_name,
+          uploadedAt: photo.uploaded_at,
+          status: photo.status,
+          approvedAt: photo.approved_at,
+          rejectedAt: photo.rejected_at,
+          albumId: photo.album_id,
+          albumIndex: photo.album_index,
+          albumTotal: photo.album_total,
+          unlockCount: photo.unlock_count || 0,
+          hasBlur: photo.has_blur === 1,
+          paidUnlocks: photo.paid_unlocks || 0,
+        }))
+        
+        res.json(photosWithCamelCase)
+      }
+    )
+  } catch (error) {
+    console.error("[v0] ❌ Error fetching pending photos:", error)
+    res.status(500).json({ error: "Failed to fetch pending photos" })
+  }
 })
 
 app.post("/api/photos/:id/moderate", async (req, res) => {
   try {
-    const { action, description, eventId, albumId } = req.body // Додано albumId
-    const photo = photosData.find((p) => p.id === req.params.id)
+    const { action, description, eventId, albumId } = req.body
+    const photo = await getPhotoById(req.params.id)
 
     if (!photo) {
       return res.status(404).json({ error: "Photo not found" })
     }
 
+    const timestamp = new Date().toISOString()
+
     if (action === "approve") {
-      photo.status = "approved"
-      photo.approvedAt = new Date().toISOString()
-      if (description !== undefined) photo.description = description
-      if (eventId !== undefined) photo.eventId = eventId
-      if (albumId !== undefined) photo.albumId = albumId
+      await updatePhotoStatus(req.params.id, "approved", timestamp)
       
-      console.log(`[v0] ✅ Фото ${photo.id} одобрено, hasBlur: ${photo.hasBlur}`)
+      // Update additional fields if provided
+      const updates = {}
+      if (description !== undefined) updates.description = description
+      if (eventId !== undefined) updates.event_id = eventId
+      if (albumId !== undefined) updates.album_id = albumId
       
-      res.json({ success: true, message: "Фото схвалено", hasBlur: photo.hasBlur })
+      if (Object.keys(updates).length > 0) {
+        await updatePhoto(req.params.id, updates)
+      }
+      
+      console.log(`[v0] ✅ Фото ${req.params.id} одобрено, hasBlur: ${photo.has_blur}`)
+      
+      res.json({ success: true, message: "Фото схвалено", hasBlur: photo.has_blur === 1 })
     } else if (action === "reject") {
-      photo.status = "rejected"
-      photo.rejectedAt = new Date().toISOString()
+      await updatePhotoStatus(req.params.id, "rejected", timestamp)
       res.json({ success: true, message: "Фото відхилено" })
     }
-
-    await saveData()
   } catch (error) {
     console.error("Error moderating photo:", error)
     res.status(500).json({ error: "Failed to moderate photo" })
@@ -1559,20 +1715,20 @@ app.post("/api/photos/:id/moderate", async (req, res) => {
 
 app.delete("/api/photos/:id", async (req, res) => {
   try {
-    const photoIndex = photosData.findIndex((p) => p.id === req.params.id)
-    if (photoIndex === -1) {
+    const photo = await getPhotoById(req.params.id)
+    if (!photo) {
       return res.status(404).json({ error: "Photo not found" })
     }
 
-    const photo = photosData[photoIndex]
+    // Delete the physical file
     try {
       await fs.unlink(path.join(__dirname, "uploads/photos", photo.filename))
     } catch (error) {
       console.error("Error deleting photo file:", error)
     }
 
-    photosData.splice(photoIndex, 1)
-    await saveData()
+    // Delete from database
+    await deletePhoto(req.params.id)
 
     res.json({ success: true, message: "Фото видалено" })
   } catch (error) {
@@ -1590,12 +1746,40 @@ app.post("/api/admin/login", (req, res) => {
   }
 })
 
-app.get("/api/admin/settings", (req, res) => {
+app.get("/api/admin/settings", async (req, res) => {
   const { token } = req.query
   if (token !== "admin-authenticated") {
     return res.status(401).json({ error: "Не авторизовано" })
   }
-  res.json(adminSettings)
+
+  try {
+    const dbSettings = await getAllAdminSettings()
+    
+    const settingsObj = dbSettings.reduce((acc, s) => {
+      acc[s.key] = s.value
+      return acc
+    }, {})
+
+    if (Object.keys(settingsObj).length === 0) {
+      settingsObj.heroImages = {
+        news: "https://placehold.co/600x300/a3e635/444?text=News",
+        schedule: "https://placehold.co/600x300/60a5fa/FFF?text=Schedule",
+        video: "https://placehold.co/600x300/f87171/FFF?text=Video",
+        events: "https://placehold.co/600x300/c084fc/FFF?text=Events",
+      }
+      settingsObj.imagePositions = {
+        news: { x: 50, y: 50 },
+        schedule: { x: 50, y: 50 },
+        video: { x: 50, y: 50 },
+        events: { x: 50, y: 50 },
+      }
+    }
+
+    res.json(settingsObj)
+  } catch (error) {
+    console.error("Error fetching admin settings:", error)
+    res.status(500).json({ error: "Помилка завантаження налаштувань" })
+  }
 })
 
 app.get("/api/admin/bot-users-count", async (req, res) => {
@@ -1619,9 +1803,22 @@ app.post("/api/admin/settings", async (req, res) => {
     return res.status(401).json({ error: "Не авторизовано" })
   }
 
-  adminSettings = { ...adminSettings, ...req.body }
-  await saveAdminSettings()
-  res.json({ success: true, settings: adminSettings })
+  try {
+    for (const [key, value] of Object.entries(req.body)) {
+      await updateAdminSetting(key, value)
+    }
+
+    const dbSettings = await getAllAdminSettings()
+    const settingsObj = dbSettings.reduce((acc, s) => {
+      acc[s.key] = s.value
+      return acc
+    }, {})
+
+    res.json({ success: true, settings: settingsObj })
+  } catch (error) {
+    console.error("Error updating admin settings:", error)
+    res.status(500).json({ error: "Помилка оновлення налаштувань" })
+  }
 })
 
 app.post("/api/admin/broadcast", async (req, res) => {
@@ -1754,14 +1951,19 @@ app.post("/api/admin/broadcast", async (req, res) => {
   })
 })
 
-app.get("/api/admin/videos/pending", (req, res) => {
+app.get("/api/admin/videos/pending", async (req, res) => {
   const { token } = req.query
   if (token !== "admin-authenticated") {
     return res.status(401).json({ error: "Не авторизовано" })
   }
 
-  const pendingVideos = videosData.filter((v) => v.status === "pending")
-  res.json(pendingVideos)
+  try {
+    const pendingVideos = await getAllPendingVideos()
+    res.json(pendingVideos)
+  } catch (error) {
+    console.error("Error fetching admin pending videos:", error)
+    res.status(500).json({ error: "Failed to fetch pending videos" })
+  }
 })
 
 app.get("/api/admin/events/pending", (req, res) => {
@@ -1782,23 +1984,13 @@ app.delete("/api/admin/events/:id", async (req, res) => {
 
   try {
     const eventId = req.params.id
-    const eventIndex = eventsData.findIndex((e) => e.id === eventId)
 
-    if (eventIndex === -1) {
+    const event = await getEventById(eventId)
+    if (!event) {
       return res.status(404).json({ error: "Event not found" })
     }
 
-    eventsData.splice(eventIndex, 1)
-
-    eventParticipants[eventId] = undefined
-    delete eventParticipants[eventId]
-
-    eventMessages[eventId] = undefined
-    delete eventMessages[eventId]
-
-    // Удалено строку: photosData = photosData.filter((p) => p.eventId !== eventId)
-
-    await saveData()
+    await deleteEvent(eventId)
 
     res.json({ success: true, message: "Івент видалено. Фото залишились в галереї." })
   } catch (error) {
@@ -1815,23 +2007,22 @@ app.post("/api/admin/events/:id/moderate", async (req, res) => {
 
   try {
     const { action } = req.body
-    const event = eventsData.find((e) => e.id === req.params.id)
+    const eventId = req.params.id
+
+    const event = await getEventById(eventId)
 
     if (!event) {
       return res.status(404).json({ error: "Event not found" })
     }
 
+    const timestamp = new Date().toISOString()
     if (action === "approve") {
-      event.status = "approved"
-      event.approvedAt = new Date().toISOString()
+      await updateEventStatus(eventId, "approved", timestamp)
       res.json({ success: true, message: "Івент схвалено" })
     } else if (action === "reject") {
-      event.status = "rejected"
-      event.rejectedAt = new Date().toISOString()
+      await updateEventStatus(eventId, "rejected", timestamp)
       res.json({ success: true, message: "Івент відхилено" })
     }
-
-    await saveData()
   } catch (error) {
     console.error("Error moderating event:", error)
     res.status(500).json({ error: "Failed to moderate event" })
@@ -1847,24 +2038,31 @@ app.get("/api/admin/events/all", (req, res) => {
   res.json(eventsData)
 })
 
-app.get("/api/admin/events/:id/participants", (req, res) => {
+app.get("/api/admin/events/:id/participants", async (req, res) => {
   const { token } = req.query
   if (token !== "admin-authenticated") {
     return res.status(401).json({ error: "Не авторизовано" })
   }
 
-  const eventId = req.params.id
-  const participants = eventParticipants[eventId] || []
+  try {
+    const eventId = req.params.id
+    const participants = await getEventParticipants(eventId)
 
-  const participantsWithRestrictions = participants.map((p) => {
-    const restrictionKey = `${eventId}_${p.userId}`
-    return {
-      ...p,
-      restrictions: userRestrictions[restrictionKey] || null,
-    }
-  })
+    const participantsWithRestrictions = participants.map((p) => {
+      const restrictionKey = `${eventId}_${p.user_id}`
+      return {
+        userId: p.user_id,
+        firstName: p.first_name,
+        joinedAt: p.joined_at,
+        restrictions: userRestrictions[restrictionKey] || null,
+      }
+    })
 
-  res.json(participantsWithRestrictions)
+    res.json(participantsWithRestrictions)
+  } catch (error) {
+    console.error("Error fetching participants:", error)
+    res.status(500).json({ error: "Failed to fetch participants" })
+  }
 })
 
 app.post("/api/admin/events/:id/restrict-user", async (req, res) => {
@@ -1934,30 +2132,43 @@ app.post(
     try {
       const blocks = ["news", "schedule", "video", "events"]
 
-      if (!adminSettings.imagePositions) {
-        adminSettings.imagePositions = {}
+      const dbSettings = await getAllAdminSettings()
+      const settingsObj = dbSettings.reduce((acc, s) => {
+        acc[s.key] = s.value
+        return acc
+      }, {})
+
+      let heroImages = settingsObj.heroImages || {
+        news: "https://placehold.co/600x300/a3e635/444?text=News",
+        schedule: "https://placehold.co/600x300/60a5fa/FFF?text=Schedule",
+        video: "https://placehold.co/600x300/f87171/FFF?text=Video",
+        events: "https://placehold.co/600x300/c084fc/FFF?text=Events",
       }
+
+      let imagePositions = settingsObj.imagePositions || {}
 
       for (const block of blocks) {
         if (req.files && req.files[block]) {
           const file = req.files[block][0]
-          adminSettings.heroImages[block] = `/uploads/hero-images/${file.filename}`
+          heroImages[block] = `/uploads/hero-images/${file.filename}`
         } else if (req.body[`${block}_url`]) {
-          adminSettings.heroImages[block] = req.body[`${block}_url`]
+          heroImages[block] = req.body[`${block}_url`]
         }
 
         if (req.body[`${block}_position_x`] !== undefined && req.body[`${block}_position_y`] !== undefined) {
           const posX = Number.parseInt(req.body[`${block}_position_x`])
           const posY = Number.parseInt(req.body[`${block}_position_y`])
-          adminSettings.imagePositions[block] = {
+          imagePositions[block] = {
             x: Number.isNaN(posX) ? 50 : posX,
             y: Number.isNaN(posY) ? 50 : posY,
           }
         }
       }
 
-      await saveAdminSettings()
-      res.json({ success: true, images: adminSettings.heroImages, positions: adminSettings.imagePositions })
+      await updateAdminSetting('heroImages', heroImages)
+      await updateAdminSetting('imagePositions', imagePositions)
+
+      res.json({ success: true, images: heroImages, positions: imagePositions })
     } catch (error) {
       console.error("Error uploading hero images:", error)
       res.status(500).json({ error: "Failed to upload images" })
@@ -1965,11 +2176,27 @@ app.post(
   },
 )
 
-app.get("/api/settings/images", (req, res) => {
-  res.json({
-    images: adminSettings.heroImages,
-    positions: adminSettings.imagePositions || {},
-  })
+app.get("/api/settings/images", async (req, res) => {
+  try {
+    const dbSettings = await getAllAdminSettings()
+    const settingsObj = dbSettings.reduce((acc, s) => {
+      acc[s.key] = s.value
+      return acc
+    }, {})
+
+    res.json({
+      images: settingsObj.heroImages || {
+        news: "https://placehold.co/600x300/a3e635/444?text=News",
+        schedule: "https://placehold.co/600x300/60a5fa/FFF?text=Schedule",
+        video: "https://placehold.co/600x300/f87171/FFF?text=Video",
+        events: "https://placehold.co/600x300/c084fc/FFF?text=Events",
+      },
+      positions: settingsObj.imagePositions || {},
+    })
+  } catch (error) {
+    console.error("Error fetching settings images:", error)
+    res.status(500).json({ error: "Помилка завантаження налаштувань зображень" })
+  }
 })
 
 async function parseExcelSchedule(filePath) {
@@ -2050,31 +2277,52 @@ app.post("/api/admin/upload-schedule", uploadSchedule.single("schedule"), async 
     const newSchedule = {
       id: Date.now().toString(),
       name: name,
-      schedule: schedule,
-      uploadedAt: new Date().toISOString(),
-      filePath: req.file.path,
+      scheduleData: schedule,
+      createdAt: new Date().toISOString(),
     }
 
-    schedulesData.push(newSchedule)
-    await saveData()
+    await insertSchedule(newSchedule)
 
-    res.json({ success: true, schedule: newSchedule })
+    res.json({ 
+      success: true, 
+      schedule: {
+        id: newSchedule.id,
+        name: newSchedule.name,
+        schedule: schedule,
+        uploadedAt: newSchedule.createdAt,
+        filePath: req.file.path
+      }
+    })
   } catch (error) {
     console.error("Error uploading schedule:", error)
     res.status(500).json({ error: "Помилка обробки файлу: " + error.message })
   }
 })
 
-app.get("/api/admin/schedules", (req, res) => {
+app.get("/api/admin/schedules", async (req, res) => {
   const { token } = req.query
 
-  if (token === "admin-authenticated") {
-    res.json(schedulesData)
-  } else if (token === "public" || !token) {
-    const schedulesToReturn = schedulesData.filter((s) => !s.userId)
-    res.json(schedulesToReturn)
-  } else {
-    return res.status(401).json({ error: "Не авторизовано" })
+  try {
+    const dbSchedules = await getAllSchedules()
+    
+    const schedulesData = dbSchedules.map(s => ({
+      id: s.id,
+      name: s.name,
+      schedule: typeof s.schedule_data === 'string' ? JSON.parse(s.schedule_data) : s.schedule_data,
+      uploadedAt: s.created_at
+    }))
+
+    if (token === "admin-authenticated") {
+      res.json(schedulesData)
+    } else if (token === "public" || !token) {
+      const schedulesToReturn = schedulesData.filter((s) => !s.userId)
+      res.json(schedulesToReturn)
+    } else {
+      return res.status(401).json({ error: "Не авторизовано" })
+    }
+  } catch (error) {
+    console.error("Error fetching schedules:", error)
+    res.status(500).json({ error: "Помилка завантаження розкладів" })
   }
 })
 
@@ -2085,13 +2333,12 @@ app.delete("/api/admin/schedules/:id", async (req, res) => {
   }
 
   try {
-    const scheduleIndex = schedulesData.findIndex((s) => s.id === req.params.id)
-    if (scheduleIndex === -1) {
+    const schedule = await getScheduleById(req.params.id)
+    if (!schedule) {
       return res.status(404).json({ error: "Розклад не знайдено" })
     }
 
-    schedulesData.splice(scheduleIndex, 1)
-    await saveData()
+    await deleteSchedule(req.params.id)
 
     res.json({ success: true })
   } catch (error) {
@@ -2206,18 +2453,14 @@ app.post("/api/admin/events", async (req, res) => {
       time,
       location,
       description,
-      participants: 0,
+      participantsCount: 0,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + (duration || 24) * 60 * 60 * 1000).toISOString(),
-      joined: false,
-      status: "approved", // Автоматически одобряем события от админа
-      creatorUsername: creatorUsername || "Адміністратор",
+      status: "approved",
+      organizer: creatorUsername || "Адміністратор",
     }
 
-    eventsData.push(newEvent)
-    eventMessages[newEvent.id] = []
-    eventParticipants[newEvent.id] = []
-    await saveData()
+    await insertEvent(newEvent)
 
     res.json({ success: true, message: "Івент створено та автоматично схвалено", event: newEvent })
   } catch (error) {
@@ -2230,9 +2473,9 @@ app.post("/api/events/:id/messages/photos", uploadPhoto.array("photos", 10), asy
   console.log("[v0] 📸 ========== ВІДПРАВКА МНОЖИННИХ ФОТО В ЧАТ ==========")
 
   try {
-    const { message, userId, firstName, photoUrl } = req.body // Видалено eventId, воно береться з params
+    const { message, userId, firstName, photoUrl } = req.body
     const photos = req.files
-    const eventId = req.params.id // Використовуємо id з параметрів маршруту
+    const eventId = req.params.id
 
     if (!photos || photos.length === 0) {
       return res.status(400).json({ error: "Фото не завантажено" })
@@ -2255,35 +2498,35 @@ app.post("/api/events/:id/messages/photos", uploadPhoto.array("photos", 10), asy
       }
     }
 
-    if (!eventMessages[eventId]) {
-      eventMessages[eventId] = []
-    }
-
-    // Створюємо одне повідомлення з множинними фото
     const photoPaths = photos.map((photo) => `/uploads/photos/${photo.filename}`)
 
-    const newMessage = {
-      id: Date.now().toString(),
-      text: message || "",
-      timestamp: new Date().toISOString(),
-      sender: "user",
+    const newMessageData = {
       userId,
       firstName,
+      message: message || "",
       photoUrl,
-      photos: photoPaths, // Масив шляхів до фото
+      timestamp: new Date().toISOString(),
     }
 
-    eventMessages[eventId].push(newMessage)
-    console.log("[v0] ✅ Повідомлення з фото додано")
+    await insertEventMessage(eventId, newMessageData)
+    console.log("[v0] ✅ Повідомлення з фото додано в базу данных")
 
     if (typingUsers[eventId] && typingUsers[eventId][userId]) {
       delete typingUsers[eventId][userId]
     }
 
-    await saveData()
-    console.log("[v0] 💾 Дані збережено")
+    const responseMessage = {
+      id: Date.now().toString(),
+      text: message || "",
+      timestamp: newMessageData.timestamp,
+      sender: "user",
+      userId,
+      firstName,
+      photoUrl,
+      photos: photoPaths,
+    }
 
-    res.json(newMessage)
+    res.json(responseMessage)
   } catch (error) {
     console.error("[v0] ❌ Помилка:", error)
     res.status(500).json({ error: "Помилка відправки фото" })
@@ -2316,46 +2559,64 @@ app.post("/api/navigation/upload", uploadNavigation.single("photo"), async (req,
     const { userId } = req.body
 
     const newPhoto = {
-      id: Date.now().toString(),
       filename: req.file.filename,
       url: `/uploads/navigation/${req.file.filename}`,
-      userId,
       uploadedAt: new Date().toISOString(),
     }
 
-    navigationPhotos.push(newPhoto)
-    await saveData()
+    const uploadsDir = path.join(__dirname, "uploads")
+    await insertNavigationPhoto(newPhoto, uploadsDir)
 
-    res.json({ success: true, photo: newPhoto })
+    res.json({ 
+      success: true, 
+      photo: {
+        id: Date.now().toString(),
+        filename: newPhoto.filename,
+        url: newPhoto.url,
+        userId,
+        uploadedAt: newPhoto.uploadedAt
+      }
+    })
   } catch (error) {
     console.error("Error uploading navigation photo:", error)
     res.status(500).json({ error: "Помилка завантаження фото" })
   }
 })
 
-app.get("/api/navigation/photos", (req, res) => {
-  res.json(navigationPhotos)
+app.get("/api/navigation/photos", async (req, res) => {
+  try {
+    const dbPhotos = await getAllNavigationPhotos()
+    
+    const photos = dbPhotos.map(p => ({
+      id: p.id.toString(),
+      filename: p.filename,
+      url: p.url,
+      uploadedAt: p.uploaded_at
+    }))
+    
+    res.json(photos)
+  } catch (error) {
+    console.error("Error fetching navigation photos:", error)
+    res.status(500).json({ error: "Помилка завантаження фото навігації" })
+  }
 })
 
 app.delete("/api/navigation/photos/:id", async (req, res) => {
   try {
-    const photoIndex = navigationPhotos.findIndex((p) => p.id === req.params.id)
+    const dbPhotos = await getAllNavigationPhotos()
+    const photo = dbPhotos.find((p) => p.id.toString() === req.params.id)
 
-    if (photoIndex === -1) {
+    if (!photo) {
       return res.status(404).json({ error: "Фото не знайдено" })
     }
 
-    const photo = navigationPhotos[photoIndex]
-
-    // Видаляємо файл
     try {
       await fs.unlink(path.join(__dirname, "uploads/navigation", photo.filename))
     } catch (err) {
       console.error("Error deleting file:", err)
     }
 
-    navigationPhotos.splice(photoIndex, 1)
-    await saveData()
+    await deleteNavigationPhoto(photo.filename)
 
     res.json({ success: true })
   } catch (error) {
@@ -2366,11 +2627,32 @@ app.delete("/api/navigation/photos/:id", async (req, res) => {
 
 // ========== API для Telegram Stars ==========
 
+// Helper function to convert withdrawal DB row to API format (snake_case to camelCase)
+function convertWithdrawalToApi(dbRow) {
+  if (!dbRow) return null
+  return {
+    id: dbRow.id,
+    userId: dbRow.user_id,
+    username: dbRow.username,
+    amount: dbRow.amount,
+    balance: dbRow.balance,
+    status: dbRow.status,
+    createdAt: dbRow.created_at,
+    processedAt: dbRow.processed_at,
+    rejectionReason: dbRow.rejection_reason
+  }
+}
+
 // Отримати баланс користувача
-app.get("/api/stars/balance/:userId", (req, res) => {
-  const { userId } = req.params
-  const balance = userStarsBalances[userId] || 0
-  res.json({ balance })
+app.get("/api/stars/balance/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params
+    const balance = await getUserStarsBalance(userId)
+    res.json({ balance })
+  } catch (error) {
+    console.error("Error fetching balance:", error)
+    res.status(500).json({ error: "Failed to fetch balance" })
+  }
 })
 
 // Додати або видалити реакцію на фото (toggle)
@@ -2383,20 +2665,20 @@ app.post("/api/photos/:photoId/react", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
-    if (!photoReactions[photoId]) {
-      photoReactions[photoId] = {}
-    }
+    // Get current reactions for this photo
+    const reactions = await getPhotoReactions(photoId)
+    const userReaction = reactions.find(r => r.user_id === String(userId))
 
-    // Toggle логіка: якщо користувач вже поставив цю реакцію, видаляємо її
-    if (photoReactions[photoId][userId] === reaction) {
-      delete photoReactions[photoId][userId]
+    // Toggle logic: if user already has this reaction, remove it
+    if (userReaction && userReaction.reaction === reaction) {
+      await deletePhotoReaction(photoId, userId)
       console.log(`[v0] ❌ Користувач ${userId} прибрав реакцію ${reaction} з фото ${photoId}`)
     } else {
-      photoReactions[photoId][userId] = reaction
+      // Add/update reaction (toggle on or change)
+      await insertPhotoReaction(photoId, userId, reaction)
       console.log(`[v0] ✅ Користувач ${userId} поставив реакцію ${reaction} на фото ${photoId}`)
     }
 
-    await saveData()
     res.json({ success: true })
   } catch (error) {
     console.error("Error toggling reaction:", error)
@@ -2405,18 +2687,31 @@ app.post("/api/photos/:photoId/react", async (req, res) => {
 })
 
 // Отримати реакції на фото
-app.get("/api/photos/:photoId/reactions", (req, res) => {
-  const { photoId } = req.params
-  const reactions = photoReactions[photoId] || {}
+app.get("/api/photos/:photoId/reactions", async (req, res) => {
+  try {
+    const { photoId } = req.params
+    const { userId } = req.query
 
-  const counts = { "❤️": 0 }
-  Object.values(reactions).forEach((reaction) => {
-    if (counts[reaction] !== undefined) {
-      counts[reaction]++
-    }
-  })
+    const reactions = await getPhotoReactions(photoId)
 
-  res.json({ reactions: counts, userReaction: reactions[req.query.userId] || null })
+    // Aggregate counts
+    const counts = { "❤️": 0 }
+    reactions.forEach((r) => {
+      if (counts[r.reaction] !== undefined) {
+        counts[r.reaction]++
+      }
+    })
+
+    // Find user's reaction
+    const userReaction = userId 
+      ? reactions.find(r => r.user_id === String(userId))?.reaction || null
+      : null
+
+    res.json({ reactions: counts, userReaction })
+  } catch (error) {
+    console.error("Error fetching reactions:", error)
+    res.status(500).json({ error: "Failed to fetch reactions" })
+  }
 })
 
 // Створити інвойс для розблокування фото
@@ -2425,13 +2720,14 @@ app.post("/api/photos/:photoId/createInvoice", async (req, res) => {
     const { photoId } = req.params
     const { userId } = req.body
 
-    const photo = photosData.find((p) => p.id === photoId)
+    const photo = await getPhotoById(photoId)
     if (!photo) {
       return res.status(404).json({ error: "Photo not found" })
     }
 
     // Перевірка, чи вже розблоковано
-    if (photoUnlocks[photoId] && photoUnlocks[photoId].includes(String(userId))) {
+    const alreadyUnlocked = await checkPhotoUnlocked(photoId, userId)
+    if (alreadyUnlocked) {
       return res.json({ alreadyUnlocked: true })
     }
 
@@ -2459,22 +2755,32 @@ app.post("/api/photos/:photoId/createInvoice", async (req, res) => {
 })
 
 // Перевірити, чи фото розблоковано
-app.get("/api/photos/:photoId/unlocked", (req, res) => {
-  const { photoId } = req.params
-  const { userId } = req.query
+app.get("/api/photos/:photoId/unlocked", async (req, res) => {
+  try {
+    const { photoId } = req.params
+    const { userId } = req.query
 
-  const unlocked = photoUnlocks[photoId] && photoUnlocks[photoId].includes(String(userId))
-  res.json({ unlocked })
+    const unlocked = await checkPhotoUnlocked(photoId, userId)
+    res.json({ unlocked })
+  } catch (error) {
+    console.error("[v0] ❌ Error checking photo unlock status:", error)
+    res.status(500).json({ error: "Failed to check unlock status" })
+  }
 })
 
 // Перевірити ліміт блюр-фото на тиждень
-app.get("/api/photos/blur-limit/:userId", (req, res) => {
-  const { userId } = req.params
-  const weekStart = getWeekStart()
-  const userWeekKey = `${userId}_${weekStart}`
-  
-  const limitReached = !!weeklyBlurPhotos[userWeekKey]
-  res.json({ limitReached })
+app.get("/api/photos/blur-limit/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params
+    const weekStart = getWeekStart()
+    
+    const blurPhoto = await getWeeklyBlurPhoto(userId, weekStart)
+    const limitReached = !!blurPhoto
+    res.json({ limitReached })
+  } catch (error) {
+    console.error("[v0] ❌ Error checking blur limit:", error)
+    res.status(500).json({ error: "Failed to check blur limit" })
+  }
 })
 
 // Запит на вивід зірок
@@ -2486,7 +2792,7 @@ app.post("/api/stars/withdraw", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" })
     }
 
-    const balance = userStarsBalances[userId] || 0
+    const balance = await getUserStarsBalance(userId)
 
     if (amount < 50) {
       return res.status(400).json({ error: "Мінімальна сума виводу - 50 зірок" })
@@ -2496,21 +2802,24 @@ app.post("/api/stars/withdraw", async (req, res) => {
       return res.status(400).json({ error: "Недостатньо зірок на балансі" })
     }
 
-    // Создаем запрос на вывод
+    // Deduct Stars from balance IMMEDIATELY to prevent double withdrawal
+    await decrementUserStarsBalance(userId, amount)
+
+    // Create withdrawal request
     const requestId = `WR-${Date.now()}`
-    withdrawalRequests[requestId] = {
+    const withdrawalRequest = {
       id: requestId,
-      userId: String(userId),
+      user_id: String(userId),
       username: username || 'unknown',
       amount: amount,
       balance: balance,
       status: 'pending',
-      createdAt: new Date().toISOString(),
-      processedAt: null,
-      rejectionReason: null
+      created_at: new Date().toISOString(),
+      processed_at: null,
+      rejection_reason: null
     }
 
-    await saveData()
+    await insertWithdrawalRequest(withdrawalRequest)
 
     // Відправляємо повідомлення адміну для ручної обробки
     if (bot) {
@@ -2522,7 +2831,8 @@ app.post("/api/stars/withdraw", async (req, res) => {
           `Користувач: @${username || userId}\n` +
           `User ID: ${userId}\n` +
           `Сума: ${amount} ⭐\n` +
-          `Поточний баланс: ${balance} ⭐\n\n` +
+          `Баланс до виводу: ${balance} ⭐\n` +
+          `Новий баланс: ${balance - amount} ⭐\n\n` +
           `Перейдіть в адмін панель для обробки запиту`
         )
       } catch (error) {
@@ -2538,17 +2848,22 @@ app.post("/api/stars/withdraw", async (req, res) => {
 })
 
 // Получить все запросы на вывод (админ)
-app.get("/api/admin/withdrawal-requests", (req, res) => {
-  const { token } = req.query
-  if (token !== "admin-authenticated") {
-    return res.status(401).json({ error: "Не авторизовано" })
+app.get("/api/admin/withdrawal-requests", async (req, res) => {
+  try {
+    const { token } = req.query
+    if (token !== "admin-authenticated") {
+      return res.status(401).json({ error: "Не авторизовано" })
+    }
+
+    const dbRequests = await getAllWithdrawalRequests()
+    // Convert from snake_case to camelCase
+    const requests = dbRequests.map(convertWithdrawalToApi)
+
+    res.json(requests)
+  } catch (error) {
+    console.error("Error fetching withdrawal requests:", error)
+    res.status(500).json({ error: "Failed to fetch withdrawal requests" })
   }
-
-  const requests = Object.values(withdrawalRequests).sort((a, b) => {
-    return new Date(b.createdAt) - new Date(a.createdAt)
-  })
-
-  res.json(requests)
 })
 
 // Одобрить запрос на вывод (админ)
@@ -2560,33 +2875,31 @@ app.post("/api/admin/withdrawal-requests/:id/approve", async (req, res) => {
 
   try {
     const { id } = req.params
-    const request = withdrawalRequests[id]
+    const dbRequest = await getWithdrawalRequestById(id)
 
-    if (!request) {
+    if (!dbRequest) {
       return res.status(404).json({ error: "Запит не знайдено" })
     }
 
-    if (request.status !== 'pending') {
+    if (dbRequest.status !== 'pending') {
       return res.status(400).json({ error: "Запит вже оброблено" })
     }
 
-    // Снимаем звезды с баланса
-    userStarsBalances[request.userId] = (userStarsBalances[request.userId] || 0) - request.amount
+    // Update status to approved (Stars already deducted when request was created)
+    const processedAt = new Date().toISOString()
+    await updateWithdrawalRequestStatus(id, 'approved', processedAt, null)
 
-    // Обновляем статус запроса
-    request.status = 'approved'
-    request.processedAt = new Date().toISOString()
-
-    await saveData()
+    // Get current balance for notification
+    const currentBalance = await getUserStarsBalance(dbRequest.user_id)
 
     // Уведомляем пользователя
     if (bot) {
       try {
         await bot.sendMessage(
-          request.userId,
+          dbRequest.user_id,
           `✅ Ваш запит на вивід схвалено!\n\n` +
-          `Сума: ${request.amount} ⭐\n` +
-          `Новий баланс: ${userStarsBalances[request.userId]} ⭐\n\n` +
+          `Сума: ${dbRequest.amount} ⭐\n` +
+          `Поточний баланс: ${currentBalance} ⭐\n\n` +
           `Зірки будуть переведені найближчим часом.`
         )
       } catch (error) {
@@ -2594,7 +2907,9 @@ app.post("/api/admin/withdrawal-requests/:id/approve", async (req, res) => {
       }
     }
 
-    res.json({ success: true, request })
+    // Convert to API format for response
+    const updatedRequest = await getWithdrawalRequestById(id)
+    res.json({ success: true, request: convertWithdrawalToApi(updatedRequest) })
   } catch (error) {
     console.error("Error approving withdrawal:", error)
     res.status(500).json({ error: "Помилка обробки запиту" })
@@ -2611,39 +2926,45 @@ app.post("/api/admin/withdrawal-requests/:id/reject", async (req, res) => {
   try {
     const { id } = req.params
     const { reason } = req.body
-    const request = withdrawalRequests[id]
+    const dbRequest = await getWithdrawalRequestById(id)
 
-    if (!request) {
+    if (!dbRequest) {
       return res.status(404).json({ error: "Запит не знайдено" })
     }
 
-    if (request.status !== 'pending') {
+    if (dbRequest.status !== 'pending') {
       return res.status(400).json({ error: "Запит вже оброблено" })
     }
 
-    // Обновляем статус запроса
-    request.status = 'rejected'
-    request.processedAt = new Date().toISOString()
-    request.rejectionReason = reason || 'Причина не вказана'
+    // Refund Stars back to user balance (they were deducted when request was created)
+    await incrementUserStarsBalance(dbRequest.user_id, dbRequest.amount)
 
-    await saveData()
+    // Update status to rejected
+    const processedAt = new Date().toISOString()
+    const rejectionReason = reason || 'Причина не вказана'
+    await updateWithdrawalRequestStatus(id, 'rejected', processedAt, rejectionReason)
 
-    // Звёзды остаются на балансе, уведомляем пользователя
+    // Get updated balance for notification
+    const currentBalance = await getUserStarsBalance(dbRequest.user_id)
+
+    // Уведомляем пользователя
     if (bot) {
       try {
         await bot.sendMessage(
-          request.userId,
+          dbRequest.user_id,
           `❌ Ваш запит на вивід відхилено\n\n` +
-          `Сума: ${request.amount} ⭐\n` +
-          `Причина: ${request.rejectionReason}\n\n` +
-          `Зірки залишилися на вашому балансі: ${userStarsBalances[request.userId] || 0} ⭐`
+          `Сума: ${dbRequest.amount} ⭐\n` +
+          `Причина: ${rejectionReason}\n\n` +
+          `Зірки повернуто на ваш баланс: ${currentBalance} ⭐`
         )
       } catch (error) {
         console.error("[v0] ❌ Помилка відправки повідомлення користувачу:", error)
       }
     }
 
-    res.json({ success: true, request })
+    // Convert to API format for response
+    const updatedRequest = await getWithdrawalRequestById(id)
+    res.json({ success: true, request: convertWithdrawalToApi(updatedRequest) })
   } catch (error) {
     console.error("Error rejecting withdrawal:", error)
     res.status(500).json({ error: "Помилка обробки запиту" })
