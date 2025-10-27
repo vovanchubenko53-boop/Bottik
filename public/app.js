@@ -1675,6 +1675,10 @@ function previewPhoto() {
 let currentAlbumPhotos = []
 let currentAlbumIndex = 0
 
+// Глобальное хранилище для альбомов и фото галереи (для разблокировки)
+window.galleryAlbums = {}
+window.gallerySinglePhotos = {}
+
 function openAlbumModal(photos) {
   currentAlbumPhotos = photos
   currentAlbumIndex = 0
@@ -1981,6 +1985,12 @@ function displayPhotos(photos) {
     albums[albumId].sort((a, b) => (a.albumIndex || 0) - (b.albumIndex || 0))
   })
 
+  // Зберігаємо альбоми в глобальному сховищі для розблокування
+  window.galleryAlbums = {...albums}
+  
+  // Очищуємо одинарні фото
+  window.gallerySinglePhotos = {}
+
   let html = ""
 
   // Відображаємо альбоми
@@ -2002,7 +2012,7 @@ function displayPhotos(photos) {
           </div>
           ${
             !isOwnAlbum && albumHasBlur
-              ? `<div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${firstPhoto.id}', true)">
+              ? `<div class="photo-unlock-overlay" data-album-id="${albumId}" onclick="event.stopPropagation(); window.unlockAlbumById('${albumId}')">
                    <div class=\"font-bold text-base\">Відкрити за 1 ⭐</div>
                  </div>`
               : `<div class=\"absolute inset-0\" onclick='openAlbumModal(${JSON.stringify(albumPhotos).replace(/'/g, "&apos;")})'></div>`
@@ -2025,6 +2035,9 @@ function displayPhotos(photos) {
     const isOwnPhoto = String(photo.userId) === String(telegramUser.id)
     console.log(`[v0] GALLERY render photo id=${photo.id} hasBlur=${photo.hasBlur} isOwn=${isOwnPhoto}`)
 
+    // Зберігаємо фото в глобальному сховищі
+    window.gallerySinglePhotos[photo.id] = photo
+
     const earnedStarsCount = Math.floor((photo.unlockCount || 0) / 50)
     const starsDisplay = earnedStarsCount > 0 ? "⭐".repeat(Math.min(earnedStarsCount, 5)) : ""
 
@@ -2037,7 +2050,7 @@ function displayPhotos(photos) {
             isOwnPhoto || !photo.hasBlur
               ? ""
               : `
-          <div class="photo-unlock-overlay" onclick="event.stopPropagation(); unlockPhoto('${photo.id}', true)">
+          <div class="photo-unlock-overlay" data-photo-id="${photo.id}" onclick="event.stopPropagation(); window.unlockPhotoById('${photo.id}')">
             <div class="font-bold text-base">Відкрити за 1 ⭐</div>
           </div>
           `
@@ -2570,7 +2583,7 @@ async function checkPhotoUnlocked(photoId) {
 }
 
 // Розблокувати фото через Telegram Stars
-async function unlockPhoto(photoId, openInApp = false) {
+async function unlockPhoto(photoId, openInApp = false, onUnlockCallback = null) {
   try {
     const response = await fetch(`${API_URL}/api/photos/${photoId}/createInvoice`, {
       method: "POST",
@@ -2587,6 +2600,10 @@ async function unlockPhoto(photoId, openInApp = false) {
         img.classList.remove("photo-blurred")
         const overlay = img.nextElementSibling
         if (overlay) overlay.remove()
+      }
+      // Викликаємо callback якщо фото вже було розблоковано
+      if (onUnlockCallback) {
+        onUnlockCallback(photoId)
       }
     } else if (data.success || data.invoiceLink) {
       const link = data.invoiceLink
@@ -2606,11 +2623,17 @@ async function unlockPhoto(photoId, openInApp = false) {
         const poll = async () => {
           const unlocked = await checkPhotoUnlocked(photoId)
           if (unlocked) {
+            console.log(`[v0] UNLOCK SUCCESS - photo id=${photoId}`)
             const img = document.getElementById(`photo-${photoId}`)
             if (img) {
               img.classList.remove("photo-blurred")
               const overlay = img.nextElementSibling
               if (overlay) overlay.remove()
+            }
+            // Викликаємо callback після успішного розблокування
+            if (onUnlockCallback) {
+              console.log(`[v0] Calling unlock callback for photo id=${photoId}`)
+              onUnlockCallback(photoId)
             }
             return
           }
@@ -2629,6 +2652,45 @@ async function unlockPhoto(photoId, openInApp = false) {
     console.error("Error creating invoice:", error)
     alert("Помилка створення інвойсу")
   }
+}
+
+// Розблокувати альбом за ID і відкрити після оплати
+window.unlockAlbumById = function(albumId) {
+  const albumPhotos = window.galleryAlbums[albumId]
+  if (!albumPhotos || albumPhotos.length === 0) {
+    console.error(`[v0] Album ${albumId} not found in gallery`)
+    return
+  }
+  
+  const firstPhoto = albumPhotos[0]
+  console.log(`[v0] Unlocking album ${albumId}, first photo id=${firstPhoto.id}`)
+  
+  unlockPhoto(String(firstPhoto.id), true, (photoId) => {
+    console.log(`[v0] Album unlocked! Opening modal for album ${albumId}`)
+    // Оновлюємо статус hasBlur для всіх фото в альбомі
+    albumPhotos.forEach(p => p.hasBlur = false)
+    // Відкриваємо модальне вікно альбому
+    openAlbumModal(albumPhotos)
+  })
+}
+
+// Розблокувати одинарне фото за ID і відкрити після оплати
+window.unlockPhotoById = function(photoId) {
+  const photo = window.gallerySinglePhotos[photoId]
+  if (!photo) {
+    console.error(`[v0] Photo ${photoId} not found in gallery`)
+    return
+  }
+  
+  console.log(`[v0] Unlocking single photo id=${photoId}`)
+  
+  unlockPhoto(String(photoId), true, (unlockedPhotoId) => {
+    console.log(`[v0] Photo unlocked! Opening modal for photo ${unlockedPhotoId}`)
+    // Оновлюємо статус hasBlur
+    photo.hasBlur = false
+    // Відкриваємо модальне вікно
+    openAlbumModal([photo])
+  })
 }
 
 // Оновити баланс зірок в шапці галереї
