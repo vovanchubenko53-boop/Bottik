@@ -3,7 +3,27 @@
 ### Overview
 U-hub is a comprehensive Telegram Mini App designed for students of Taras Shevchenko National University of Kyiv. It offers functionalities for viewing news, managing class schedules, uploading videos, organizing student events, and a photo gallery with a "Starfall Month" contest. The project aims to enhance student life by centralizing essential university information and fostering community engagement.
 
-### Recent Changes (October 24, 2025)
+### Recent Changes (October 27, 2025)
+- **Complete SQLite Migration**: Successfully migrated entire application from JSON file storage to SQLite database
+  - Removed all legacy JSON functions (initializeData, saveData, loadBotUsers, saveEventParticipants, etc.)
+  - Replaced 106 uses of global JSON variables with async db.js functions
+  - Database: uhub.db with 19 tables (bot_users, events, videos, photos, stars_balances, withdrawal_requests, etc.)
+  - Retained only newsCache (for caching), bot (Telegram instance), and environment constants
+- **Critical Stars Payment Bug Fixed**: Eliminated duplicate successful_payment handler that was causing double Stars credits
+  - Now uses single bot.on("successful_payment") handler with correct logic
+  - 1 star credited per photo unlock + 50 star bonus every 50 unlocks
+  - Photo owners receive notifications when their photos are unlocked
+- **Complete Admin Panel Redesign**: Modern, professional interface with enhanced functionality
+  - Dark sidebar navigation with light content area
+  - Dashboard section with real-time statistics (users, events, videos, photos)
+  - Users section with search and filter functionality
+  - Stars & Balances section with withdrawal request management
+  - Enhanced moderation with large previews and quick actions
+  - Responsive design with mobile burger menu
+  - Toast notifications, loading states, and confirmation modals
+  - All existing functions preserved and enhanced
+
+### Previous Updates (October 24, 2025)
 - **Schedule UX Enhancement**: Implemented horizontal scrolling for language groups - each time slot now displays 5 groups in an individual horizontal scroller with indicator dots
 - **Blurred Photo Redesign**: Removed lock icon, added grainy animated blur effect (Telegram-style), changed text to "Відкрити за 1 ⭐", updated balance button color to #c084fc
 - **Owner Notifications**: Photo owners now receive Telegram notifications when someone unlocks their blurred photos for payment
@@ -47,9 +67,14 @@ The backend is built with Node.js 20 and Express.js. Key functionalities include
 #### System Design Choices
 - **Frontend**: Single-page application approach using `index.html` for all main views and `app.js` for logic.
 - **Backend**: RESTful API design using Express.js.
-- **Data Storage**: JSON files (`events.json`, `videos.json`, `photos.json`, `botUsers.json`, `adminSettings.json`, `starsBalances.json`, `photoReactions.json`, `photoUnlocks.json`, `withdrawalRequests.json`) are used for data persistence.
-- **Modularity**: Parsers are separated into dedicated modules (`newsParser.js`, `scheduleParser.js`).
-- **Caching**: News content is cached and updated periodically to reduce load times.
+- **Data Storage**: SQLite database (`uhub.db`) with 19 tables for all data persistence, including:
+  - User management (bot_users, user_stars_balances, user_restrictions, user_schedules)
+  - Events (events, event_participants, event_messages, event_user_restrictions)
+  - Media (videos, photos, schedules, navigation_photos)
+  - Photo features (photo_reactions, photo_unlocks, photo_earnings, daily_photo_uploads, weekly_blur_photos)
+  - System (admin_settings, withdrawal_requests)
+- **Modularity**: Parsers are separated into dedicated modules (`newsParser.js`, `scheduleParser.js`), database layer in `db.js`.
+- **Caching**: News content is cached in-memory and updated periodically to reduce load times.
 
 ### External Dependencies
 
