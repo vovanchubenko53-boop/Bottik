@@ -277,7 +277,12 @@ if (BOT_TOKEN) {
 
           if (unlockCount % 50 === 0) {
             const starsToTransfer = 50
-            const currentBalance = await getUserStarsBalance(authorId)
+            
+            // Нараховуємо бонус 50 зірок
+            await incrementUserStarsBalance(authorId, starsToTransfer)
+            
+            // Отримуємо оновлений баланс
+            const updatedBalance = await getUserStarsBalance(authorId)
 
             // Відправляємо повідомлення автору про нагороду
             try {
@@ -285,7 +290,7 @@ if (BOT_TOKEN) {
                 authorId,
                 `🎉 Вітаємо! Ваше фото набрало ${unlockCount} відкриттів!\n\n` +
                   `⭐ Вам нараховано ${starsToTransfer} зірок Telegram!\n` +
-                  `💰 Ваш поточний баланс: ${currentBalance || 0} зірок\n\n` +
+                  `💰 Ваш поточний баланс: ${updatedBalance || 0} зірок\n\n` +
                   `Продовжуйте публікувати якісні фото! 📸`,
               )
               console.log(`[v0] 🎁 Відправлено повідомлення автору ${authorId} про ${starsToTransfer} зірок`)
